@@ -8,13 +8,13 @@ import io
 
 @st.cache_data
 def load_students():
-    df = pd.read_excel("StudentMaster.xlsx", engine="openpyxl")
+    df = pd.read_excel("StudentMaster_with_Password.xlsx", engine="openpyxl")
     df.columns = df.columns.str.strip()
     return df
 
 @st.cache_data
 def load_teachers():
-    df = pd.read_excel("TeacherMaster.xlsx", engine="openpyxl")
+    df = pd.read_excel("TeacherMaster_with_Password.xlsx", engine="openpyxl")
     df.columns = df.columns.str.strip()
     return df
 
@@ -52,6 +52,7 @@ if "user_role" not in st.session_state:
 if "user_data" not in st.session_state:
     st.session_state.user_data = {}
 
+# --- Logout ---
 if st.session_state.logged_in:
     st.sidebar.button("Logout", on_click=lambda: st.session_state.update({
         "logged_in": False,
@@ -61,13 +62,21 @@ if st.session_state.logged_in:
     if not st.session_state.logged_in:
         st.rerun()
 
+# --- Login ---
 if not st.session_state.logged_in:
-    st.subheader("Login with Gmail")
+    st.subheader("Login with Gmail & Password")
     gmail_input = st.text_input("Enter your Gmail ID")
+    password_input = st.text_input("Enter your Password", type="password")
 
-    if gmail_input:
-        student_row = df_students[df_students["Gmail ID"].str.lower() == gmail_input.lower()]
-        teacher_row = df_teachers[df_teachers["Gmail ID"].str.lower() == gmail_input.lower()]
+    if st.button("Login"):
+        student_row = df_students[
+            (df_students["Gmail ID"].str.lower() == gmail_input.lower()) &
+            (df_students["Password"] == password_input)
+        ]
+        teacher_row = df_teachers[
+            (df_teachers["Gmail ID"].str.lower() == gmail_input.lower()) &
+            (df_teachers["Password"] == password_input)
+        ]
 
         if not student_row.empty:
             student_name = student_row.iloc[0]["Student Name"]
@@ -81,7 +90,6 @@ if not st.session_state.logged_in:
             }
             st.success(f"Login successful! Welcome, {student_name}")
             st.rerun()
-
         elif not teacher_row.empty:
             teacher_name = teacher_row.iloc[0]["Teacher Name"]
             st.session_state.logged_in = True
@@ -93,9 +101,9 @@ if not st.session_state.logged_in:
             st.success(f"Login successful! Welcome, {teacher_name}")
             st.rerun()
         else:
-            st.error("Gmail not found in records.")
+            st.error("Invalid Gmail ID or Password.")
 
-# Student Panel
+# --- Student Panel ---
 if st.session_state.logged_in and st.session_state.user_role == "student":
     student_name = st.session_state.user_data["name"]
     student_class = st.session_state.user_data["class"]
@@ -106,7 +114,6 @@ if st.session_state.logged_in and st.session_state.user_role == "student":
 
     st.subheader("📥 Download Homework")
     homework_path = f"HOMEWORK/{student_class}/{date_str}.docx"
-
     if os.path.exists(homework_path):
         replacements = {
             "[StudentName]": f"Student Name: {student_name}",
@@ -129,7 +136,7 @@ if st.session_state.logged_in and st.session_state.user_role == "student":
             f.write(uploaded_file.read())
         st.success(f"Uploaded successfully to {save_to}")
 
-# Teacher Panel
+# --- Teacher Panel ---
 if st.session_state.logged_in and st.session_state.user_role == "teacher":
     st.success(f"Welcome Teacher: {st.session_state.user_data['name']}")
     st.subheader("📤 Upload Homework for Class")

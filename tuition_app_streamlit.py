@@ -1,118 +1,133 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
-import shutil
-from pathlib import Path
+from docx import Document
+from docx.shared import Pt
+from datetime import datetime
 import os
+import shutil
 
-st.set_page_config("EXCELLENT PUBLIC SCHOOL - Tuition App", layout="centered")
+# Constants
+STUDENT_MASTER = "StudentMaster.xlsx"
+TEACHER_MASTER = "TeacherMaster.xlsx"
+HOMEWORK_DIR = "uploaded_homeworks"
+os.makedirs(HOMEWORK_DIR, exist_ok=True)
 
+# Utility functions
 @st.cache_data
 def load_students():
-    return pd.read_excel("StudentMaster.xlsx", engine="openpyxl")
+    return pd.read_excel(STUDENT_MASTER)
 
 @st.cache_data
 def load_teachers():
-    return pd.read_excel("TeacherMaster.xlsx", engine="openpyxl")
+    return pd.read_excel(TEACHER_MASTER)
 
-def save_teacher_homework(file, selected_class, selected_date):
-    date_str = selected_date.strftime("%Y-%m-%d")
-    path = Path(f"HOMEWORK/{selected_class}/{date_str}.docx")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "wb") as f:
-        f.write(file.read())
-    return path
+def replace_placeholders_in_docx(path_in, path_out, student_name, student_class, date_str):
+    doc = Document(path_in)
+    for p in doc.paragraphs:
+        for run in p.runs:
+            if "[StudentName]" in run.text:
+                run.text = run.text.replace("[StudentName]", f"Student Name: {student_name}")
+            if "[Class]" in run.text:
+                run.text = run.text.replace("[Class]", f"STD - {student_class}")
+            if "[HomeworkDate]" in run.text:
+                run.text = run.text.replace("[HomeworkDate]", f"Date: {date_str}")
+    doc.save(path_out)
 
-def save_uploaded_notebook(uploaded_file, student_name, date_str):
-    save_path = Path(f"NOTEBOOKS/{student_name}/{date_str}")
-    save_path.mkdir(parents=True, exist_ok=True)
-    file_path = save_path / uploaded_file.name
-    with open(file_path, "wb") as f:
-        f.write(uploaded_file.read())
-    return file_path
+def insert_heading_and_placeholders(path_in, path_out):
+    doc = Document(path_in)
+    new_doc = Document()
 
+    h1 = new_doc.add_paragraph("EXCELLENT PUBLIC SCHOOL")
+    h1.alignment = 1
+    h1.runs[0].bold = True
+    h1.runs[0].font.size = Pt(16)
+
+    h2 = new_doc.add_paragraph("Barainiya, Bargawan Distt. Singrauli (MP)")
+    h2.alignment = 1
+
+    h3 = new_doc.add_paragraph("Advance Classes Daily Homework")
+    h3.alignment = 1
+    h3.runs[0].bold = True
+    h3.runs[0].italic = True
+
+    new_doc.add_paragraph("[StudentName]")
+    new_doc.add_paragraph("[Class]")
+    new_doc.add_paragraph("[HomeworkDate]")
+
+    for para in doc.paragraphs:
+        new_doc.add_paragraph(para.text)
+
+    new_doc.save(path_out)
+
+# Login Page
 st.title("EXCELLENT PUBLIC SCHOOL - Tuition App")
 role = st.radio("Login as", ["Student", "Teacher"])
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
+if "user_name" not in st.session_state:
     st.session_state.user_name = ""
-    st.session_state.user_class = ""
-    st.session_state.role = ""
+if "user_role" not in st.session_state:
+    st.session_state.user_role = ""
 
-if not st.session_state.logged_in:
-    with st.form("login_form"):
-        st.subheader(f"{role} Login")
-        email = st.text_input("Gmail ID")
-        password = st.text_input("Password", type="password")
-        login_btn = st.form_submit_button("Login")
-
-    if login_btn:
-        df = load_students() if role == "Student" else load_teachers()
-        if email in df["Gmail ID"].values:
-            row = df[df["Gmail ID"] == email].iloc[0]
-            if str(row["Password"]).strip() == password.strip():
-                st.session_state.logged_in = True
-                st.session_state.user_name = row["Student Name"] if role == "Student" else row["Teacher Name"]
-                st.session_state.role = role
-                if role == "Student":
-                    st.session_state.user_class = str(row["Class"])
-                st.rerun()
-            else:
-                st.error("Incorrect password")
+if role == "Student":
+    st.subheader("Student Login")
+    email = st.text_input("Gmail ID")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        df_students = load_students()
+        user = df_students[df_students["Gmail ID"] == email]
+        if not user.empty and user.iloc[0]["Password"] == password:
+            st.session_state.user_name = user.iloc[0]["Student Name"]
+            st.session_state.user_role = "student"
+            st.success("Login successful")
         else:
-            st.error("Gmail ID not found.")
-else:
-    st.success(f"Welcome, {st.session_state.user_name} ({st.session_state.role})")
+            st.error("Invalid credentials")
 
+elif role == "Teacher":
+    st.subheader("Teacher Login")
+    email = st.text_input("Gmail ID")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        df_teachers = load_teachers()
+        user = df_teachers[df_teachers["Gmail ID"] == email]
+        if not user.empty and user.iloc[0]["Password"] == password:
+            st.session_state.user_name = user.iloc[0]["Teacher Name"]
+            st.session_state.user_role = "teacher"
+            st.success("Login successful")
+        else:
+            st.error("Invalid credentials")
+
+# Main App
+if st.session_state.user_name:
+    st.markdown(f"### Welcome, {st.session_state.user_name}")
     if st.button("Logout"):
-        st.session_state.clear()
-        st.rerun()
+        st.session_state.user_name = ""
+        st.session_state.user_role = ""
+        st.experimental_rerun()
 
-    if st.session_state.role == "Teacher":
-        st.subheader("Upload Daily Homework")
-        selected_class = st.selectbox("Select Class", ["6th", "7th", "8th", "9th", "10th", "11th", "12th"])
-        selected_date = st.date_input("Select Homework Date", value=date.today())
-        uploaded_file = st.file_uploader("Upload Word File (.docx)", type=["docx"])
-        if uploaded_file and st.button("Upload"):
-            saved_path = save_teacher_homework(uploaded_file, selected_class, selected_date)
-            st.success(f"Homework saved to: {saved_path}")
+    if st.session_state.user_role == "teacher":
+        st.subheader("Upload Homework")
+        cls = st.selectbox("Select Class", [f"{i}th" for i in range(6, 13)])
+        hw_date = st.date_input("Homework Date", datetime.today())
+        uploaded = st.file_uploader("Upload Word File", type=["docx"])
+        if uploaded and st.button("Upload Homework"):
+            file_path = os.path.join(HOMEWORK_DIR, f"{cls}_{hw_date}.docx")
+            temp_path = os.path.join(HOMEWORK_DIR, f"temp_{cls}_{hw_date}.docx")
+            with open(temp_path, "wb") as f:
+                f.write(uploaded.read())
+            insert_heading_and_placeholders(temp_path, file_path)
+            st.success(f"Homework uploaded for {cls} on {hw_date}")
 
-    elif st.session_state.role == "Student":
-        st.subheader("Download & Upload Homework")
-        student_name = st.session_state.user_name
-        student_class = st.session_state.user_class
-        selected_date = st.date_input("Select Homework Date", value=date.today())
-        date_str = selected_date.strftime("%Y-%m-%d")
-
-        st.markdown("### Download Homework")
-        homework_path = Path(f"HOMEWORK/{student_class}/{date_str}.docx")
-        if homework_path.exists():
-            renamed_name = f"{student_name}_{date_str}.docx"
-            renamed_path = Path(f"temp/{renamed_name}")
-            renamed_path.parent.mkdir(exist_ok=True)
-            shutil.copy(homework_path, renamed_path)
-            with open(renamed_path, "rb") as f:
-                st.download_button(
-                    label=f"Download {renamed_name}",
-                    data=f,
-                    file_name=renamed_name,
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
+    elif st.session_state.user_role == "student":
+        df_students = load_students()
+        student_row = df_students[df_students["Student Name"] == st.session_state.user_name].iloc[0]
+        student_class = student_row["Class"]
+        student_email = student_row["Gmail ID"]
+        date_selected = st.date_input("Select Date")
+        file_to_get = os.path.join(HOMEWORK_DIR, f"{student_class}_{date_selected}.docx")
+        download_file = os.path.join(HOMEWORK_DIR, f"{st.session_state.user_name}_{date_selected}.docx")
+        if os.path.exists(file_to_get):
+            replace_placeholders_in_docx(file_to_get, download_file, st.session_state.user_name, student_class, str(date_selected))
+            with open(download_file, "rb") as f:
+                st.download_button(f"Download Homework for {date_selected}", f, file_name=os.path.basename(download_file))
         else:
-            st.warning("Homework not available for selected date.")
-
-        st.markdown("### Upload Completed Notebook")
-        uploaded_notebook = st.file_uploader("Upload your notebook (image/pdf/word)", type=["png", "jpg", "jpeg", "pdf", "docx"])
-        if uploaded_notebook:
-            path = save_uploaded_notebook(uploaded_notebook, student_name, date_str)
-            st.success(f"Notebook uploaded to: {path}")
-
-        st.markdown("### 📅 Homework History")
-        history_dir = Path(f"HOMEWORK/{student_class}")
-        if history_dir.exists():
-            all_files = sorted(history_dir.glob("*.docx"))
-            for f in all_files:
-                st.write(f.name)
-        else:
-            st.info("No homework uploaded yet.")
+            st.warning("Homework not yet uploaded for this date.")

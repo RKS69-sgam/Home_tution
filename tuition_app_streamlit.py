@@ -139,17 +139,19 @@ if st.session_state.logged_in and st.session_state.user_role == "teacher":
     st.success(f"Welcome Teacher: {st.session_state.user_data['name']}")
     st.subheader("📤 Upload Homework for Class")
 
-    # ✅ Updated Class Dropdown
+    # ✅ Class Dropdown: 6th to 12th
     selected_class = st.selectbox("Select Class", ["6th", "7th", "8th", "9th", "10th", "11th", "12th"])
 
     selected_date = st.date_input("Homework Date", value=date.today())
-    date_str = selected_date.strftime("%Y-%m-%d")
+    date_str = selected_date.strftime("%Y-%m-%d")  # ✅ Use this as filename and folder structure
 
     homework_file = st.file_uploader("Upload Homework Word File (.docx)", type=["docx"])
     if homework_file:
         homework_dir = Path(f"HOMEWORK/{selected_class}")
         homework_dir.mkdir(parents=True, exist_ok=True)
-        homework_path = homework_dir / f"{date_str}.docx"
+        homework_path = homework_dir / f"{date_str}.docx"  # ✅ File renamed to YYYY-MM-DD.docx
+
         with open(homework_path, "wb") as f:
             f.write(homework_file.read())
+
         st.success(f"Homework uploaded for {selected_class} on {date_str}")

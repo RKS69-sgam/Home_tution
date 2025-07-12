@@ -5,10 +5,8 @@ import shutil
 from pathlib import Path
 import os
 
-# ---------- Config ----------
 st.set_page_config("EXCELLENT PUBLIC SCHOOL - Tuition App", layout="centered")
 
-# ---------- Load Data ----------
 @st.cache_data
 def load_students():
     return pd.read_excel("StudentMaster.xlsx", engine="openpyxl")
@@ -17,7 +15,6 @@ def load_students():
 def load_teachers():
     return pd.read_excel("TeacherMaster.xlsx", engine="openpyxl")
 
-# ---------- Save Uploaded Homework ----------
 def save_teacher_homework(file, selected_class, selected_date):
     date_str = selected_date.strftime("%Y-%m-%d")
     path = Path(f"HOMEWORK/{selected_class}/{date_str}.docx")
@@ -26,7 +23,6 @@ def save_teacher_homework(file, selected_class, selected_date):
         f.write(file.read())
     return path
 
-# ---------- Save Uploaded Notebook ----------
 def save_uploaded_notebook(uploaded_file, student_name, date_str):
     save_path = Path(f"NOTEBOOKS/{student_name}/{date_str}")
     save_path.mkdir(parents=True, exist_ok=True)
@@ -35,7 +31,6 @@ def save_uploaded_notebook(uploaded_file, student_name, date_str):
         f.write(uploaded_file.read())
     return file_path
 
-# ---------- Login Section ----------
 st.title("EXCELLENT PUBLIC SCHOOL - Tuition App")
 role = st.radio("Login as", ["Student", "Teacher"])
 
@@ -53,15 +48,12 @@ if not st.session_state.logged_in:
         login_btn = st.form_submit_button("Login")
 
     if login_btn:
-        if role == "Student":
-            df = load_students()
-        else:
-            df = load_teachers()
+        df = load_students() if role == "Student" else load_teachers()
         if email in df["Gmail ID"].values:
             row = df[df["Gmail ID"] == email].iloc[0]
             if str(row["Password"]).strip() == password.strip():
                 st.session_state.logged_in = True
-                st.session_state.user_name = row["Name"]
+                st.session_state.user_name = row["Student Name"] if role == "Student" else row["Teacher Name"]
                 st.session_state.role = role
                 if role == "Student":
                     st.session_state.user_class = str(row["Class"])
@@ -77,7 +69,6 @@ else:
         st.session_state.clear()
         st.rerun()
 
-    # ---------- Teacher Panel ----------
     if st.session_state.role == "Teacher":
         st.subheader("Upload Daily Homework")
         selected_class = st.selectbox("Select Class", ["6th", "7th", "8th", "9th", "10th", "11th", "12th"])
@@ -87,7 +78,6 @@ else:
             saved_path = save_teacher_homework(uploaded_file, selected_class, selected_date)
             st.success(f"Homework saved to: {saved_path}")
 
-    # ---------- Student Panel ----------
     elif st.session_state.role == "Student":
         st.subheader("Download & Upload Homework")
         student_name = st.session_state.user_name

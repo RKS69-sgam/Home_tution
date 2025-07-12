@@ -23,10 +23,9 @@ if "student_data" not in st.session_state:
 
 # --- Logout Button ---
 if st.session_state.logged_in:
-    if st.button("Logout"):
-        st.session_state.logged_in = False
-        st.session_state.student_data = {}
-        st.experimental_rerun()
+    st.sidebar.button("Logout", on_click=lambda: st.session_state.update({"logged_in": False, "student_data": {}}))
+    if not st.session_state.logged_in:
+        st.rerun()
 
 # --- Login Section ---
 if not st.session_state.logged_in:
@@ -45,7 +44,7 @@ if not st.session_state.logged_in:
                 "gmail": gmail_input
             }
             st.success(f"Login successful! Welcome, {student_name}")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Gmail not found in StudentMaster.xlsx. Please check spelling or contact admin.")
 

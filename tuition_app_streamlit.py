@@ -7,7 +7,7 @@ from pathlib import Path
 # --- Load student data from Excel ---
 @st.cache_data
 def load_students():
-    df = pd.read_excel("StudentMaster.xlsx", sheet_name("Sheet1")
+    df = pd.read_excel("StudentMaster.xlsx", sheet_name("Sheet1"))
     df.columns = df.columns.str.strip()
     return df
 

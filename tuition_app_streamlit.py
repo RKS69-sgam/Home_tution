@@ -13,20 +13,33 @@ def load_students():
     df.columns = df.columns.str.strip()
     return df
 
-# --- Replace placeholders in Word file ---
+# --- Replace placeholders in Word file 
+
 def replace_placeholders_in_docx(template_path, replacements):
     doc = Document(template_path)
-    for p in doc.paragraphs:
+
+    # --- Replace in paragraphs ---
+    for paragraph in doc.paragraphs:
+        full_text = "".join(run.text for run in paragraph.runs)
         for key, value in replacements.items():
-            if key in p.text:
-                for run in p.runs:
-                    run.text = run.text.replace(key, value)
+            if key in full_text:
+                full_text = full_text.replace(key, value)
+        for i in range(len(paragraph.runs)):
+            paragraph.runs[i].text = ""
+        if paragraph.runs:
+            paragraph.runs[0].text = full_text
+
+    # --- Replace in table cells ---
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
+                full_text = cell.text
                 for key, value in replacements.items():
-                    if key in cell.text:
-                        cell.text = cell.text.replace(key, value)
+                    if key in full_text:
+                        full_text = full_text.replace(key, value)
+                        cell.text = full_text
+
+    # Return as BytesIO
     output_stream = io.BytesIO()
     doc.save(output_stream)
     output_stream.seek(0)

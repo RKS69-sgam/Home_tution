@@ -8,13 +8,13 @@ import io
 
 @st.cache_data
 def load_students():
-    df = pd.read_excel("StudentMaster_with_Password.xlsx", engine="openpyxl")
+    df = pd.read_excel("StudentMaster.xlsx", engine="openpyxl")
     df.columns = df.columns.str.strip()
     return df
 
 @st.cache_data
 def load_teachers():
-    df = pd.read_excel("TeacherMaster_with_Password.xlsx", engine="openpyxl")
+    df = pd.read_excel("TeacherMaster.xlsx", engine="openpyxl")
     df.columns = df.columns.str.strip()
     return df
 
@@ -52,7 +52,6 @@ if "user_role" not in st.session_state:
 if "user_data" not in st.session_state:
     st.session_state.user_data = {}
 
-# --- Logout ---
 if st.session_state.logged_in:
     st.sidebar.button("Logout", on_click=lambda: st.session_state.update({
         "logged_in": False,
@@ -62,7 +61,6 @@ if st.session_state.logged_in:
     if not st.session_state.logged_in:
         st.rerun()
 
-# --- Login ---
 if not st.session_state.logged_in:
     st.subheader("Login with Gmail & Password")
     gmail_input = st.text_input("Enter your Gmail ID")

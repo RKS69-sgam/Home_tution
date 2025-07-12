@@ -1,7 +1,7 @@
+
 import streamlit as st
 import pandas as pd
 from docx import Document
-from docx.shared import Pt
 from datetime import datetime
 import os
 import shutil
@@ -23,6 +23,7 @@ def load_teachers():
 
 def replace_placeholders_in_docx(path_in, path_out, student_name, student_class, date_str):
     doc = Document(path_in)
+
     for p in doc.paragraphs:
         for run in p.runs:
             if "[StudentName]" in run.text:
@@ -37,6 +38,7 @@ def insert_heading_and_placeholders(path_in, path_out):
     doc = Document(path_in)
     new_doc = Document()
 
+    # Heading
     h1 = new_doc.add_paragraph("EXCELLENT PUBLIC SCHOOL")
     h1.alignment = 1
     h1.runs[0].bold = True

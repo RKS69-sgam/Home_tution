@@ -7,7 +7,7 @@ from pathlib import Path
 # --- Load student data from Excel ---
 @st.cache_data
 def load_students():
-    df = pd.read_excel("StudentMaster.xlsx")
+    df = pd.read_excel("StudentMaster.xlsx", engine="openpyxl")
     df.columns = df.columns.str.strip()
     return df
 
@@ -15,16 +15,45 @@ df_students = load_students()
 
 st.title("Tuition Homework Portal")
 
+# --- Session Setup ---
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "student_data" not in st.session_state:
+    st.session_state.student_data = {}
+
+# --- Logout Button ---
+if st.session_state.logged_in:
+    if st.button("Logout"):
+        st.session_state.logged_in = False
+        st.session_state.student_data = {}
+        st.experimental_rerun()
+
 # --- Login Section ---
-st.subheader("Login with Gmail")
-gmail_input = st.text_input("Enter your Gmail ID")
+if not st.session_state.logged_in:
+    st.subheader("Login with Gmail")
+    gmail_input = st.text_input("Enter your Gmail ID")
 
-# Match Gmail
-student_row = df_students[df_students["Gmail ID"].str.lower() == gmail_input.lower()]
+    if gmail_input:
+        student_row = df_students[df_students["Gmail ID"].str.lower() == gmail_input.lower()]
+        if not student_row.empty:
+            student_name = student_row.iloc[0]["Student Name"]
+            student_class = str(student_row.iloc[0]["Class"])
+            st.session_state.logged_in = True
+            st.session_state.student_data = {
+                "name": student_name,
+                "class": student_class,
+                "gmail": gmail_input
+            }
+            st.success(f"Login successful! Welcome, {student_name}")
+            st.experimental_rerun()
+        else:
+            st.error("Gmail not found in StudentMaster.xlsx. Please check spelling or contact admin.")
 
-if not student_row.empty:
-    student_name = student_row.iloc[0]["Student Name"]
-    student_class = str(student_row.iloc[0]["Class"])
+# --- Main App After Login ---
+if st.session_state.logged_in:
+    student_name = st.session_state.student_data["name"]
+    student_class = st.session_state.student_data["class"]
+
     st.success(f"Welcome, {student_name} (Class {student_class})")
 
     # Date picker
@@ -55,6 +84,3 @@ if not student_row.empty:
             f.write(uploaded_file.read())
 
         st.success(f"Uploaded successfully to {save_to}")
-else:
-    if gmail_input:
-        st.error("Gmail not found in StudentMaster.xlsx. Please check spelling or contact admin.")

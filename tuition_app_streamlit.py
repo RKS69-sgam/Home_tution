@@ -139,7 +139,9 @@ if st.session_state.logged_in and st.session_state.user_role == "teacher":
     st.success(f"Welcome Teacher: {st.session_state.user_data['name']}")
     st.subheader("📤 Upload Homework for Class")
 
-    selected_class = st.selectbox("Select Class", ["6th", "7th", "8th", "9th"])
+    # ✅ Updated Class Dropdown
+    selected_class = st.selectbox("Select Class", ["6th", "7th", "8th", "9th", "10th", "11th", "12th"])
+
     selected_date = st.date_input("Homework Date", value=date.today())
     date_str = selected_date.strftime("%Y-%m-%d")
 

@@ -1,157 +1,158 @@
 import streamlit as st
 import pandas as pd
-import os
 from datetime import date
 from pathlib import Path
 from docx import Document
-import io
+from docx.shared import Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+import shutil
+import os
 
+# ---------- Load Excel ----------
 @st.cache_data
 def load_students():
-    df = pd.read_excel("StudentMaster.xlsx", engine="openpyxl")
-    df.columns = df.columns.str.strip()
-    return df
+    return pd.read_excel("StudentMaster.xlsx", engine="openpyxl")
 
 @st.cache_data
 def load_teachers():
-    df = pd.read_excel("TeacherMaster.xlsx", engine="openpyxl")
-    df.columns = df.columns.str.strip()
-    return df
+    return pd.read_excel("TeacherMaster.xlsx", engine="openpyxl")
 
-def replace_placeholders_in_docx(template_path, replacements):
-    doc = Document(template_path)
-    for p in doc.paragraphs:
-        full_text = "".join(run.text for run in p.runs)
-        for key, value in replacements.items():
-            full_text = full_text.replace(key, value)
-        for run in p.runs:
-            run.text = ""
-        if p.runs:
-            p.runs[0].text = full_text
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                full_text = cell.text
-                for key, value in replacements.items():
-                    full_text = full_text.replace(key, value)
-                cell.text = full_text
-    output_stream = io.BytesIO()
-    doc.save(output_stream)
-    output_stream.seek(0)
-    return output_stream
+# ---------- Add header + placeholders to Word ----------
+def insert_heading_and_placeholders(doc):
+    def add_centered(text, bold=False, italic=False, size=12):
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run(text)
+        run.bold = bold
+        run.italic = italic
+        run.font.size = Pt(size)
 
-df_students = load_students()
-df_teachers = load_teachers()
+    add_centered("EXCELLENT PUBLIC SCHOOL", bold=True, size=16)
+    add_centered("Barainiya, Bargawan Distt. Singrauli (MP)", size=12)
+    add_centered("Advance Classes Daily Homework", bold=True, italic=True, size=14)
 
-st.title("Tuition Homework Portal")
+    doc.add_paragraph("Student Name: [StudentName]").runs[0].font.size = Pt(12)
+    doc.add_paragraph("STD - [Class]").runs[0].font.size = Pt(12)
+    doc.add_paragraph("Date: [HomeworkDate]").runs[0].font.size = Pt(12)
+    return doc
 
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "user_role" not in st.session_state:
-    st.session_state.user_role = None
-if "user_data" not in st.session_state:
-    st.session_state.user_data = {}
+# ---------- Save uploaded teacher homework ----------
+def process_homework_upload(uploaded_file, selected_class, date_str):
+    filename = f"{date_str}.docx"
+    temp_path = f"temp_{filename}"
+    with open(temp_path, "wb") as f:
+        f.write(uploaded_file.read())
+    doc = Document(temp_path)
+    doc = insert_heading_and_placeholders(doc)
+    output_path = Path(f"HOMEWORK/{selected_class}")
+    output_path.mkdir(parents=True, exist_ok=True)
+    final_path = output_path / filename
+    doc.save(final_path)
+    os.remove(temp_path)
+    return final_path
 
-if st.session_state.logged_in:
-    st.sidebar.button("Logout", on_click=lambda: st.session_state.update({
-        "logged_in": False,
-        "user_data": {},
-        "user_role": None
-    }))
-    if not st.session_state.logged_in:
-        st.rerun()
+# ---------- Save uploaded notebook ----------
+def save_uploaded_notebook(uploaded_file, student_name, date_str):
+    save_path = Path(f"NOTEBOOKS/{student_name}/{date_str}")
+    save_path.mkdir(parents=True, exist_ok=True)
+    file_path = save_path / uploaded_file.name
+    with open(file_path, "wb") as f:
+        f.write(uploaded_file.read())
+    return file_path
 
-if not st.session_state.logged_in:
-    st.subheader("Login with Gmail & Password")
-    gmail_input = st.text_input("Enter your Gmail ID")
-    password_input = st.text_input("Enter your Password", type="password")
+# ---------- App Layout ----------
+st.set_page_config("Tuition App", layout="centered")
+st.title("EXCELLENT PUBLIC SCHOOL - Tuition App")
 
-    if st.button("Login"):
-        student_row = df_students[
-            (df_students["Gmail ID"].str.lower() == gmail_input.lower()) &
-            (df_students["Password"] == password_input)
-        ]
-        teacher_row = df_teachers[
-            (df_teachers["Gmail ID"].str.lower() == gmail_input.lower()) &
-            (df_teachers["Password"] == password_input)
-        ]
+role = st.radio("Login as", ["Student", "Teacher"])
 
-        if not student_row.empty:
-            student_name = student_row.iloc[0]["Student Name"]
-            student_class = str(student_row.iloc[0]["Class"])
-            st.session_state.logged_in = True
-            st.session_state.user_role = "student"
-            st.session_state.user_data = {
-                "name": student_name,
-                "class": student_class,
-                "gmail": gmail_input
-            }
-            st.success(f"Login successful! Welcome, {student_name}")
-            st.rerun()
-        elif not teacher_row.empty:
-            teacher_name = teacher_row.iloc[0]["Teacher Name"]
-            st.session_state.logged_in = True
-            st.session_state.user_role = "teacher"
-            st.session_state.user_data = {
-                "name": teacher_name,
-                "gmail": gmail_input
-            }
-            st.success(f"Login successful! Welcome, {teacher_name}")
-            st.rerun()
+if role == "Student":
+    df_students = load_students()
+    with st.form("student_login"):
+        st.subheader("Student Login")
+        email = st.text_input("Gmail ID")
+        password = st.text_input("Password", type="password")
+        login_btn = st.form_submit_button("Login")
+
+    if login_btn:
+        if email in df_students["Gmail"].values:
+            row = df_students[df_students["Gmail"] == email].iloc[0]
+            if str(row["Password"]).strip() == password.strip():
+                st.session_state["logged_in"] = True
+                st.session_state["user_role"] = "student"
+                st.session_state["student_name"] = row["Name"]
+                st.session_state["student_class"] = str(row["Class"])
+                st.success(f"Welcome, {row['Name']} (Class {row['Class']})")
+            else:
+                st.error("Incorrect password")
         else:
-            st.error("Invalid Gmail ID or Password.")
+            st.error("Email not found")
 
-# --- Student Panel ---
-if st.session_state.logged_in and st.session_state.user_role == "student":
-    student_name = st.session_state.user_data["name"]
-    student_class = st.session_state.user_data["class"]
-    st.success(f"Welcome, {student_name} (Class {student_class})")
+    if st.session_state.get("logged_in") and st.session_state.get("user_role") == "student":
+        st.subheader("Student Homework Panel")
 
-    selected_date = st.date_input("Select Date", value=date.today())
-    date_str = selected_date.strftime("%Y-%m-%d")
+        student_name = st.session_state["student_name"]
+        student_class = st.session_state["student_class"]
 
-    st.subheader("📥 Download Homework")
-    homework_path = f"HOMEWORK/{student_class}/{date_str}.docx"
-    if os.path.exists(homework_path):
-        replacements = {
-            "[StudentName]": f"Student Name: {student_name}",
-            "[HomeworkDate]": f"Date: {selected_date.strftime('%d-%m-%Y')}",
-            "[Class]": f"STD - {student_class}"
-        }
-        modified_doc = replace_placeholders_in_docx(homework_path, replacements)
-        download_name = f"{student_name}-{date_str}-Homework.docx"
-        st.download_button("Download Homework", modified_doc, file_name=download_name)
-    else:
-        st.warning("Homework not uploaded yet for this date.")
+        selected_date = st.date_input("Select Homework Date", value=date.today())
+        date_str = selected_date.strftime("%Y-%m-%d")
 
-    st.subheader("📤 Upload Completed Homework")
-    uploaded_file = st.file_uploader("Upload your notebook image or PDF", type=["jpg", "jpeg", "png", "pdf"])
-    if uploaded_file:
-        upload_path = Path(f"uploads/{student_name}/{date_str}")
-        upload_path.mkdir(parents=True, exist_ok=True)
-        save_to = upload_path / uploaded_file.name
-        with open(save_to, "wb") as f:
-            f.write(uploaded_file.read())
-        st.success(f"Uploaded successfully to {save_to}")
+        st.markdown("### Download Homework")
+        homework_path = Path(f"HOMEWORK/{student_class}/{date_str}.docx")
 
-# --- Teacher Panel ---
-if st.session_state.logged_in and st.session_state.user_role == "teacher":
-    st.success(f"Welcome Teacher: {st.session_state.user_data['name']}")
-    st.subheader("📤 Upload Homework for Class")
+        if homework_path.exists():
+            renamed_name = f"{student_name}_{date_str}.docx"
+            renamed_path = Path(f"temp/{renamed_name}")
+            renamed_path.parent.mkdir(exist_ok=True)
+            shutil.copy(homework_path, renamed_path)
 
-    # ✅ Class Dropdown: 6th to 12th
-    selected_class = st.selectbox("Select Class", ["6th", "7th", "8th", "9th", "10th", "11th", "12th"])
+            with open(renamed_path, "rb") as f:
+                st.download_button(
+                    label=f"Download {renamed_name}",
+                    data=f,
+                    file_name=renamed_name,
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+        else:
+            st.warning("Homework not available for this date.")
 
-    selected_date = st.date_input("Homework Date", value=date.today())
-    date_str = selected_date.strftime("%Y-%m-%d")  # ✅ Use this as filename and folder structure
+        st.markdown("### Upload Completed Notebook")
+        uploaded_notebook = st.file_uploader("Upload notebook file", type=["png", "jpg", "jpeg", "pdf", "docx"])
 
-    homework_file = st.file_uploader("Upload Homework Word File (.docx)", type=["docx"])
-    if homework_file:
-        homework_dir = Path(f"HOMEWORK/{selected_class}")
-        homework_dir.mkdir(parents=True, exist_ok=True)
-        homework_path = homework_dir / f"{date_str}.docx"  # ✅ File renamed to YYYY-MM-DD.docx
+        if uploaded_notebook:
+            path = save_uploaded_notebook(uploaded_notebook, student_name, date_str)
+            st.success(f"Notebook uploaded successfully: {path}")
 
-        with open(homework_path, "wb") as f:
-            f.write(homework_file.read())
+elif role == "Teacher":
+    df_teachers = load_teachers()
+    with st.form("teacher_login"):
+        st.subheader("Teacher Login")
+        email = st.text_input("Gmail ID")
+        password = st.text_input("Password", type="password")
+        login_btn = st.form_submit_button("Login")
 
-        st.success(f"Homework uploaded for {selected_class} on {date_str}")
+    if login_btn:
+        if email in df_teachers["Gmail"].values:
+            row = df_teachers[df_teachers["Gmail"] == email].iloc[0]
+            if str(row["Password"]).strip() == password.strip():
+                st.session_state["logged_in"] = True
+                st.session_state["user_role"] = "teacher"
+                st.session_state["teacher_name"] = row["Name"]
+                st.success(f"Welcome, {row['Name']}")
+            else:
+                st.error("Incorrect password")
+        else:
+            st.error("Email not found")
+
+    if st.session_state.get("logged_in") and st.session_state.get("user_role") == "teacher":
+        st.subheader("Upload Homework")
+
+        selected_class = st.selectbox("Select Class", ["6th", "7th", "8th", "9th", "10th", "11th", "12th"])
+        selected_date = st.date_input("Select Homework Date", value=date.today())
+        date_str = selected_date.strftime("%Y-%m-%d")
+
+        uploaded_file = st.file_uploader("Upload Word File (.docx)", type=["docx"])
+
+        if uploaded_file:
+            path = process_homework_upload(uploaded_file, selected_class, date_str)
+            st.success(f"✅ Homework saved: {path}")

@@ -102,10 +102,10 @@ if st.session_state.logged_in:
 
     if os.path.exists(homework_path):
         replacements = {
-            "[StudentName]": student_name,
-            "[HomeworkDate]": selected_date.strftime("%d-%m-%Y"),
-            "[Class]": student_class
-        }
+    "[StudentName]": f"Student Name: {student_name}",
+    "[HomeworkDate]": f"Date: {selected_date.strftime('%d-%m-%Y')}",
+    "[Class]": f"STD - {student_class}"
+}
         modified_doc = replace_placeholders_in_docx(homework_path, replacements)
         download_name = f"{student_name}-{date_str}-Homework.docx"
         st.download_button("Download Homework", modified_doc, file_name=download_name)

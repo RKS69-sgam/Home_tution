@@ -3,6 +3,8 @@ import pandas as pd
 import os
 from datetime import date
 from pathlib import Path
+from docx import Document
+import io
 
 # --- Load student data from Excel ---
 @st.cache_data
@@ -11,8 +13,27 @@ def load_students():
     df.columns = df.columns.str.strip()
     return df
 
-df_students = load_students()
+# --- Replace placeholders in Word file ---
+def replace_placeholders_in_docx(template_path, replacements):
+    doc = Document(template_path)
+    for p in doc.paragraphs:
+        for key, value in replacements.items():
+            if key in p.text:
+                for run in p.runs:
+                    run.text = run.text.replace(key, value)
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for key, value in replacements.items():
+                    if key in cell.text:
+                        cell.text = cell.text.replace(key, value)
+    output_stream = io.BytesIO()
+    doc.save(output_stream)
+    output_stream.seek(0)
+    return output_stream
 
+# --- Load student data ---
+df_students = load_students()
 st.title("Tuition Homework Portal")
 
 # --- Session Setup ---
@@ -23,7 +44,10 @@ if "student_data" not in st.session_state:
 
 # --- Logout Button ---
 if st.session_state.logged_in:
-    st.sidebar.button("Logout", on_click=lambda: st.session_state.update({"logged_in": False, "student_data": {}}))
+    st.sidebar.button("Logout", on_click=lambda: st.session_state.update({
+        "logged_in": False,
+        "student_data": {}
+    }))
     if not st.session_state.logged_in:
         st.rerun()
 
@@ -64,9 +88,14 @@ if st.session_state.logged_in:
     homework_path = f"HOMEWORK/{student_class}/{date_str}.docx"
 
     if os.path.exists(homework_path):
+        replacements = {
+            "[StudentName]": student_name,
+            "[HomeworkDate]": selected_date.strftime("%d-%m-%Y"),
+            "[Class]": student_class
+        }
+        modified_doc = replace_placeholders_in_docx(homework_path, replacements)
         download_name = f"{student_name}-{date_str}-Homework.docx"
-        with open(homework_path, "rb") as f:
-            st.download_button("Download Homework", f, file_name=download_name)
+        st.download_button("Download Homework", modified_doc, file_name=download_name)
     else:
         st.warning("Homework not uploaded yet for this date.")
 

@@ -98,16 +98,7 @@ elif role == "Teacher":
             st.success("Login successful")
         else:
             st.error("Invalid credentials")
-# Role selection with reset on change
-previous_role = st.session_state.get("user_role", None)
-user_role = st.radio("Login as", ["Student", "Teacher"])
 
-if previous_role and user_role != previous_role:
-    # If role changed → reset session
-    st.session_state.clear()
-    st.experimental_rerun()
-
-st.session_state.user_role = user_role
 # Main App
 if st.session_state.user_name:
     st.markdown(f"### Welcome, {st.session_state.user_name}")

@@ -102,7 +102,7 @@ elif role == "Teacher":
 # Main App
 if st.session_state.user_name:
     st.markdown(f"### Welcome, {st.session_state.user_name}")
-    if st.button("Logout"):
+    #if st.button("Logout"):
         st.session_state.user_name = ""
         st.session_state.user_role = ""
         st.experimental_rerun()

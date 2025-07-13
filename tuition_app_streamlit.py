@@ -103,9 +103,9 @@ elif role == "Teacher":
 if st.session_state.user_name:
     st.markdown(f"### Welcome, {st.session_state.user_name}")
     #if st.button("Logout"):
-        st.session_state.user_name = ""
-        st.session_state.user_role = ""
-        st.experimental_rerun()
+        #st.session_state.user_name = ""
+        #st.session_state.user_role = ""
+        #st.experimental_rerun()
     if st.session_state.user_role == "teacher":
         st.subheader("Upload Homework")
         cls = st.selectbox("Select Class", [f"{i}th" for i in range(6, 13)])

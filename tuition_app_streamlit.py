@@ -63,7 +63,7 @@ def insert_heading_and_placeholders(path_in, path_out):
     new_doc.save(path_out)
 
 # Login Page
-st.title("EXCELLENT PUBLIC SCHOOL - Tuition App")
+st.title("EXCELLENT PUBLIC SCHOOL - Advance Classes")
 role = st.radio("Login as", ["Student", "Teacher"])
 
 if "user_name" not in st.session_state:
@@ -106,7 +106,6 @@ if st.session_state.user_name:
         st.session_state.user_name = ""
         st.session_state.user_role = ""
         st.experimental_rerun()
-
     if st.session_state.user_role == "teacher":
         st.subheader("Upload Homework")
         cls = st.selectbox("Select Class", [f"{i}th" for i in range(6, 13)])
@@ -134,3 +133,28 @@ if st.session_state.user_name:
                 st.download_button(f"Download Homework for {date_selected}", f, file_name=os.path.basename(download_file))
         else:
             st.warning("Homework not yet uploaded for this date.")
+
+# Logout button fixed to bottom
+st.markdown(
+    """
+    <style>
+        .logout-button {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 999;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+logout_placeholder = st.empty()
+with logout_placeholder.container():
+    if st.button("Logout", key="logout", help="Click to logout", use_container_width=True):
+        st.session_state.logged_in = False
+        st.session_state.user_role = None
+        st.session_state.user_name = ""
+        st.session_state.email = ""
+        st.experimental_rerun()

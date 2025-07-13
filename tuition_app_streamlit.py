@@ -1,21 +1,21 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
 from docx import Document
-from docx.shared import Pt
+from datetime import datetime, timedelta
 import os
+import shutil
+from docx.shared import Pt
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
 # Constants
 STUDENT_MASTER = "StudentMaster.xlsx"
 TEACHER_MASTER = "TeacherMaster.xlsx"
 HOMEWORK_DIR = "uploaded_homeworks"
-UPI_ID = "9303721909-2@ybl"
-SUBSCRIPTION_DAYS = 30
-SUBSCRIPTION_AMOUNT = 100
-
+NOTEBOOK_DIR = "uploaded_notebooks"
 os.makedirs(HOMEWORK_DIR, exist_ok=True)
+os.makedirs(NOTEBOOK_DIR, exist_ok=True)
 
-# Load data
+# Utility functions
 @st.cache_data
 def load_students():
     return pd.read_excel(STUDENT_MASTER)
@@ -24,8 +24,14 @@ def load_students():
 def load_teachers():
     return pd.read_excel(TEACHER_MASTER)
 
-def save_students(df):
-    df.to_excel(STUDENT_MASTER, index=False)
+def replace_placeholders_in_docx(path_in, path_out, student_name, student_class, date_str):
+    doc = Document(path_in)
+    for p in doc.paragraphs:
+        for run in p.runs:
+            run.text = run.text.replace("[StudentName]", f"Student Name: {student_name}")
+            run.text = run.text.replace("[Class]", f"STD - {student_class}")
+            run.text = run.text.replace("[HomeworkDate]", f"Date: {date_str}")
+    doc.save(path_out)
 
 def insert_heading_and_placeholders(path_in, path_out):
     doc = Document(path_in)
@@ -53,122 +59,112 @@ def insert_heading_and_placeholders(path_in, path_out):
 
     new_doc.save(path_out)
 
-def replace_placeholders(path_in, path_out, name, std_class, date_str):
-    doc = Document(path_in)
-    for p in doc.paragraphs:
-        for run in p.runs:
-            run.text = run.text.replace("[StudentName]", f"Student Name: {name}")
-            run.text = run.text.replace("[Class]", f"STD - {std_class}")
-            run.text = run.text.replace("[HomeworkDate]", f"Date: {date_str}")
-    doc.save(path_out)
+def is_subscription_valid(reg_date):
+    return (datetime.today().date() - reg_date.date()).days <= 30
 
-# UI Start
-st.set_page_config("Tuition App", layout="wide")
-st.sidebar.title("EXCELLENT PUBLIC SCHOOL")
-if "user" not in st.session_state:
-    st.session_state.user = None
-    st.session_state.role = None
+# UI Layout
+st.set_page_config(layout="wide")
+col1, col2 = st.columns([1, 8])
 
-if st.session_state.user:
-    with st.sidebar:
-        st.markdown(f"Welcome, {st.session_state.user}")
+with col1:
+    if st.session_state.get("user_name"):
         if st.button("Logout"):
-            st.session_state.user = None
-            st.session_state.role = None
-            st.rerun()
+            st.session_state.clear()
+            st.experimental_rerun()
 
-# Login/Registration
-if not st.session_state.user:
-    role = st.radio("Login as", ["Student", "Teacher", "New Student Registration"])
+st.title("EXCELLENT PUBLIC SCHOOL - Tuition App")
 
-    if role == "Student":
-        st.subheader("Student Login")
-        email = st.text_input("Gmail ID")
-        password = st.text_input("Password", type="password")
-        if st.button("Login"):
-            df = load_students()
-            row = df[df["Gmail ID"] == email]
-            if not row.empty and row.iloc[0]["Password"] == password:
-                expiry = row.iloc[0]["Subscription Valid Till"]
-                if pd.to_datetime(expiry) >= pd.to_datetime(datetime.today()):
-                    st.session_state.user = row.iloc[0]["Student Name"]
-                    st.session_state.role = "student"
-                    st.success("Login successful")
-                    st.rerun()
-                else:
-                    st.error("Subscription expired. Please renew.")
-            else:
-                st.error("Invalid credentials")
+# Role selection and login/registration
+role = st.radio("Login as", ["Student", "Teacher", "New Registration"])
 
-    elif role == "Teacher":
-        st.subheader("Teacher Login")
-        email = st.text_input("Gmail ID")
-        password = st.text_input("Password", type="password")
-        if st.button("Login"):
-            df = load_teachers()
-            row = df[df["Gmail ID"] == email]
-            if not row.empty and row.iloc[0]["Password"] == password:
-                st.session_state.user = row.iloc[0]["Teacher Name"]
-                st.session_state.role = "teacher"
+if role == "Student":
+    st.subheader("Student Login")
+    email = st.text_input("Gmail ID")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        df_students = load_students()
+        user = df_students[df_students["Gmail ID"] == email]
+        if not user.empty and user.iloc[0]["Password"] == password:
+            reg_date = pd.to_datetime(user.iloc[0]["Subscription Date"])
+            if is_subscription_valid(reg_date):
+                st.session_state.user_name = user.iloc[0]["Student Name"]
+                st.session_state.user_role = "student"
                 st.success("Login successful")
-                st.rerun()
             else:
-                st.error("Invalid credentials")
+                st.error("Subscription expired. Please renew to continue.")
+        else:
+            st.error("Invalid credentials")
 
-    elif role == "New Student Registration":
-        st.subheader("New Student Registration")
-        name = st.text_input("Student Name")
-        email = st.text_input("Gmail ID")
-        std_class = st.selectbox("Class", [f"{i}th" for i in range(6, 13)])
-        password = st.text_input("Create Password", type="password")
-        st.info(f"Please pay ₹{SUBSCRIPTION_AMOUNT} to UPI ID: {UPI_ID} and then press Register")
+elif role == "Teacher":
+    st.subheader("Teacher Login")
+    email = st.text_input("Gmail ID")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        df_teachers = load_teachers()
+        user = df_teachers[df_teachers["Gmail ID"] == email]
+        if not user.empty and user.iloc[0]["Password"] == password:
+            st.session_state.user_name = user.iloc[0]["Teacher Name"]
+            st.session_state.user_role = "teacher"
+            st.success("Login successful")
+        else:
+            st.error("Invalid credentials")
 
-        if st.button("Register"):
+elif role == "New Registration":
+    st.subheader("Student Registration (₹100 for 30 days)")
+    name = st.text_input("Student Name")
+    gmail = st.text_input("Gmail ID")
+    password = st.text_input("Password")
+    cls = st.selectbox("Class", [f"{i}th" for i in range(6, 13)])
+    if st.button("Pay ₹100 via UPI & Register"):
+        st.info("Pay ₹100 to 9303721909-2@ybl via PhonePe/UPI and then click Confirm")
+        if st.button("Confirm Payment"):
             df = load_students()
-            if email in df["Gmail ID"].values:
-                st.error("This email is already registered.")
-            else:
-                today = datetime.today()
-                new_entry = {
-                    "Student Name": name,
-                    "Gmail ID": email,
-                    "Class": std_class,
-                    "Password": password,
-                    "Subscription Valid Till": today + timedelta(days=SUBSCRIPTION_DAYS)
-                }
-                df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
-                save_students(df)
-                st.success("Registration successful! Please login.")
-                st.rerun()
+            sr_no = df["Sr. No."].max() + 1 if not df.empty else 1
+            today = datetime.today().strftime("%Y-%m-%d")
+            new_entry = {"Sr. No.": sr_no, "Student Name": name, "Gmail ID": gmail, "Class": cls, "Password": password, "Subscription Date": today}
+            df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
+            df.to_excel(STUDENT_MASTER, index=False)
+            st.success("Registration successful. You can now login.")
 
-# Main Panel
-if st.session_state.user:
-    if st.session_state.role == "teacher":
-        st.header("Upload Homework")
+# Main App
+if st.session_state.get("user_name"):
+    st.markdown(f"### Welcome, {st.session_state.user_name}")
+
+    if st.session_state.user_role == "teacher":
+        st.subheader("Upload Homework")
         cls = st.selectbox("Select Class", [f"{i}th" for i in range(6, 13)])
-        date_input = st.date_input("Homework Date", value=datetime.today())
+        hw_date = st.date_input("Homework Date", datetime.today())
         uploaded = st.file_uploader("Upload Word File", type=["docx"])
         if uploaded and st.button("Upload Homework"):
-            date_str = date_input.strftime("%Y-%m-%d")
-            temp_path = os.path.join(HOMEWORK_DIR, f"temp_{cls}_{date_str}.docx")
-            final_path = os.path.join(HOMEWORK_DIR, f"{cls}_{date_str}.docx")
+            file_path = os.path.join(HOMEWORK_DIR, f"{cls}_{hw_date}.docx")
+            temp_path = os.path.join(HOMEWORK_DIR, f"temp_{cls}_{hw_date}.docx")
             with open(temp_path, "wb") as f:
                 f.write(uploaded.read())
-            insert_heading_and_placeholders(temp_path, final_path)
-            st.success("Homework uploaded successfully.")
+            insert_heading_and_placeholders(temp_path, file_path)
+            st.success(f"Homework uploaded for {cls} on {hw_date}")
 
-    elif st.session_state.role == "student":
-        st.header("Download Homework")
-        df = load_students()
-        user_row = df[df["Student Name"] == st.session_state.user].iloc[0]
-        std_class = user_row["Class"]
-        date_input = st.date_input("Select Homework Date")
-        date_str = date_input.strftime("%Y-%m-%d")
-        source = os.path.join(HOMEWORK_DIR, f"{std_class}_{date_str}.docx")
-        personal = os.path.join(HOMEWORK_DIR, f"{st.session_state.user}_{date_str}.docx")
-        if os.path.exists(source):
-            replace_placeholders(source, personal, st.session_state.user, std_class, date_str)
-            with open(personal, "rb") as f:
-                st.download_button("Download Homework", f, file_name=os.path.basename(personal))
+    elif st.session_state.user_role == "student":
+        df_students = load_students()
+        student_row = df_students[df_students["Student Name"] == st.session_state.user_name].iloc[0]
+        student_class = student_row["Class"]
+        student_email = student_row["Gmail ID"]
+
+        st.subheader("Download Homework")
+        date_selected = st.date_input("Select Date")
+        file_to_get = os.path.join(HOMEWORK_DIR, f"{student_class}_{date_selected}.docx")
+        download_file = os.path.join(HOMEWORK_DIR, f"{st.session_state.user_name}_{date_selected}.docx")
+        if os.path.exists(file_to_get):
+            replace_placeholders_in_docx(file_to_get, download_file, st.session_state.user_name, student_class, str(date_selected))
+            with open(download_file, "rb") as f:
+                st.download_button(f"Download Homework for {date_selected}", f, file_name=os.path.basename(download_file))
         else:
-            st.warning("Homework not uploaded for selected date.")
+            st.warning("Homework not yet uploaded for this date.")
+
+        st.subheader("Upload Completed Notebook")
+        uploaded_notebook = st.file_uploader("Upload your completed notebook (image/docx/pdf)", type=["jpg", "jpeg", "png", "pdf", "docx"])
+        if uploaded_notebook and st.button("Upload Notebook"):
+            date_str = datetime.today().strftime("%Y-%m-%d")
+            nb_path = os.path.join(NOTEBOOK_DIR, f"{st.session_state.user_name}_{date_str}_{uploaded_notebook.name}")
+            with open(nb_path, "wb") as f:
+                f.write(uploaded_notebook.read())
+            st.success("Notebook uploaded successfully.")

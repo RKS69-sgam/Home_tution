@@ -1,9 +1,8 @@
-
 import streamlit as st
 import pandas as pd
-from docx import Document
-from datetime import datetime
 import os
+from datetime import datetime
+from docx import Document
 from docx.shared import Pt
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
@@ -11,11 +10,11 @@ from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 STUDENT_MASTER = "StudentMaster.xlsx"
 TEACHER_MASTER = "TeacherMaster.xlsx"
 HOMEWORK_DIR = "uploaded_homeworks"
-NOTEBOOK_UPLOADS_DIR = "notebook_uploads"
+UPLOAD_DIR = "notebook_uploads"
 os.makedirs(HOMEWORK_DIR, exist_ok=True)
-os.makedirs(NOTEBOOK_UPLOADS_DIR, exist_ok=True)
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# Utility functions
+# Load Data
 @st.cache_data
 def load_students():
     return pd.read_excel(STUDENT_MASTER)
@@ -24,34 +23,26 @@ def load_students():
 def load_teachers():
     return pd.read_excel(TEACHER_MASTER)
 
-def replace_placeholders_in_docx(path_in, path_out, student_name, student_class, date_str):
-    doc = Document(path_in)
-    for p in doc.paragraphs:
-        for run in p.runs:
-            if "[StudentName]" in run.text:
-                run.text = run.text.replace("[StudentName]", f"Student Name: {student_name}")
-            if "[Class]" in run.text:
-                run.text = run.text.replace("[Class]", f"STD - {student_class}")
-            if "[HomeworkDate]" in run.text:
-                run.text = run.text.replace("[HomeworkDate]", f"Date: {date_str}")
-    doc.save(path_out)
-
+# Insert Heading + Placeholders
 def insert_heading_and_placeholders(path_in, path_out):
     doc = Document(path_in)
     new_doc = Document()
 
-    h1 = new_doc.add_paragraph("EXCELLENT PUBLIC SCHOOL")
-    h1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-    h1.runs[0].bold = True
-    h1.runs[0].font.size = Pt(16)
+    p1 = new_doc.add_paragraph("EXCELLENT PUBLIC SCHOOL")
+    p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    r1 = p1.runs[0]
+    r1.bold = True
+    r1.font.size = Pt(16)
 
-    h2 = new_doc.add_paragraph("Barainiya, Bargawan Distt. Singrauli (MP)")
-    h2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    p2 = new_doc.add_paragraph("Barainiya, Bargawan Distt. Singrauli (MP)")
+    p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
-    h3 = new_doc.add_paragraph("Advance Classes Daily Homework")
-    h3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-    h3.runs[0].bold = True
-    h3.runs[0].italic = True
+    p3 = new_doc.add_paragraph("Advance Classes Daily Homework")
+    p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    r3 = p3.runs[0]
+    r3.bold = True
+    r3.italic = True
+    r3.font.size = Pt(14)
 
     new_doc.add_paragraph("[StudentName]")
     new_doc.add_paragraph("[Class]")
@@ -62,92 +53,95 @@ def insert_heading_and_placeholders(path_in, path_out):
 
     new_doc.save(path_out)
 
-# Sidebar logout
-if "user_name" not in st.session_state:
-    st.session_state.user_name = ""
-if "user_role" not in st.session_state:
-    st.session_state.user_role = ""
+# Replace placeholders
+def replace_placeholders(doc_path, out_path, student_name, student_class, date_str):
+    doc = Document(doc_path)
+    for para in doc.paragraphs:
+        for run in para.runs:
+            run.text = run.text.replace("[StudentName]", f"Student Name: {student_name}")
+            run.text = run.text.replace("[Class]", f"STD - {student_class}")
+            run.text = run.text.replace("[HomeworkDate]", f"Date: {date_str}")
+    doc.save(out_path)
 
+# Sidebar Logout
 with st.sidebar:
-    st.title("EXCELLENT PUBLIC SCHOOL")
-    if st.session_state.user_name:
-        st.write(f"Welcome, {st.session_state.user_name}")
+    if "user_name" in st.session_state:
+        st.sidebar.markdown(f"**Logged in as:** {st.session_state.user_name}")
         if st.button("Logout"):
-            st.session_state.user_name = ""
-            st.session_state.user_role = ""
+            st.session_state.clear()
             st.experimental_rerun()
 
-# Login section
-st.title("Tuition App")
+# Title
+st.title("EXCELLENT PUBLIC SCHOOL - Tuition App")
+
+# Role selection
 role = st.radio("Login as", ["Student", "Teacher"])
 
-if role == "Student":
-    st.subheader("Student Login")
+# Login Handling
+if "user_name" not in st.session_state:
     email = st.text_input("Gmail ID")
     password = st.text_input("Password", type="password")
-    if st.button("Login", key="student_login"):
-        df_students = load_students()
-        user = df_students[df_students["Gmail ID"] == email]
-        if not user.empty and user.iloc[0]["Password"] == password:
-            st.session_state.user_name = user.iloc[0]["Student Name"]
-            st.session_state.user_role = "student"
-            st.success("Login successful")
-            st.experimental_rerun()
+    if st.button("Login"):
+        if role == "Student":
+            df = load_students()
+            user = df[df["Gmail ID"] == email]
+            if not user.empty and user.iloc[0]["Password"] == password:
+                st.session_state.user_name = user.iloc[0]["Student Name"]
+                st.session_state.role = "student"
+                st.success("Login successful")
+                st.experimental_rerun()
+            else:
+                st.error("Invalid student credentials")
         else:
-            st.error("Invalid credentials")
+            df = load_teachers()
+            user = df[df["Gmail ID"] == email]
+            if not user.empty and user.iloc[0]["Password"] == password:
+                st.session_state.user_name = user.iloc[0]["Teacher Name"]
+                st.session_state.role = "teacher"
+                st.success("Login successful")
+                st.experimental_rerun()
+            else:
+                st.error("Invalid teacher credentials")
 
-elif role == "Teacher":
-    st.subheader("Teacher Login")
-    email = st.text_input("Gmail ID")
-    password = st.text_input("Password", type="password")
-    if st.button("Login", key="teacher_login"):
-        df_teachers = load_teachers()
-        user = df_teachers[df_teachers["Gmail ID"] == email]
-        if not user.empty and user.iloc[0]["Password"] == password:
-            st.session_state.user_name = user.iloc[0]["Teacher Name"]
-            st.session_state.user_role = "teacher"
-            st.success("Login successful")
-            st.experimental_rerun()
-        else:
-            st.error("Invalid credentials")
+# Main App
+if "user_name" in st.session_state:
+    st.markdown(f"### Welcome, {st.session_state.user_name}")
 
-# App Panel
-if st.session_state.user_name:
-    if st.session_state.user_role == "teacher":
+    # Teacher panel
+    if st.session_state.role == "teacher":
         st.subheader("Upload Homework")
         cls = st.selectbox("Select Class", [f"{i}th" for i in range(6, 13)])
         hw_date = st.date_input("Homework Date", datetime.today())
         uploaded = st.file_uploader("Upload Word File", type=["docx"])
         if uploaded and st.button("Upload Homework"):
-            file_path = os.path.join(HOMEWORK_DIR, f"{cls}_{hw_date}.docx")
             temp_path = os.path.join(HOMEWORK_DIR, f"temp_{cls}_{hw_date}.docx")
+            final_path = os.path.join(HOMEWORK_DIR, f"{cls}_{hw_date}.docx")
             with open(temp_path, "wb") as f:
                 f.write(uploaded.read())
-            insert_heading_and_placeholders(temp_path, file_path)
-            st.success(f"Homework uploaded for {cls} on {hw_date}")
+            insert_heading_and_placeholders(temp_path, final_path)
+            os.remove(temp_path)
+            st.success("Homework uploaded successfully.")
 
-    elif st.session_state.user_role == "student":
-        df_students = load_students()
-        student_row = df_students[df_students["Student Name"] == st.session_state.user_name].iloc[0]
-        student_class = student_row["Class"]
-        date_selected = st.date_input("Select Date")
-
-        file_to_get = os.path.join(HOMEWORK_DIR, f"{student_class}_{date_selected}.docx")
-        download_file = os.path.join(HOMEWORK_DIR, f"{st.session_state.user_name}_{date_selected}.docx")
-        if os.path.exists(file_to_get):
-            replace_placeholders_in_docx(file_to_get, download_file, st.session_state.user_name, student_class, str(date_selected))
-            with open(download_file, "rb") as f:
-                st.download_button(f"Download Homework for {date_selected}", f, file_name=os.path.basename(download_file))
+    # Student panel
+    elif st.session_state.role == "student":
+        df = load_students()
+        row = df[df["Student Name"] == st.session_state.user_name].iloc[0]
+        student_class = row["Class"]
+        date_sel = st.date_input("Select Date")
+        base_file = os.path.join(HOMEWORK_DIR, f"{student_class}_{date_sel}.docx")
+        final_file = os.path.join(HOMEWORK_DIR, f"{st.session_state.user_name}_{date_sel}.docx")
+        if os.path.exists(base_file):
+            replace_placeholders(base_file, final_file, st.session_state.user_name, student_class, str(date_sel))
+            with open(final_file, "rb") as f:
+                st.download_button("Download Homework", f, file_name=os.path.basename(final_file))
         else:
-            st.warning("Homework not yet uploaded for this date.")
+            st.warning("Homework not available for this date.")
 
+        # Upload notebook
         st.subheader("Upload Completed Homework Notebook")
-        uploaded_notebook = st.file_uploader("Upload Your Homework (Image or PDF)", type=["jpg", "jpeg", "png", "pdf"])
-        if uploaded_notebook:
-            student_dir = os.path.join(NOTEBOOK_UPLOADS_DIR, st.session_state.user_name)
-            os.makedirs(student_dir, exist_ok=True)
-            upload_filename = f"{student_class}_{date_selected}_{uploaded_notebook.name}"
-            notebook_path = os.path.join(student_dir, upload_filename)
-            with open(notebook_path, "wb") as f:
-                f.write(uploaded_notebook.read())
-            st.success(f"Homework uploaded successfully for {date_selected}")
+        uploaded_hw = st.file_uploader("Upload your notebook (PDF, Image, ZIP)", type=["pdf", "jpg", "jpeg", "png", "zip"])
+        if uploaded_hw and st.button("Upload Notebook"):
+            fname = f"{st.session_state.user_name}_{date_sel}_{uploaded_hw.name}"
+            with open(os.path.join(UPLOAD_DIR, fname), "wb") as f:
+                f.write(uploaded_hw.read())
+            st.success("Notebook uploaded successfully.")

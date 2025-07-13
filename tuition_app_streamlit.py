@@ -1,10 +1,11 @@
-
 import streamlit as st
 import pandas as pd
 from docx import Document
 from datetime import datetime
 import os
 import shutil
+from docx.shared import Pt
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
 # Constants
 STUDENT_MASTER = "StudentMaster.xlsx"

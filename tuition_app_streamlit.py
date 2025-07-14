@@ -140,36 +140,44 @@ elif role == "Teacher":
             st.error("Invalid credentials")
 
 elif role == "Admin":
-    st.subheader("Admin Login")
+    st.subheader("Admin Panel")
     email = st.text_input("Gmail ID")
     password = st.text_input("Password", type="password")
-    
-    if st.button("Login"):
-        df = load_teachers()
-        user = df[(df["Gmail ID"] == email) & (df["Password"] == password) & (df["Teacher Name"].str.lower() == "admin")]
-        if not user.empty:
-            st.session_state.user_name = "Admin"
-            st.session_state.user_role = "admin"
+    if st.button("Login as Admin"):
+        df_teacher = load_teachers()
+        admin_user = df_teacher[(df_teacher["Gmail ID"] == email) & (df_teacher["Password"] == password)]
+        if not admin_user.empty:
             st.success("Admin login successful")
-            st.experimental_rerun()
+            df = load_students()
+
+            if "Subscribed Till" not in df.columns:
+                df["Subscribed Till"] = ""
+
+            if "Payment Confirmed" not in df.columns:
+                df["Payment Confirmed"] = "No"
+
+            pending = df[df["Payment Confirmed"] != "Yes"]
+
+            if not pending.empty:
+                for i, row in pending.iterrows():
+                    st.write(f"{row['Sr. No.']}. {row['Student Name']} ({row['Gmail ID']})")
+                    try:
+                        current_date = pd.to_datetime(row["Subscribed Till"]).date() if pd.notnull(row["Subscribed Till"]) else datetime.today().date()
+                    except:
+                        current_date = datetime.today().date()
+
+                    new_date = st.date_input(f"Subscription Till for {row['Student Name']}", current_date, key=row['Gmail ID'])
+
+                    if st.button(f"Confirm Payment for {row['Student Name']}", key="confirm_"+row['Gmail ID']):
+                        df.at[i, "Payment Confirmed"] = "Yes"
+                        df.at[i, "Subscribed Till"] = new_date
+                        save_students(df)
+                        st.success(f"Payment confirmed for {row['Student Name']} till {new_date}")
+                        st.experimental_rerun()
+            else:
+                st.info("No pending confirmations.")
         else:
             st.error("Invalid Admin credentials")
-    # Show only if admin is logged in
-if st.session_state.user_role == "admin":
-    st.subheader("Admin Panel")
-    df = load_students()
-    pending = df[df["Payment Confirmed"] != "Yes"]
-    
-    if not pending.empty:
-        for i, row in pending.iterrows():
-            st.write(f"{row['Sr. No.']}. {row['Student Name']} ({row['Gmail ID']})")
-            if st.button(f"Confirm Payment for {row['Student Name']}", key=f"confirm_{i}"):
-                df.at[i, "Payment Confirmed"] = "Yes"
-                df.at[i, "Subscribed Till"] = datetime.today() + timedelta(days=SUBSCRIPTION_DAYS)
-                save_students(df)
-                st.success(f"Payment confirmed and subscription set till {df.at[i, 'Subscribed Till'].strftime('%d-%m-%Y')}")
-    else:
-        st.info("No pending confirmations.")
 
     st.subheader("All Students")
     editable_df = df.copy()

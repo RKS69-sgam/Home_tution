@@ -12,6 +12,8 @@ TEACHER_MASTER = "TeacherMaster.xlsx"
 HOMEWORK_DIR = "uploaded_homeworks"
 NOTEBOOK_DIR = "uploaded_notebooks"
 UPI_ID = "9303721909-2@ybl"
+# QR Code URL using Google Chart API
+qr_url = f"https://chart.googleapis.com/chart?chs=250x250&cht=qr&chl=upi://pay?pa={UPI_ID}&am=100"
 SUBSCRIPTION_DAYS = 30
 os.makedirs(HOMEWORK_DIR, exist_ok=True)
 os.makedirs(NOTEBOOK_DIR, exist_ok=True)
@@ -75,7 +77,7 @@ if logout:
     st.session_state.user_role = ""
     st.experimental_rerun()
 
-st.title("EXCELLENT PUBLIC SCHOOL - Tuition App")
+st.title("EXCELLENT PUBLIC SCHOOL - Advance Classes")
 
 role = st.radio("Login as", ["Student", "Teacher", "Register", "Admin"])
 
@@ -84,8 +86,10 @@ if role == "Register":
     name = st.text_input("Student Name")
     gmail = st.text_input("Gmail ID")
     cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
-    password = st.text_input("Password", type="password")
-    st.image("https://chart.googleapis.com/chart?chs=250x250&cht=qr&chl=upi://pay?pa=" + UPI_ID + "&am=100", caption="Pay ₹100 via PhonePe/UPI")
+    password = st.text_input("Create Password", type="password")
+    # Display in Streamlit
+st.subheader("Scan & Pay ₹100 for Subscription")
+st.image(qr_url, caption="Pay ₹100 via PhonePe / UPI", use_column_width=False)
     if st.button("I have paid. Register me"):
         df = load_students()
         if gmail in df["Gmail ID"].values:

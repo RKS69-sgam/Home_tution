@@ -2,25 +2,28 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import os
-import shutil
 from docx import Document
 from docx.shared import Pt
-from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
+# Constants
 STUDENT_MASTER = "StudentMaster.xlsx"
 TEACHER_MASTER = "TeacherMaster.xlsx"
 HOMEWORK_DIR = "uploaded_homeworks"
 NOTEBOOK_DIR = "uploaded_notebooks"
 UPI_ID = "9685840429@pnb"
-# QR Code URL using Google Chart API
 qr_url = f"https://chart.googleapis.com/chart?chs=250x250&cht=qr&chl=upi://pay?pa={UPI_ID}&am=100"
 SUBSCRIPTION_DAYS = 30
+
+# Ensure directories exist
 os.makedirs(HOMEWORK_DIR, exist_ok=True)
 os.makedirs(NOTEBOOK_DIR, exist_ok=True)
 
 @st.cache_data
 def load_students():
-    return pd.read_excel(STUDENT_MASTER)
+    df = pd.read_excel(STUDENT_MASTER)
+    if "Payment Confirmed" not in df.columns:
+        df["Payment Confirmed"] = "No"
+    return df
 
 @st.cache_data
 def load_teachers():
@@ -67,18 +70,17 @@ def replace_placeholders(path_in, path_out, name, cls, date_str):
 # UI
 st.set_page_config(layout="wide")
 st.sidebar.title("Menu")
+
 if "user_name" not in st.session_state:
     st.session_state.user_name = ""
     st.session_state.user_role = ""
 
-logout = st.sidebar.button("Logout")
-if logout:
+if st.sidebar.button("Logout"):
     st.session_state.user_name = ""
     st.session_state.user_role = ""
     st.experimental_rerun()
 
 st.title("EXCELLENT PUBLIC SCHOOL - Advance Classes")
-
 role = st.radio("Login as", ["Student", "Teacher", "Register", "Admin"])
 
 if role == "Register":
@@ -87,15 +89,16 @@ if role == "Register":
     gmail = st.text_input("Gmail ID")
     cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
     password = st.text_input("Create Password", type="password")
-    # Display in Streamlit
+
     st.subheader("Scan & Pay ₹100 for Subscription")
     st.image(qr_url, caption="Pay ₹100 via PhonePe / UPI", use_column_width=False)
+
     if st.button("I have paid. Register me"):
         df = load_students()
         if gmail in df["Gmail ID"].values:
             st.error("Already registered.")
         else:
-            new_sr = df.shape[0]+1
+            new_sr = df.shape[0] + 1
             new_row = {
                 "Sr. No.": new_sr,
                 "Student Name": name,
@@ -117,10 +120,12 @@ elif role == "Student":
         df = load_students()
         user = df[(df["Gmail ID"] == email) & (df["Password"] == password)]
         if not user.empty:
-            if user.iloc[0]["Payment Confirmed"] == "Yes" and datetime.today() <= pd.to_datetime(user.iloc[0]["Subscribed Till"]):
-                st.session_state.user_name = user.iloc[0]["Student Name"]
+            row = user.iloc[0]
+            if row["Payment Confirmed"] == "Yes" and datetime.today() <= pd.to_datetime(row["Subscribed Till"]):
+                st.session_state.user_name = row["Student Name"]
                 st.session_state.user_role = "student"
                 st.success("Login successful")
+                st.experimental_rerun()
             else:
                 st.error("Payment not confirmed or subscription expired.")
         else:
@@ -137,12 +142,15 @@ elif role == "Teacher":
             st.session_state.user_name = user.iloc[0]["Teacher Name"]
             st.session_state.user_role = "teacher"
             st.success("Login successful")
+            st.experimental_rerun()
         else:
             st.error("Invalid credentials")
 
 elif role == "Admin":
     st.subheader("Admin Panel")
     df = load_students()
+    if "Payment Confirmed" not in df.columns:
+        df["Payment Confirmed"] = "No"
     pending = df[df["Payment Confirmed"] != "Yes"]
     if not pending.empty:
         for i, row in pending.iterrows():
@@ -154,9 +162,9 @@ elif role == "Admin":
     else:
         st.info("No pending confirmations.")
 
-# Student / Teacher Panel
+# Student/Teacher after login
 if st.session_state.user_name:
-    st.sidebar.success(f"Welcome {st.session_state.user_name}")
+    st.sidebar.success(f"Welcome: {st.session_state.user_name}")
 
     if st.session_state.user_role == "teacher":
         st.subheader("Upload Homework")
@@ -178,6 +186,7 @@ if st.session_state.user_name:
         date = st.date_input("Select Homework Date", datetime.today())
         file_path = os.path.join(HOMEWORK_DIR, f"{cls}_{date}.docx")
         output_path = os.path.join(HOMEWORK_DIR, f"{st.session_state.user_name}_{date}.docx")
+
         if os.path.exists(file_path):
             replace_placeholders(file_path, output_path, st.session_state.user_name, cls, str(date))
             with open(output_path, "rb") as f:

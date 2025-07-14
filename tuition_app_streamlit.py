@@ -2,12 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import os
-import shutil
 from docx import Document
 from docx.shared import Pt
-from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
-import qrcode
-from PIL import Image
 
 STUDENT_MASTER = "StudentMaster.xlsx"
 TEACHER_MASTER = "TeacherMaster.xlsx"
@@ -65,10 +61,6 @@ def replace_placeholders(path_in, path_out, name, cls, date_str):
             run.text = run.text.replace("[HomeworkDate]", f"Date: {date_str}")
     doc.save(path_out)
 
-def generate_qr(data, file_path):
-    img = qrcode.make(data)
-    img.save(file_path)
-
 # UI
 st.set_page_config(layout="wide")
 st.sidebar.title("Menu")
@@ -84,7 +76,6 @@ if logout:
     st.experimental_rerun()
 
 st.title("EXCELLENT PUBLIC SCHOOL - Advance Classes")
-
 role = st.radio("Login as", ["Student", "Teacher", "Register", "Admin"])
 
 if role == "Register":
@@ -94,17 +85,16 @@ if role == "Register":
     cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
     password = st.text_input("Create Password", type="password")
 
-    st.subheader("Scan & Pay ₹100 for Subscription")
-    qr_path = "upi_qr.png"
-    generate_qr(f"upi://pay?pa={UPI_ID}&am=100", qr_path)
-    st.image(qr_path, caption="Pay ₹100 via PhonePe / UPI", use_container_width=True)
+    st.subheader("Pay ₹100 for Subscription")
+    st.write("Please pay ₹100 to the UPI ID below using any UPI app (PhonePe, GPay, etc.):")
+    st.code(UPI_ID)
 
     if st.button("I have paid. Register me"):
         df = load_students()
         if gmail in df["Gmail ID"].values:
             st.error("Already registered.")
         else:
-            new_sr = df.shape[0]+1
+            new_sr = df.shape[0] + 1
             new_row = {
                 "Sr. No.": new_sr,
                 "Student Name": name,

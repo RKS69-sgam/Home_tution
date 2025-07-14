@@ -11,7 +11,7 @@ STUDENT_MASTER = "StudentMaster.xlsx"
 TEACHER_MASTER = "TeacherMaster.xlsx"
 HOMEWORK_DIR = "uploaded_homeworks"
 NOTEBOOK_DIR = "uploaded_notebooks"
-UPI_ID = "9303721909-2@ybl"
+UPI_ID = "9685840429@pnb"
 # QR Code URL using Google Chart API
 qr_url = f"https://chart.googleapis.com/chart?chs=250x250&cht=qr&chl=upi://pay?pa={UPI_ID}&am=100"
 SUBSCRIPTION_DAYS = 30

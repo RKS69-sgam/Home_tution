@@ -1,55 +1,54 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
 import os
+from datetime import datetime, timedelta
 from docx import Document
 from docx.shared import Pt
 from PIL import Image
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
-STUDENT_MASTER = "StudentMaster.xlsx"
-TEACHER_MASTER = "TeacherMaster.xlsx"
-HOMEWORK_DIR = "uploaded_homeworks"
-NOTEBOOK_DIR = "uploaded_notebooks"
+# === CONFIG ===
 LOGO_PATH = "logo.png"
 UPI_ID = "9685840429@pnb"
 SUBSCRIPTION_DAYS = 30
+HOMEWORK_DIR = "uploaded_homeworks"
+NOTEBOOK_DIR = "uploaded_notebooks"
+
+# === GOOGLE SHEET CONFIG ===
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+client = gspread.authorize(credentials)
+
+STUDENT_SHEET = client.open_by_key("1aFEaCyyRX7l56NYu6imR3ovo_e8k6aAL").sheet1
+TEACHER_SHEET = client.open_by_key("1aCnuMxOlsJ3VkleK4wgTvMx2Sp-9pAMH").sheet1
 
 os.makedirs(HOMEWORK_DIR, exist_ok=True)
 os.makedirs(NOTEBOOK_DIR, exist_ok=True)
 
-@st.cache_data
+# === UTILS ===
 def load_students():
-    return pd.read_excel(STUDENT_MASTER)
+    return pd.DataFrame(STUDENT_SHEET.get_all_records())
 
-@st.cache_data
 def load_teachers():
-    return pd.read_excel(TEACHER_MASTER)
+    return pd.DataFrame(TEACHER_SHEET.get_all_records())
 
 def save_students(df):
-    df.to_excel(STUDENT_MASTER, index=False)
+    STUDENT_SHEET.clear()
+    STUDENT_SHEET.update([df.columns.values.tolist()] + df.values.tolist())
 
 def insert_heading_and_placeholders(path_in, path_out):
     doc = Document(path_in)
     new_doc = Document()
-    h1 = new_doc.add_paragraph("EXCELLENT PUBLIC SCHOOL")
+    h1 = new_doc.add_paragraph("विद्या ददाति विनयं\nPRK Home Tuition Advance Classes")
     h1.alignment = 1
     h1.runs[0].bold = True
     h1.runs[0].font.size = Pt(16)
-
-    h2 = new_doc.add_paragraph("Barainiya, Bargawan Distt. Singrauli (MP)")
-    h2.alignment = 1
-    h3 = new_doc.add_paragraph("Advance Classes Daily Homework")
-    h3.alignment = 1
-    h3.runs[0].bold = True
-    h3.runs[0].italic = True
-
     new_doc.add_paragraph("[StudentName]")
     new_doc.add_paragraph("[Class]")
     new_doc.add_paragraph("[HomeworkDate]")
-
     for para in doc.paragraphs:
         new_doc.add_paragraph(para.text)
-
     new_doc.save(path_out)
 
 def replace_placeholders(path_in, path_out, name, cls, date_str):
@@ -61,16 +60,14 @@ def replace_placeholders(path_in, path_out, name, cls, date_str):
             run.text = run.text.replace("[HomeworkDate]", f"Date: {date_str}")
     doc.save(path_out)
 
-# UI Config
+# === PAGE CONFIG ===
 st.set_page_config(layout="wide")
 st.sidebar.title("Login Menu")
-
-# Logo
 if os.path.exists(LOGO_PATH):
     st.image(LOGO_PATH, width=160)
-st.title("EXCELLENT PUBLIC SCHOOL - Advance Classes")
+st.title("PRK Home Tuition Advance Classes")
 
-# Session State
+# === SESSION STATE ===
 if "user_name" not in st.session_state:
     st.session_state.user_name = ""
     st.session_state.user_role = ""
@@ -80,10 +77,10 @@ if st.sidebar.button("Logout"):
     st.success("Logged out successfully.")
     st.stop()
 
-# Login Role
+# === LOGIN OPTIONS ===
 role = st.sidebar.radio("Login as", ["Student", "Teacher", "Register", "Admin"])
 
-# Register
+# === REGISTER ===
 if role == "Register":
     st.subheader("New Student Registration")
     name = st.text_input("Student Name")
@@ -99,21 +96,21 @@ if role == "Register":
         if gmail in df["Gmail ID"].values:
             st.error("Already registered.")
         else:
-            new_sr = df.shape[0]+1
+            new_sr = df.shape[0] + 1
             new_row = {
                 "Sr. No.": new_sr,
                 "Student Name": name,
                 "Gmail ID": gmail,
                 "Class": cls,
                 "Password": password,
-                "Subscribed Till": datetime.today() + timedelta(days=SUBSCRIPTION_DAYS),
+                "Subscribed Till": (datetime.today() + timedelta(days=SUBSCRIPTION_DAYS)).strftime('%Y-%m-%d'),
                 "Payment Confirmed": "No"
             }
             df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
             save_students(df)
             st.success("Registered successfully. Wait for admin to confirm payment.")
 
-# Student Login
+# === STUDENT LOGIN ===
 elif role == "Student":
     st.subheader("Student Login")
     email = st.text_input("Gmail ID")
@@ -122,7 +119,8 @@ elif role == "Student":
         df = load_students()
         user = df[(df["Gmail ID"] == email) & (df["Password"] == password)]
         if not user.empty:
-            if user.iloc[0]["Payment Confirmed"] == "Yes" and datetime.today() <= pd.to_datetime(user.iloc[0]["Subscribed Till"]):
+            sub_date = pd.to_datetime(user.iloc[0]["Subscribed Till"])
+            if user.iloc[0]["Payment Confirmed"] == "Yes" and datetime.today() <= sub_date:
                 st.session_state.user_name = user.iloc[0]["Student Name"]
                 st.session_state.user_role = "student"
                 st.success("Login successful")
@@ -132,7 +130,7 @@ elif role == "Student":
         else:
             st.error("Invalid credentials")
 
-# Teacher Login
+# === TEACHER LOGIN ===
 elif role == "Teacher":
     st.subheader("Teacher Login")
     email = st.text_input("Gmail ID")
@@ -148,7 +146,7 @@ elif role == "Teacher":
         else:
             st.error("Invalid credentials")
 
-# Admin Panel
+# === ADMIN PANEL ===
 elif role == "Admin":
     st.subheader("Admin Panel")
     email = st.text_input("Gmail ID")
@@ -160,30 +158,21 @@ elif role == "Admin":
             st.success("Admin login successful")
             df = load_students()
 
-            if "Subscribed Till" not in df.columns:
-                df["Subscribed Till"] = ""
-
-            if "Payment Confirmed" not in df.columns:
-                df["Payment Confirmed"] = "No"
-
             pending = df[df["Payment Confirmed"] != "Yes"]
-
             if not pending.empty:
                 for i, row in pending.iterrows():
                     st.write(f"{row['Sr. No.']}. {row['Student Name']} ({row['Gmail ID']})")
                     try:
-                        current_date = pd.to_datetime(row["Subscribed Till"]).date() if pd.notnull(row["Subscribed Till"]) else datetime.today().date()
+                        current_date = pd.to_datetime(row["Subscribed Till"]).date()
                     except:
                         current_date = datetime.today().date()
-
                     new_date = st.date_input(f"Subscription Till for {row['Student Name']}", current_date, key=row['Gmail ID'])
-
                     if st.button(f"Confirm Payment for {row['Student Name']}", key="confirm_"+row['Gmail ID']):
                         df.at[i, "Payment Confirmed"] = "Yes"
-                        df.at[i, "Subscribed Till"] = new_date
+                        df.at[i, "Subscribed Till"] = new_date.strftime('%Y-%m-%d')
                         save_students(df)
                         st.success(f"Payment confirmed for {row['Student Name']} till {new_date}")
-                        st.stop()
+                        st.rerun()
             else:
                 st.info("No pending confirmations.")
 
@@ -192,16 +181,15 @@ elif role == "Admin":
             editable_df["Subscribed Till"] = editable_df["Subscribed Till"].astype(str)
             edited_df = st.data_editor(editable_df, num_rows="dynamic", key="admin_table")
             if st.button("Save Changes"):
-                edited_df["Subscribed Till"] = pd.to_datetime(edited_df["Subscribed Till"], errors='coerce')
+                edited_df["Subscribed Till"] = pd.to_datetime(edited_df["Subscribed Till"], errors='coerce').dt.strftime('%Y-%m-%d')
                 save_students(edited_df)
                 st.success("Student data updated successfully.")
         else:
             st.error("Invalid Admin credentials")
 
-# Student or Teacher Dashboard
+# === DASHBOARDS ===
 if st.session_state.user_name:
     st.sidebar.success(f"Welcome {st.session_state.user_name}")
-
     if st.session_state.user_role == "teacher":
         st.subheader("Upload Homework")
         cls = st.selectbox("Select Class", [f"{i}th" for i in range(6,13)])
@@ -214,7 +202,6 @@ if st.session_state.user_name:
                 f.write(file.read())
             insert_heading_and_placeholders(temp_path, final_path)
             st.success("Homework uploaded.")
-
     elif st.session_state.user_role == "student":
         df = load_students()
         user = df[df["Student Name"] == st.session_state.user_name].iloc[0]

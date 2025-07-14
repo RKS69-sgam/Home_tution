@@ -69,13 +69,12 @@ if "user_name" not in st.session_state:
     st.session_state.user_name = ""
     st.session_state.user_role = ""
 
-logout = st.sidebar.button("Logout")
-if logout:
-    st.session_state.user_name = ""
-    st.session_state.user_role = ""
+if st.sidebar.button("Logout"):
+    st.session_state.clear()
     st.experimental_rerun()
 
 st.title("EXCELLENT PUBLIC SCHOOL - Advance Classes")
+
 role = st.radio("Login as", ["Student", "Teacher", "Register", "Admin"])
 
 if role == "Register":
@@ -86,15 +85,14 @@ if role == "Register":
     password = st.text_input("Create Password", type="password")
 
     st.subheader("Pay ₹100 for Subscription")
-    st.write("Please pay ₹100 to the UPI ID below using any UPI app (PhonePe, GPay, etc.):")
-    st.code(UPI_ID)
+    st.code(f"upi://pay?pa={UPI_ID}&am=100", language="text")
 
     if st.button("I have paid. Register me"):
         df = load_students()
         if gmail in df["Gmail ID"].values:
             st.error("Already registered.")
         else:
-            new_sr = df.shape[0] + 1
+            new_sr = df.shape[0]+1
             new_row = {
                 "Sr. No.": new_sr,
                 "Student Name": name,
@@ -120,6 +118,7 @@ elif role == "Student":
                 st.session_state.user_name = user.iloc[0]["Student Name"]
                 st.session_state.user_role = "student"
                 st.success("Login successful")
+                st.experimental_rerun()
             else:
                 st.error("Payment not confirmed or subscription expired.")
         else:
@@ -136,6 +135,7 @@ elif role == "Teacher":
             st.session_state.user_name = user.iloc[0]["Teacher Name"]
             st.session_state.user_role = "teacher"
             st.success("Login successful")
+            st.experimental_rerun()
         else:
             st.error("Invalid credentials")
 

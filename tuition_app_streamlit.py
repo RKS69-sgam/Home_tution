@@ -92,7 +92,7 @@ if role == "Register":
     password = st.text_input("Create Password", type="password")
 
     st.subheader("Pay ₹100 for Subscription")
-    st.code(f"upi://pay?pa={UPI_ID}&am=100", language="text")
+    st.code(f"{UPI_ID}, language="text")
 
     if st.button("I have paid. Register me"):
         df = load_students()

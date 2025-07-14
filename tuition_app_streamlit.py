@@ -61,10 +61,11 @@ def replace_placeholders(path_in, path_out, name, cls, date_str):
             run.text = run.text.replace("[HomeworkDate]", f"Date: {date_str}")
     doc.save(path_out)
 
-# UI
+# UI Setup
 st.set_page_config(layout="wide")
 st.sidebar.title("Menu")
 
+# Logout Button
 if "user_name" not in st.session_state:
     st.session_state.user_name = ""
     st.session_state.user_role = ""
@@ -77,6 +78,7 @@ st.title("EXCELLENT PUBLIC SCHOOL - Advance Classes")
 
 role = st.radio("Login as", ["Student", "Teacher", "Register", "Admin"])
 
+# Registration
 if role == "Register":
     st.subheader("New Student Registration")
     name = st.text_input("Student Name")
@@ -85,14 +87,14 @@ if role == "Register":
     password = st.text_input("Create Password", type="password")
 
     st.subheader("Pay ₹100 for Subscription")
-    st.code(f"upi://pay?pa={UPI_ID}&am=100", language="text")
+    st.code(f"UPI ID to pay: {UPI_ID}")
 
     if st.button("I have paid. Register me"):
         df = load_students()
         if gmail in df["Gmail ID"].values:
             st.error("Already registered.")
         else:
-            new_sr = df.shape[0]+1
+            new_sr = df.shape[0] + 1
             new_row = {
                 "Sr. No.": new_sr,
                 "Student Name": name,
@@ -106,6 +108,7 @@ if role == "Register":
             save_students(df)
             st.success("Registered successfully. Wait for admin to confirm payment.")
 
+# Student Login
 elif role == "Student":
     st.subheader("Student Login")
     email = st.text_input("Gmail ID")
@@ -124,6 +127,7 @@ elif role == "Student":
         else:
             st.error("Invalid credentials")
 
+# Teacher Login
 elif role == "Teacher":
     st.subheader("Teacher Login")
     email = st.text_input("Gmail ID")
@@ -139,8 +143,9 @@ elif role == "Teacher":
         else:
             st.error("Invalid credentials")
 
+# Admin Panel
 elif role == "Admin":
-    st.subheader("Admin Panel")
+    st.subheader("Admin Login")
     email = st.text_input("Gmail ID")
     password = st.text_input("Password", type="password")
     if st.button("Login as Admin"):
@@ -161,14 +166,12 @@ elif role == "Admin":
             if not pending.empty:
                 for i, row in pending.iterrows():
                     st.write(f"{row['Sr. No.']}. {row['Student Name']} ({row['Gmail ID']})")
-                    try:
-                        current_date = pd.to_datetime(row["Subscribed Till"]).date() if pd.notnull(row["Subscribed Till"]) else datetime.today().date()
-                    except:
+                    current_date = pd.to_datetime(row["Subscribed Till"], errors='coerce')
+                    if pd.isnull(current_date):
                         current_date = datetime.today().date()
-
                     new_date = st.date_input(f"Subscription Till for {row['Student Name']}", current_date, key=row['Gmail ID'])
 
-                    if st.button(f"Confirm Payment for {row['Student Name']}", key="confirm_"+row['Gmail ID']):
+                    if st.button(f"Confirm Payment for {row['Student Name']}", key="confirm_" + row['Gmail ID']):
                         df.at[i, "Payment Confirmed"] = "Yes"
                         df.at[i, "Subscribed Till"] = new_date
                         save_students(df)
@@ -176,55 +179,53 @@ elif role == "Admin":
                         st.experimental_rerun()
             else:
                 st.info("No pending confirmations.")
+
+            st.subheader("All Students (Editable)")
+            editable_df = df.copy()
+            editable_df["Subscribed Till"] = editable_df["Subscribed Till"].astype(str)
+            edited_df = st.data_editor(editable_df, num_rows="dynamic", key="admin_table")
+            if st.button("Save Changes"):
+                edited_df["Subscribed Till"] = pd.to_datetime(edited_df["Subscribed Till"], errors='coerce')
+                save_students(edited_df)
+                st.success("Student data updated.")
         else:
             st.error("Invalid Admin credentials")
 
-    st.subheader("All Students")
-    editable_df = df.copy()
-    editable_df["Subscribed Till"] = editable_df["Subscribed Till"].astype(str)
-    edited_df = st.data_editor(editable_df, num_rows="dynamic", key="admin_table")
-    if st.button("Save Changes"):
-        edited_df["Subscribed Till"] = pd.to_datetime(edited_df["Subscribed Till"], errors='coerce')
-        save_students(edited_df)
-        st.success("Student data updated successfully.")
-    else:
-        st.info("No pending confirmations.")
-
-# Student / Teacher Panel
-if st.session_state.user_name:
+# Teacher Upload
+if st.session_state.user_name and st.session_state.user_role == "teacher":
     st.sidebar.success(f"Welcome {st.session_state.user_name}")
+    st.subheader("Upload Homework")
+    cls = st.selectbox("Select Class", [f"{i}th" for i in range(6,13)])
+    date = st.date_input("Homework Date", datetime.today())
+    file = st.file_uploader("Upload Word File", type=["docx"])
+    if file and st.button("Upload Homework"):
+        temp_path = os.path.join(HOMEWORK_DIR, f"temp_{cls}_{date}.docx")
+        final_path = os.path.join(HOMEWORK_DIR, f"{cls}_{date}.docx")
+        with open(temp_path, "wb") as f:
+            f.write(file.read())
+        insert_heading_and_placeholders(temp_path, final_path)
+        st.success("Homework uploaded successfully.")
 
-    if st.session_state.user_role == "teacher":
-        st.subheader("Upload Homework")
-        cls = st.selectbox("Select Class", [f"{i}th" for i in range(6,13)])
-        date = st.date_input("Homework Date", datetime.today())
-        file = st.file_uploader("Upload Word File", type=["docx"])
-        if file and st.button("Upload Homework"):
-            temp_path = os.path.join(HOMEWORK_DIR, f"temp_{cls}_{date}.docx")
-            final_path = os.path.join(HOMEWORK_DIR, f"{cls}_{date}.docx")
-            with open(temp_path, "wb") as f:
-                f.write(file.read())
-            insert_heading_and_placeholders(temp_path, final_path)
-            st.success("Homework uploaded.")
+# Student Homework Download
+if st.session_state.user_name and st.session_state.user_role == "student":
+    st.sidebar.success(f"Welcome {st.session_state.user_name}")
+    df = load_students()
+    user = df[df["Student Name"] == st.session_state.user_name].iloc[0]
+    cls = user["Class"]
+    date = st.date_input("Select Homework Date", datetime.today())
+    file_path = os.path.join(HOMEWORK_DIR, f"{cls}_{date}.docx")
+    output_path = os.path.join(HOMEWORK_DIR, f"{st.session_state.user_name}_{date}.docx")
+    if os.path.exists(file_path):
+        replace_placeholders(file_path, output_path, st.session_state.user_name, cls, str(date))
+        with open(output_path, "rb") as f:
+            st.download_button("Download Homework", f, file_name=os.path.basename(output_path))
+    else:
+        st.warning("Homework not available for selected date.")
 
-    elif st.session_state.user_role == "student":
-        df = load_students()
-        user = df[df["Student Name"] == st.session_state.user_name].iloc[0]
-        cls = user["Class"]
-        date = st.date_input("Select Homework Date", datetime.today())
-        file_path = os.path.join(HOMEWORK_DIR, f"{cls}_{date}.docx")
-        output_path = os.path.join(HOMEWORK_DIR, f"{st.session_state.user_name}_{date}.docx")
-        if os.path.exists(file_path):
-            replace_placeholders(file_path, output_path, st.session_state.user_name, cls, str(date))
-            with open(output_path, "rb") as f:
-                st.download_button("Download Homework", f, file_name=os.path.basename(output_path))
-        else:
-            st.warning("Homework not available for selected date.")
-
-        st.subheader("Upload Completed Notebook")
-        notebook = st.file_uploader("Upload your notebook", type=["jpg", "jpeg", "png", "pdf"])
-        if notebook:
-            save_path = os.path.join(NOTEBOOK_DIR, f"{st.session_state.user_name}_{date}_{notebook.name}")
-            with open(save_path, "wb") as f:
-                f.write(notebook.read())
-            st.success("Notebook uploaded successfully.")
+    st.subheader("Upload Completed Notebook")
+    notebook = st.file_uploader("Upload your notebook", type=["jpg", "jpeg", "png", "pdf"])
+    if notebook:
+        save_path = os.path.join(NOTEBOOK_DIR, f"{st.session_state.user_name}_{date}_{notebook.name}")
+        with open(save_path, "wb") as f:
+            f.write(notebook.read())
+        st.success("Notebook uploaded successfully.")

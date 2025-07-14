@@ -20,8 +20,8 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 client = gspread.authorize(credentials)
 
-STUDENT_SHEET = client.open_by_key("1aFEaCyyRX7l56NYu6imR3ovo_e8k6aAL").sheet1
-TEACHER_SHEET = client.open_by_key("1aCnuMxOlsJ3VkleK4wgTvMx2Sp-9pAMH").sheet1
+STUDENT_SHEET = client.open_by_key("1aCnuMxOlsJ3VkleK4wgTvMx2Sp-9pAMH").sheet1
+TEACHER_SHEET = client.open_by_key("1aFEaCyyRX7l56NYu6imR3ovo_e8k6aAL").sheet1
 
 os.makedirs(HOMEWORK_DIR, exist_ok=True)
 os.makedirs(NOTEBOOK_DIR, exist_ok=True)

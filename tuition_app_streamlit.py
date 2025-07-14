@@ -142,14 +142,25 @@ elif role == "Teacher":
 elif role == "Admin":
     st.subheader("Admin Panel")
     df = load_students()
-    pending = df[df["Payment Confirmed"] != "Yes"]
-    if not pending.empty:
-        for i, row in pending.iterrows():
-            st.write(f"{row['Sr. No.']}. {row['Student Name']} ({row['Gmail ID']})")
-            if st.button(f"Confirm Payment for {row['Student Name']}", key=row['Gmail ID']):
-                df.at[i, "Payment Confirmed"] = "Yes"
+
+    for i, row in df.iterrows():
+        st.write(f"**{row['Sr. No.']}. {row['Student Name']} ({row['Gmail ID']})**")
+        current_date = pd.to_datetime(row["Subscribed Till"]).date() if pd.notnull(row["Subscribed Till"]) else datetime.today().date()
+        new_date = st.date_input(f"Update 'Subscribed Till' for {row['Student Name']}", current_date, key=f"date_{i}")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if row["Payment Confirmed"] != "Yes":
+                if st.button(f"Confirm Payment for {row['Student Name']}", key=f"confirm_{i}"):
+                    df.at[i, "Payment Confirmed"] = "Yes"
+                    df.at[i, "Subscribed Till"] = datetime.combine(new_date, datetime.min.time())
+                    save_students(df)
+                    st.success(f"Payment confirmed and date set for {row['Student Name']}")
+        with col2:
+            if st.button(f"Update Date for {row['Student Name']}", key=f"update_{i}"):
+                df.at[i, "Subscribed Till"] = datetime.combine(new_date, datetime.min.time())
                 save_students(df)
-                st.success(f"Payment confirmed for {row['Student Name']}")
+                st.success(f"Subscribed date updated for {row['Student Name']}")
     else:
         st.info("No pending confirmations.")
 

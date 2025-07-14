@@ -88,8 +88,8 @@ if role == "Register":
     cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
     password = st.text_input("Create Password", type="password")
     # Display in Streamlit
-st.subheader("Scan & Pay ₹100 for Subscription")
-st.image(qr_url, caption="Pay ₹100 via PhonePe / UPI", use_column_width=False)
+    st.subheader("Scan & Pay ₹100 for Subscription")
+    st.image(qr_url, caption="Pay ₹100 via PhonePe / UPI", use_column_width=False)
     if st.button("I have paid. Register me"):
         df = load_students()
         if gmail in df["Gmail ID"].values:

@@ -8,14 +8,13 @@ from PIL import Image
 import gspread
 import json
 import base64
+from oauth2client.service_account import ServiceAccountCredentials
 
+# === GOOGLE AUTH ===
 scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-
-# Load from Streamlit secrets
 encoded = st.secrets["google_service"]["base64_credentials"]
 decoded = base64.b64decode(encoded)
 credentials_dict = json.loads(decoded)
-
 credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
 client = gspread.authorize(credentials)
 
@@ -25,11 +24,6 @@ UPI_ID = "9685840429@pnb"
 SUBSCRIPTION_DAYS = 30
 HOMEWORK_DIR = "uploaded_homeworks"
 NOTEBOOK_DIR = "uploaded_notebooks"
-
-# === GOOGLE SHEET CONFIG ===
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-client = gspread.authorize(credentials)
 
 STUDENT_SHEET = client.open_by_key("1aCnuMxOlsJ3VkleK4wgTvMx2Sp-9pAMH").sheet1
 TEACHER_SHEET = client.open_by_key("1aFEaCyyRX7l56NYu6imR3ovo_e8k6aAL").sheet1

@@ -6,7 +6,18 @@ from docx import Document
 from docx.shared import Pt
 from PIL import Image
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+import json
+import base64
+
+scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+
+# Load from Streamlit secrets
+encoded = st.secrets["google_service"]["base64_credentials"]
+decoded = base64.b64decode(encoded)
+credentials_dict = json.loads(decoded)
+
+credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
+client = gspread.authorize(credentials)
 
 # === CONFIG ===
 LOGO_PATH = "logo.png"

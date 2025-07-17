@@ -169,17 +169,13 @@ elif role == "Admin":
             if not pending.empty:
                 for i, row in pending.iterrows():
                     st.write(f"{row['Sr. No.']}. {row['Student Name']} ({row['Gmail ID']})")
-                    try:
-                        current_date = pd.to_datetime(row["Subscribed Till"]).date()
-                    except:
-                        current_date = datetime.today().date()
-                    new_date = st.date_input(f"Subscription Till for {row['Student Name']}", current_date, key=row['Gmail ID'])
                     if st.button(f"Confirm Payment for {row['Student Name']}", key="confirm_"+row['Gmail ID']):
+                        today = datetime.today().date()
                         df.at[i, "Payment Confirmed"] = "Yes"
-                        df.at[i, "Subscribed Till"] = new_date.strftime('%Y-%m-%d')
-                        df = df.fillna("").astype(str)
+                        df.at[i, "Subscription Date"] = today.strftime('%Y-%m-%d')
+                        df.at[i, "Subscribed Till"] = (today + timedelta(days=SUBSCRIPTION_DAYS)).strftime('%Y-%m-%d')
                         save_students(df)
-                        st.success(f"Payment confirmed for {row['Student Name']} till {new_date}")
+                        st.success(f"Payment confirmed for {row['Student Name']} till {(today + timedelta(days=SUBSCRIPTION_DAYS)).strftime('%Y-%m-%d')}")
                         st.rerun()
             else:
                 st.info("No pending confirmations.")

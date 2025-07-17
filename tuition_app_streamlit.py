@@ -11,7 +11,7 @@ import base64
 from oauth2client.service_account import ServiceAccountCredentials
 
 # === GOOGLE AUTH ===
-scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 encoded = st.secrets["google_service"]["base64_credentials"]
 decoded = base64.b64decode(encoded)
 credentials_dict = json.loads(decoded)

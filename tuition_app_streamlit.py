@@ -39,6 +39,7 @@ def load_teachers():
     return pd.DataFrame(TEACHER_SHEET.get_all_records())
 
 def save_students(df):
+    df = df.fillna("").astype(str)
     STUDENT_SHEET.clear()
     STUDENT_SHEET.update([df.columns.values.tolist()] + df.values.tolist())
 
@@ -112,6 +113,7 @@ if role == "Register":
                 "Payment Confirmed": "No"
             }
             df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+            df = df.fillna("").astype(str)
             save_students(df)
             st.success("Registered successfully. Wait for admin to confirm payment.")
 
@@ -175,6 +177,7 @@ elif role == "Admin":
                     if st.button(f"Confirm Payment for {row['Student Name']}", key="confirm_"+row['Gmail ID']):
                         df.at[i, "Payment Confirmed"] = "Yes"
                         df.at[i, "Subscribed Till"] = new_date.strftime('%Y-%m-%d')
+                        df = df.fillna("").astype(str)
                         save_students(df)
                         st.success(f"Payment confirmed for {row['Student Name']} till {new_date}")
                         st.rerun()
@@ -187,6 +190,7 @@ elif role == "Admin":
             edited_df = st.data_editor(editable_df, num_rows="dynamic", key="admin_table")
             if st.button("Save Changes"):
                 edited_df["Subscribed Till"] = pd.to_datetime(edited_df["Subscribed Till"], errors='coerce').dt.strftime('%Y-%m-%d')
+                edited_df = edited_df.fillna("").astype(str)
                 save_students(edited_df)
                 st.success("Student data updated successfully.")
         else:

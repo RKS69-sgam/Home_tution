@@ -176,7 +176,7 @@ elif role == "Admin":
                         df.at[i, "Subscribed Till"] = (today + timedelta(days=SUBSCRIPTION_DAYS)).strftime('%Y-%m-%d')
                         save_students(df)
                         st.success(f"Payment confirmed for {row['Student Name']} till {(today + timedelta(days=SUBSCRIPTION_DAYS)).strftime('%Y-%m-%d')}")
-                        st.rerun()
+                        #st.rerun()
             else:
                 st.info("No pending confirmations.")
 

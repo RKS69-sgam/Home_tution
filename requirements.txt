@@ -1,7 +1,7 @@
 #streamlit
 #pandas
 #openpyxl
-#python-docx
+python-docx
 #gspread
 #oauth2client
 

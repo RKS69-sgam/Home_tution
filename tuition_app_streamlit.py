@@ -25,8 +25,8 @@ SUBSCRIPTION_DAYS = 30
 HOMEWORK_DIR = "uploaded_homeworks"
 NOTEBOOK_DIR = "uploaded_notebooks"
 
-STUDENT_SHEET = client.open_by_key("1aCnuMxOlsJ3VkleK4wgTvMx2Sp-9pAMH").sheet1
-TEACHER_SHEET = client.open_by_key("1aFEaCyyRX7l56NYu6imR3ovo_e8k6aAL").sheet1
+STUDENT_SHEET = client.open_by_key("10rC5yXLzeCzxOLaSbNc3tmHLiTS4RmO1G_PSpxRpSno").sheet1
+TEACHER_SHEET = client.open_by_key("1BRyQ5-Hv5Qr8ZnDzkj1awoxLjbLh3ubsWzpXskFL4h8").sheet1
 
 os.makedirs(HOMEWORK_DIR, exist_ok=True)
 os.makedirs(NOTEBOOK_DIR, exist_ok=True)

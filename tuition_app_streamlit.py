@@ -25,7 +25,7 @@ SUBSCRIPTION_DAYS = 30
 HOMEWORK_DIR = "uploaded_homeworks"
 NOTEBOOK_DIR = "uploaded_notebooks"
 
-STUDENT_SHEET = client.open_by_key("1aCnuMxOlsJ3VkleK4wgTvMx2Sp-9pAMH").sheet1
+STUDENT_SHEET = client.open_by_key("https://docs.google.com/spreadsheets/d/1aCnuMxOlsJ3VkleK4wgTvMx2Sp-9pAMH/edit?usp=drivesdk&ouid=107594083978914485925&rtpof=true&sd=true").sheet1
 TEACHER_SHEET = client.open_by_key("1aFEaCyyRX7l56NYu6imR3ovo_e8k6aAL").sheet1
 
 os.makedirs(HOMEWORK_DIR, exist_ok=True)

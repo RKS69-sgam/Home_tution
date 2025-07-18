@@ -153,30 +153,32 @@ elif role == "Teacher":
         else:
             st.error("Invalid credentials")
 
+# === Admin panel===
 elif role == "Admin":
     st.subheader("Admin Panel")
     email = st.text_input("Gmail ID")
     password = st.text_input("Password", type="password")
-    
+
     if st.button("Login as Admin"):
         df_teacher = load_teachers()
         admin_user = df_teacher[(df_teacher["Gmail ID"] == email) & (df_teacher["Password"] == password)]
-        
+
         if not admin_user.empty:
             st.success("Admin login successful")
             df = load_students()
 
+            # Store login status & data
             st.session_state["is_admin_logged_in"] = True
             st.session_state["admin_df"] = df
         else:
             st.error("Invalid Admin credentials")
 
-# === If already logged in, show admin features ===
+# === Logged-in Admin View ===
 if st.session_state.get("is_admin_logged_in", False):
     df = st.session_state.get("admin_df", load_students())
 
+    # Pending Confirmation
     pending = df[df["Payment Confirmed"] != "Yes"]
-
     if not pending.empty:
         st.subheader("Pending Confirmations")
         for i, row in pending.iterrows():
@@ -187,24 +189,25 @@ if st.session_state.get("is_admin_logged_in", False):
                 df.at[i, "Subscription Date"] = today.strftime('%Y-%m-%d')
                 df.at[i, "Subscribed Till"] = (today + timedelta(days=SUBSCRIPTION_DAYS)).strftime('%Y-%m-%d')
                 save_students(df)
-                st.success(f"Payment confirmed for {row['Student Name']} till {(today + timedelta(days=SUBSCRIPTION_DAYS)).strftime('%Y-%m-%d')}")
-
-                # Update session state to reflect changes instantly
                 st.session_state["admin_df"] = df
-
+                st.success(f"Payment confirmed for {row['Student Name']} till {(today + timedelta(days=SUBSCRIPTION_DAYS)).strftime('%Y-%m-%d')}")
+                st.rerun()  # Refresh the screen after confirmation
     else:
         st.info("No pending confirmations.")
 
+    # All Students Editable Table
     st.subheader("All Students")
     editable_df = df.copy()
     editable_df["Subscribed Till"] = editable_df["Subscribed Till"].astype(str)
     edited_df = st.data_editor(editable_df, num_rows="dynamic", key="admin_table")
+
     if st.button("Save Changes"):
         edited_df["Subscribed Till"] = pd.to_datetime(edited_df["Subscribed Till"], errors='coerce').dt.strftime('%Y-%m-%d')
         edited_df = edited_df.fillna("").astype(str)
         save_students(edited_df)
+        st.session_state["admin_df"] = edited_df  # Update state
         st.success("Student data updated successfully.")
-        st.session_state["admin_df"] = edited_df  # Update in session
+        st.rerun()  # 🔁 Refresh app to reflect new data
 
 # === DASHBOARDS ===
 if st.session_state.user_name:

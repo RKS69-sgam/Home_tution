@@ -149,7 +149,7 @@ elif role == "Teacher":
             st.session_state.user_name = user.iloc[0]["Teacher Name"]
             st.session_state.user_role = "teacher"
             st.success("Login successful")
-            st.stop()
+            st.rerun()  # 👈 यह app को दुबारा reload करेगा
         else:
             st.error("Invalid credentials")
 

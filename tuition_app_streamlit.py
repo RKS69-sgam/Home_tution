@@ -131,7 +131,7 @@ elif role == "Student":
                 st.session_state.user_name = user.iloc[0]["Student Name"]
                 st.session_state.user_role = "student"
                 st.success("Login successful")
-                st.stop()
+                st.rerun()  # 🔁 Force reload to show student dashboard
             else:
                 st.error("Payment not confirmed or subscription expired.")
         else:

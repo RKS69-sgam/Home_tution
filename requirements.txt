@@ -4,6 +4,6 @@ openpyxl
 python-docx
 gspread
 oauth2client
-fpdf
+fpdf2
 google-api-python-client
 Plotly

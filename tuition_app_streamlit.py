@@ -26,6 +26,7 @@ HOMEWORK_FOLDER_ID = "1cwEA6Gi1RIV9EymVYcwNy02kmGzFLSOe"
 NOTEBOOK_FOLDER_ID = "1diGm7ukz__yVze4JlH3F-oJ7GBsPJkHy"
 RECEIPT_FOLDER_ID = "1dlDauaPLZ-FQGzS2rIIyMnVjmUiBIAfr"
 
+
 # === AUTHENTICATION ===
 scopes = [
     "https://www.googleapis.com/auth/spreadsheets",

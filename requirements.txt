@@ -6,3 +6,4 @@ gspread
 oauth2client
 fpdf
 google-api-python-client
+Plotly

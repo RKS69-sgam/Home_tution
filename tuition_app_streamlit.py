@@ -1,4 +1,5 @@
-# FINAL MERGED STREAMLIT CODE WITH RECEIPT GENERATION
+# FINAL FIXED CODE - PRK HOME TUITION APP (With Receipts & All Panels)
+# 📌 All folders: Homework, Notebooks, Receipts integrated
 
 import streamlit as st
 import pandas as pd
@@ -10,6 +11,7 @@ from PIL import Image
 import gspread
 import json
 import base64
+import mimetypes
 from oauth2client.service_account import ServiceAccountCredentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
@@ -17,20 +19,17 @@ import plotly.express as px
 
 # === CONFIG ===
 st.set_page_config(layout="wide")
-LOGO_PATH = "logo.png"
 UPI_ID = "9685840429@pnb"
 SUBSCRIPTION_DAYS = 30
-NOTEBOOK_DIR = "uploaded_notebooks"
+LOGO_PATH = "logo.png"
+
 HOMEWORK_FOLDER_ID = "1cwEA6Gi1RIV9EymVYcwNy02kmGzFLSOe"
-NOTEBOOKS_FOLDER_ID = "1diGm7ukz__yVze4JlH3F-oJ7GBsPJkHy"
-RECEIPTS_FOLDER_ID = "1dlDauaPLZ-FQGzS2rIIyMnVjmUiBIAfr"
+NOTEBOOK_FOLDER_ID = "1diGm7ukz__yVze4JlH3F-oJ7GBsPJkHy"
+RECEIPT_FOLDER_ID = "1dlDauaPLZ-FQGzS2rIIyMnVjmUiBIAfr"
 
-os.makedirs(NOTEBOOK_DIR, exist_ok=True)
-
-# === GOOGLE AUTH ===
+# === AUTH ===
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-encoded = st.secrets["google_service"]["base64_credentials"]
-decoded = base64.b64decode(encoded)
+decoded = base64.b64decode(st.secrets["google_service"]["base64_credentials"])
 credentials_dict = json.loads(decoded)
 credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
 client = gspread.authorize(credentials)
@@ -39,43 +38,41 @@ drive_service = build("drive", "v3", credentials=credentials)
 # === SHEETS ===
 STUDENT_SHEET = client.open_by_key("10rC5yXLzeCzxOLaSbNc3tmHLiTS4RmO1G_PSpxRpSno").sheet1
 TEACHER_SHEET = client.open_by_key("1BRyQ5-Hv5Qr8ZnDzkj1awoxLjbLh3ubsWzpXskFL4h8").sheet1
-homework_sheet = client.open_by_key("1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI").sheet1
+HOMEWORK_SHEET = client.open_by_key("1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI").sheet1
 
 # === UTILS ===
+def upload_to_drive(path, folder_id, filename):
+    mime_type, _ = mimetypes.guess_type(path)
+    media = MediaFileUpload(path, mimetype=mime_type, resumable=True)
+    metadata = {"name": filename, "parents": [folder_id]}
+    file = drive_service.files().create(body=metadata, media_body=media, fields="id").execute()
+    return f"https://drive.google.com/file/d/{file.get('id')}/view"
+
+def create_receipt(student_name, gmail, cls, subs_date, till_date):
+    doc = Document()
+    title = doc.add_paragraph("PRK Home Tuition\nAdvance Classes\n\nReceipt")
+    title.alignment = 1
+    title.runs[0].bold = True
+    title.runs[0].font.size = Pt(16)
+    doc.add_paragraph(f"Name: {student_name}")
+    doc.add_paragraph(f"Class: {cls}")
+    doc.add_paragraph(f"Gmail: {gmail}")
+    doc.add_paragraph(f"Subscription Date: {subs_date}")
+    doc.add_paragraph(f"Valid Till: {till_date}")
+    path = f"/tmp/receipt_{student_name}.docx"
+    doc.save(path)
+    return upload_to_drive(path, RECEIPT_FOLDER_ID, f"Receipt_{student_name}.docx")
+
 def load_students():
     return pd.DataFrame(STUDENT_SHEET.get_all_records())
-
-def load_teachers():
-    return pd.DataFrame(TEACHER_SHEET.get_all_records())
 
 def save_students(df):
     df = df.fillna("").astype(str)
     STUDENT_SHEET.clear()
     STUDENT_SHEET.update([df.columns.values.tolist()] + df.values.tolist())
 
-def upload_to_drive(path, folder_id, filename):
-    metadata = {"name": filename, "parents": [folder_id]}
-    media = MediaFileUpload(path, resumable=True)
-    file = drive_service.files().create(body=metadata, media_body=media, fields="id").execute()
-    return f"https://drive.google.com/file/d/{file.get('id')}/view"
-
-def generate_receipt(student_name, gmail, date, output_path):
-    doc = Document()
-    p = doc.add_paragraph()
-    p.add_run("PRK HOME TUITION\n").bold = True
-    p.add_run("Payment Receipt\n").bold = True
-    doc.add_paragraph(f"Name: {student_name}")
-    doc.add_paragraph(f"Gmail ID: {gmail}")
-    doc.add_paragraph(f"Amount: ₹100")
-    doc.add_paragraph(f"Date: {date}")
-    doc.add_paragraph("Subscription valid for 30 days.")
-    doc.save(output_path)
-
-# === UI HEADER ===
-st.sidebar.title("Login Menu")
-if os.path.exists(LOGO_PATH):
-    st.image(LOGO_PATH, width=160)
-st.title("PRK Home Tuition Advance Classes")
+def load_teachers():
+    return pd.DataFrame(TEACHER_SHEET.get_all_records())
 
 # === SESSION ===
 if "user_name" not in st.session_state:
@@ -84,69 +81,68 @@ if "user_name" not in st.session_state:
 
 if st.sidebar.button("Logout"):
     st.session_state.clear()
-    st.success("Logged out successfully.")
-    st.stop()
+    st.experimental_rerun()
 
-# === LOGIN ===
-role = st.sidebar.radio("Login as", ["Student", "Teacher", "Register", "Admin", "Principal"])
+# === HEADER ===
+st.sidebar.title("Login")
+st.title("🏫 PRK Home Tuition App")
+
+# === LOGIN MENU ===
+role = st.sidebar.radio("Login As", ["Student", "Teacher", "Register", "Admin", "Principal"])
 
 # === REGISTER ===
 if role == "Register":
-    st.subheader("New Student Registration")
-    name = st.text_input("Student Name")
+    st.subheader("Student Registration")
+    name = st.text_input("Name")
     gmail = st.text_input("Gmail ID")
     cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
-    password = st.text_input("Create Password", type="password")
+    pwd = st.text_input("Password", type="password")
     st.code(UPI_ID, language="text")
-    if st.button("I have paid. Register me"):
+    if st.button("Register (After Payment)"):
         df = load_students()
         if gmail in df["Gmail ID"].values:
-            st.error("Already registered.")
+            st.error("Already registered")
         else:
-            new_sr = df.shape[0] + 1
-            till = (datetime.today() + timedelta(days=SUBSCRIPTION_DAYS)).strftime('%Y-%m-%d')
+            sr = df.shape[0] + 1
+            till = (datetime.today() + timedelta(days=SUBSCRIPTION_DAYS)).strftime("%Y-%m-%d")
             new_row = {
-                "Sr. No.": new_sr,
-                "Student Name": name,
-                "Gmail ID": gmail,
-                "Class": cls,
-                "Password": password,
-                "Subscription Date": "",
-                "Subscribed Till": till,
+                "Sr. No.": sr, "Student Name": name, "Gmail ID": gmail,
+                "Class": cls, "Password": pwd,
+                "Subscription Date": "", "Subscribed Till": till,
                 "Payment Confirmed": "No"
             }
             df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
             save_students(df)
-            st.success("Registered. Wait for admin to confirm payment.")
+            st.success("Registered. Wait for admin to confirm.")
 
 # === STUDENT LOGIN ===
 elif role == "Student":
     st.subheader("Student Login")
-    email = st.text_input("Gmail ID")
-    password = st.text_input("Password", type="password")
+    gmail = st.text_input("Gmail ID")
+    pwd = st.text_input("Password", type="password")
     if st.button("Login"):
         df = load_students()
-        user = df[(df["Gmail ID"] == email) & (df["Password"] == password)]
+        user = df[(df["Gmail ID"] == gmail) & (df["Password"] == pwd)]
         if not user.empty:
-            sub_date = pd.to_datetime(user.iloc[0]["Subscribed Till"])
-            if user.iloc[0]["Payment Confirmed"] == "Yes" and datetime.today() <= sub_date:
-                st.session_state.user_name = user.iloc[0]["Student Name"]
+            row = user.iloc[0]
+            if row["Payment Confirmed"] == "Yes" and datetime.today() <= pd.to_datetime(row["Subscribed Till"]):
+                st.session_state.user_name = row["Student Name"]
                 st.session_state.user_role = "student"
                 st.success("Login successful")
                 st.rerun()
             else:
-                st.error("Payment not confirmed or subscription expired.")
+                st.error("Subscription invalid or not confirmed.")
         else:
             st.error("Invalid credentials")
 
 # === TEACHER LOGIN ===
 elif role == "Teacher":
     st.subheader("Teacher Login")
-    email = st.text_input("Gmail ID")
-    password = st.text_input("Password", type="password")
+    gmail = st.text_input("Gmail ID")
+    pwd = st.text_input("Password", type="password")
     if st.button("Login"):
         df = load_teachers()
-        user = df[(df["Gmail ID"] == email) & (df["Password"] == password)]
+        user = df[(df["Gmail ID"] == gmail) & (df["Password"] == pwd)]
         if not user.empty:
             st.session_state.user_name = user.iloc[0]["Teacher Name"]
             st.session_state.user_role = "teacher"
@@ -158,104 +154,86 @@ elif role == "Teacher":
 # === ADMIN PANEL ===
 elif role == "Admin":
     st.subheader("Admin Login")
-    email = st.text_input("Gmail ID")
-    password = st.text_input("Password", type="password")
+    gmail = st.text_input("Admin Gmail")
+    pwd = st.text_input("Password", type="password")
     if st.button("Login as Admin"):
         df = load_teachers()
-        admin = df[(df["Gmail ID"] == email) & (df["Password"] == password)]
-        if not admin.empty:
-            st.success("Admin login successful")
-            df_students = load_students()
-            st.session_state["admin_df"] = df_students
-            st.session_state["admin_logged_in"] = True
-        else:
-            st.error("Invalid credentials")
-
-if st.session_state.get("admin_logged_in", False):
-    df = st.session_state["admin_df"]
-    pending = df[df["Payment Confirmed"] != "Yes"]
-    st.subheader("Pending Confirmations")
-    for i, row in pending.iterrows():
-        st.write(f"{row['Sr. No.']} - {row['Student Name']} ({row['Gmail ID']})")
-        if st.button(f"Confirm {row['Student Name']}", key=row['Gmail ID']):
-            today = datetime.today().date()
-            df.at[i, "Payment Confirmed"] = "Yes"
-            df.at[i, "Subscription Date"] = today.strftime('%Y-%m-%d')
-            df.at[i, "Subscribed Till"] = (today + timedelta(days=SUBSCRIPTION_DAYS)).strftime('%Y-%m-%d')
-            save_students(df)
-            st.session_state["admin_df"] = df
-            # Generate receipt
-            receipt_name = f"{row['Student Name']}_{today}.docx"
-            receipt_path = f"/tmp/{receipt_name}"
-            generate_receipt(row["Student Name"], row["Gmail ID"], today, receipt_path)
-            link = upload_to_drive(receipt_path, RECEIPTS_FOLDER_ID, receipt_name)
-            st.success(f"Payment confirmed. Receipt: [View]({link})")
-            st.rerun()
+        user = df[(df["Gmail ID"] == gmail) & (df["Password"] == pwd)]
+        if not user.empty:
+            st.session_state["admin"] = True
+            st.success("Logged in as Admin")
+            df = load_students()
+            for i, row in df[df["Payment Confirmed"] != "Yes"].iterrows():
+                st.write(f"{row['Student Name']} ({row['Gmail ID']})")
+                if st.button(f"✅ Confirm Payment - {row['Student Name']}", key=row["Gmail ID"]):
+                    today = datetime.today().strftime("%Y-%m-%d")
+                    till = (datetime.today() + timedelta(days=SUBSCRIPTION_DAYS)).strftime("%Y-%m-%d")
+                    df.at[i, "Subscription Date"] = today
+                    df.at[i, "Subscribed Till"] = till
+                    df.at[i, "Payment Confirmed"] = "Yes"
+                    receipt = create_receipt(row["Student Name"], row["Gmail ID"], row["Class"], today, till)
+                    st.success(f"Payment confirmed. Receipt generated: [🔗 View]({receipt})")
+                    save_students(df)
+                    st.rerun()
 
 # === PRINCIPAL PANEL ===
 elif role == "Principal":
     st.subheader("Principal Login")
-    email = st.text_input("Gmail ID")
-    password = st.text_input("Password", type="password")
+    gmail = st.text_input("Principal Gmail")
+    pwd = st.text_input("Password", type="password")
     if st.button("Login as Principal"):
         df = load_teachers()
-        principal = df[(df["Gmail ID"] == email) & (df["Password"] == password)]
-        if not principal.empty:
-            st.session_state["is_principal_logged_in"] = True
-            st.success("Principal login successful")
+        user = df[(df["Gmail ID"] == gmail) & (df["Password"] == pwd)]
+        if not user.empty:
+            st.session_state["principal"] = True
+            st.success("Logged in as Principal")
 
-if st.session_state.get("is_principal_logged_in", False):
-    st.title("📊 Principal Dashboard")
-    df = pd.DataFrame(homework_sheet.get_all_records())
-    if not df.empty:
-        df["Date"] = pd.to_datetime(df["Date"], errors='coerce')
-        st.plotly_chart(px.bar(df, x="Uploaded By", color="Subject", title="Homework per Teacher"))
-        trend = df.groupby(["Date", "Subject"]).size().reset_index(name="Count")
-        st.plotly_chart(px.line(trend, x="Date", y="Count", color="Subject", markers=True))
+if st.session_state.user_name and st.session_state.user_role == "teacher":
+    st.subheader("Upload Homework")
+    subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance Classes"])
+    cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
+    date = st.date_input("Date", datetime.today())
+    file = st.file_uploader("Upload Homework File", type=["docx", "pdf", "jpg", "png"])
+    if file and st.button("Upload"):
+        fname = f"{subject}_{cls}_{date}_{file.name}"
+        path = f"/tmp/{fname}"
+        with open(path, "wb") as f:
+            f.write(file.read())
+        link = upload_to_drive(path, HOMEWORK_FOLDER_ID, fname)
+        HOMEWORK_SHEET.append_row([cls, str(date), fname, link, st.session_state.user_name, subject])
+        st.success(f"Uploaded: [📎 {fname}]({link})")
 
-# === STUDENT DASHBOARD ===
 if st.session_state.user_name and st.session_state.user_role == "student":
-    st.sidebar.success(f"Welcome {st.session_state.user_name}")
+    st.subheader("Your Homework")
     df = load_students()
     user = df[df["Student Name"] == st.session_state.user_name].iloc[0]
     cls = user["Class"]
-    date = st.date_input("Select Homework Date", datetime.today())
-    df_files = pd.DataFrame(homework_sheet.get_all_records())
-    df_files = df_files[(df_files["Class"] == cls) & (df_files["Date"] == str(date))]
-
-    if not df_files.empty:
-        for _, row in df_files.iterrows():
+    date = st.date_input("Select Date", datetime.today())
+    data = pd.DataFrame(HOMEWORK_SHEET.get_all_records())
+    data = data[(data["Class"] == cls) & (data["Date"] == str(date))]
+    if not data.empty:
+        for _, row in data.iterrows():
             st.markdown(f"📘 **{row['Subject']}** → [📥 {row['File Name']}]({row['Drive Link']})")
     else:
-        st.warning("No homework for this date.")
+        st.warning("No homework found.")
 
     st.subheader("Upload Completed Notebook")
-    notebook = st.file_uploader("Upload Notebook", type=["jpg", "jpeg", "png", "pdf"])
-    if notebook:
-        fname = f"{st.session_state.user_name}_{date}_{notebook.name}"
-        path = os.path.join(NOTEBOOK_DIR, fname)
+    nb = st.file_uploader("Upload Notebook", type=["pdf", "jpg", "png"])
+    if nb:
+        nbname = f"{st.session_state.user_name}_{date}_{nb.name}"
+        path = f"/tmp/{nbname}"
         with open(path, "wb") as f:
-            f.write(notebook.read())
-        upload_to_drive(path, NOTEBOOKS_FOLDER_ID, fname)
-        st.success("Notebook uploaded.")
+            f.write(nb.read())
+        link = upload_to_drive(path, NOTEBOOK_FOLDER_ID, nbname)
+        st.success(f"Notebook uploaded: [📎 {nbname}]({link})")
 
-# === TEACHER DASHBOARD ===
-if st.session_state.user_name and st.session_state.user_role == "teacher":
-    st.sidebar.success(f"Welcome {st.session_state.user_name}")
-    st.subheader("Upload Homework")
-    subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance"])
-    cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
-    date = st.date_input("Homework Date", datetime.today())
-    file = st.file_uploader("Upload Homework", type=["docx", "pdf", "jpg", "png", "xlsx"])
-
-    if st.button("Upload File"):
-        if file:
-            fname = f"{subject}_{cls}_{date}_{file.name}"
-            path = f"/tmp/{fname}"
-            with open(path, "wb") as f:
-                f.write(file.read())
-            link = upload_to_drive(path, HOMEWORK_FOLDER_ID, fname)
-            homework_sheet.append_row([cls, str(date), fname, link, st.session_state.user_name, subject])
-            st.success(f"Uploaded: [View File]({link})")
-        else:
-            st.warning("Upload required.")
+if st.session_state.get("principal", False):
+    st.subheader("📊 Homework Upload Dashboard")
+    df = pd.DataFrame(HOMEWORK_SHEET.get_all_records())
+    if not df.empty:
+        df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+        fig1 = px.bar(df, x="Uploaded By", color="Subject", title="Uploads per Teacher")
+        st.plotly_chart(fig1)
+        trend = df.groupby(["Date", "Subject"]).size().reset_index(name="Count")
+        fig2 = px.line(trend, x="Date", y="Count", color="Subject", markers=True, title="Upload Trend")
+        st.plotly_chart(fig2)

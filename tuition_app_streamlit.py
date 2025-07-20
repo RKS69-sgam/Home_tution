@@ -1,10 +1,11 @@
+# FINAL FIXED CODE - PRK HOME TUITION APP
+
 import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime, timedelta
 from docx import Document
 from docx.shared import Pt
-from fpdf import FPDF
 from PIL import Image
 import gspread
 import json
@@ -14,7 +15,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 import plotly.express as px
 
-# === CONFIGURATION ===
+# === CONFIG ===
 st.set_page_config(layout="wide")
 LOGO_PATH = "logo.png"
 UPI_ID = "9685840429@pnb"
@@ -32,7 +33,7 @@ credentials_dict = json.loads(decoded)
 credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
 client = gspread.authorize(credentials)
 
-# Google Sheets & Drive Setup
+# Sheets
 STUDENT_SHEET = client.open_by_key("10rC5yXLzeCzxOLaSbNc3tmHLiTS4RmO1G_PSpxRpSno").sheet1
 TEACHER_SHEET = client.open_by_key("1BRyQ5-Hv5Qr8ZnDzkj1awoxLjbLh3ubsWzpXskFL4h8").sheet1
 homework_sheet = client.open_by_key("1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI").sheet1
@@ -58,25 +59,26 @@ def upload_to_drive(path, folder_id, filename):
     file_id = file.get("id")
     return f"https://drive.google.com/file/d/{file_id}/view"
 
-def insert_heading_and_placeholders(doc_lines, output_path):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(200, 10, "विद्या ददाति विनयं", ln=True, align='C')
-    pdf.set_font("Arial", '', 12)
-    pdf.cell(200, 10, "PRK Home Tuition Advance Classes", ln=True, align='C')
-    pdf.ln(10)
+def create_docx_homework(doc_lines, output_path):
+    doc = Document()
+    title = doc.add_paragraph("विद्या ददाति विनयं\nPRK Home Tuition Advance Classes")
+    title.alignment = 1
+    title.runs[0].font.bold = True
+    title.runs[0].font.size = Pt(16)
+    doc.add_paragraph("[StudentName]")
+    doc.add_paragraph("[Class]")
+    doc.add_paragraph("[HomeworkDate]")
     for line in doc_lines:
-        pdf.multi_cell(0, 8, line)
-    pdf.output(output_path)
+        doc.add_paragraph(line)
+    doc.save(output_path)
 
-# === HEADER ===
+# === UI HEADER ===
 st.sidebar.title("Login Menu")
 if os.path.exists(LOGO_PATH):
     st.image(LOGO_PATH, width=160)
 st.title("PRK Home Tuition Advance Classes")
 
-# === SESSION STATE ===
+# === SESSION ===
 if "user_name" not in st.session_state:
     st.session_state.user_name = ""
     st.session_state.user_role = ""
@@ -86,7 +88,7 @@ if st.sidebar.button("Logout"):
     st.success("Logged out successfully.")
     st.stop()
 
-# === LOGIN OPTIONS ===
+# === LOGIN ===
 role = st.sidebar.radio("Login as", ["Student", "Teacher", "Register", "Admin", "Principal"])
 
 # === REGISTER ===
@@ -224,56 +226,34 @@ if st.session_state.get("is_principal_logged_in", False):
         trend = hw_df.groupby(["Date", "Subject"]).size().reset_index(name="Uploads")
         fig2 = px.line(trend, x="Date", y="Uploads", color="Subject", markers=True, title="Upload Trend per Subject")
         st.plotly_chart(fig2)
-    else:
-        st.info("No homework records found.")
-
-    st.header("📒 Student Notebook Upload Summary")
-    upload_stats = {}
-    for f in os.listdir(NOTEBOOK_DIR):
-        try:
-            name, date, _ = f.split("_", 2)
-            key = (name, date)
-            upload_stats[key] = upload_stats.get(key, 0) + 1
-        except:
-            continue
-    if upload_stats:
-        records = [{"Student": k[0], "Date": k[1], "Uploads": v} for k, v in upload_stats.items()]
-        notebook_df = pd.DataFrame(records)
-        notebook_df["Date"] = pd.to_datetime(notebook_df["Date"], errors='coerce')
-        fig3 = px.bar(notebook_df, x="Student", y="Uploads", color="Date", title="Notebook Uploads per Student")
-        st.plotly_chart(fig3)
-        fig4 = px.line(notebook_df, x="Date", y="Uploads", color="Student", title="Notebook Upload Trend", markers=True)
-        st.plotly_chart(fig4)
-    else:
-        st.info("No student notebook uploads yet.")
 
 # === DASHBOARDS ===
 if st.session_state.user_name:
     st.sidebar.success(f"Welcome {st.session_state.user_name}")
     if st.session_state.user_role == "teacher":
         st.subheader("Upload Homework")
-        subject = st.selectbox("Select Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance Classes"])
-        cls = st.selectbox("Select Class", [f"{i}th" for i in range(6,13)])
+        subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance Classes"])
+        cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
         date = st.date_input("Homework Date", datetime.today())
-        file = st.file_uploader("Upload Homework File", type=["docx", "pdf", "jpg", "png", "xlsx"])
-        doc_lines = st.text_area("OR Create Homework On Screen (each line will be a paragraph)").split("\n")
+        file = st.file_uploader("Upload File", type=["docx", "pdf", "jpg", "png", "xlsx"])
+        doc_lines = st.text_area("OR Type Homework (one line per paragraph)").split("\n")
 
         if st.button("Upload Homework"):
-            final_file_name = f"{subject}_{cls}_{date}.pdf"
-            temp_path = f"/tmp/{final_file_name}"
+            final_file = f"{subject}_{cls}_{date}.docx"
+            path = f"/tmp/{final_file}"
 
             if any(doc_lines) and not file:
-                insert_heading_and_placeholders(doc_lines, temp_path)
+                create_docx_homework(doc_lines, path)
             elif file:
-                with open(temp_path, "wb") as f:
+                with open(path, "wb") as f:
                     f.write(file.read())
             else:
-                st.warning("Please upload or type the homework.")
+                st.warning("Upload or write homework required.")
                 st.stop()
 
-            link = upload_to_drive(temp_path, DRIVE_FOLDER_ID, final_file_name)
-            homework_sheet.append_row([cls, str(date), final_file_name, link, st.session_state.user_name])
-            st.success(f"Homework uploaded and saved. [View File]({link})")
+            link = upload_to_drive(path, DRIVE_FOLDER_ID, final_file)
+            homework_sheet.append_row([cls, str(date), final_file, link, st.session_state.user_name, subject])
+            st.success(f"Homework saved: [🔗 Open File]({link})")
 
     elif st.session_state.user_role == "student":
         df = load_students()
@@ -285,9 +265,9 @@ if st.session_state.user_name:
 
         if not files.empty:
             for i, row in files.iterrows():
-                st.markdown(f"📘 **{row['File Name']}**  →  [📥 Download File]({row['Drive Link']})")
+                st.markdown(f"📘 **{row['Subject']}** → [📥 {row['File Name']}]({row['Drive Link']})")
         else:
-            st.warning("No homework available for selected date.")
+            st.warning("No homework for selected date.")
 
         st.subheader("Upload Completed Notebook")
         notebook = st.file_uploader("Upload Notebook", type=["jpg", "jpeg", "png", "pdf"])

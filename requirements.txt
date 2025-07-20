@@ -3,9 +3,7 @@ pandas
 openpyxl
 python-docx
 gspread
-oauth2client
-fpdf2
 google-api-python-client
-Plotly
-google-auth
-hashlib
+google-auth-oauthlib
+google-auth-httplib2
+plotly

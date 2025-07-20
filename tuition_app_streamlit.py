@@ -1,6 +1,3 @@
-# FINAL FIXED CODE - PRK HOME TUITION APP (With Receipts & All Panels)
-# 📌 All folders: Homework, Notebooks, Receipts integrated
-
 import streamlit as st
 import pandas as pd
 import os

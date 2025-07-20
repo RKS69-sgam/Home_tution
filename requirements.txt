@@ -4,3 +4,4 @@ openpyxl
 python-docx
 gspread
 oauth2client
+fpdf

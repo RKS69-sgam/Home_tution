@@ -5,3 +5,4 @@ python-docx
 gspread
 oauth2client
 fpdf
+google-api-python-client

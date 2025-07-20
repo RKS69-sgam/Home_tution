@@ -124,7 +124,7 @@ if st.session_state.logged_in:
     st.sidebar.success(f"Welcome, {st.session_state.user_name}")
     if st.sidebar.button("Logout"):
         st.session_state.clear()
-        st.experimental_rerun()
+        st.rerun()
 
 st.title("🏫 PRK Home Tuition App")
 st.markdown("---")
@@ -232,7 +232,7 @@ if not st.session_state.logged_in:
                         if st.session_state.logged_in:
                             st.session_state.user_name = user_row[name_col]
                             st.session_state.user_role = role.lower()
-                            st.experimental_rerun()
+                            st.rerun()
                     else:
                         st.error("Invalid Gmail ID or Password.")
                 else:
@@ -270,7 +270,7 @@ if st.session_state.logged_in:
                             df_students.loc[i, "Payment Confirmed"] = "Yes"
                             save_students_data(df_students)
                             st.success(f"Payment confirmed for {row['Student Name']}.")
-                            st.experimental_rerun()
+                            st.rerun()
 
             st.markdown("---")
             st.markdown("#### Confirmed Students")

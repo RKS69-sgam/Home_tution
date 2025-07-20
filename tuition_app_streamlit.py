@@ -227,7 +227,7 @@ if st.session_state.get("is_principal_logged_in", False):
         fig2 = px.line(trend, x="Date", y="Uploads", color="Subject", markers=True, title="Upload Trend per Subject")
         st.plotly_chart(fig2)
 
-# === DASHBOARDS ===
+# === TEACHER DASHBOARD ===
 if st.session_state.user_name:
     st.sidebar.success(f"Welcome {st.session_state.user_name}")
     if st.session_state.user_role == "teacher":

@@ -9,7 +9,7 @@ import io
 st.title("Google Drive Upload Test 🔬")
 
 # --- IMPORTANT: Paste your ACTUAL Homework Folder ID here ---
-HOMEWORK_FOLDER_ID = "YOUR_HOMEWORK_FOLDER_ID_HERE" 
+HOMEWORK_FOLDER_ID = "1cwEA6Gi1RIV9EymVYcwNy02kmGzFLSOe" 
 
 try:
     # 1. Load credentials

@@ -47,11 +47,10 @@ except Exception as e:
 try:
     STUDENT_SHEET = client.open_by_key("10rC5yXLzeCzxOLaSbNc3tmHLiTS4RmO1G_PSpxRpSno").sheet1
     TEACHER_SHEET = client.open_by_key("1BRyQ5-Hv5Qr8ZnDzkj1awoxLjbLh3ubsWzpXskFL4h8").sheet1
-    
-    # --- FIX: Define the new sheet variables here ---
     HOMEWORK_QUESTIONS_SHEET = client.open_by_key("1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI").sheet1
-    STUDENT_ANSWER_SHEET_TEMPLATE_ID = "16poJSlKbTiezSG119QapoCVcjmAOicsJlyaeFpCKGd8" 
-    # -----------------------------------------------
+    
+    # --- FIX: Use a single Master Answer Sheet ---
+    MASTER_ANSWER_SHEET = client.open_by_key("16poJSlKbTiezSG119QapoCVcjmAOicsJlyaeFpCKGd8").sheet1
 
 except gspread.exceptions.SpreadsheetNotFound:
     st.error("One or more Google Sheets were not found. Please check the Sheet Keys.")
@@ -59,6 +58,7 @@ except gspread.exceptions.SpreadsheetNotFound:
 except HttpError as e:
     st.error(f"An error occurred accessing Google Sheets. Ensure they are shared with the service account: {e}")
     st.stop()
+
 
 
 

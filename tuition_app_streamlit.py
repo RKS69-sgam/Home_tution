@@ -370,8 +370,7 @@ if st.session_state.logged_in:
                             q_text
                         ])
                     
-                    # नया और सही कोड
-HOMEWORK_QUESTIONS_SHEET.append_rows(rows_to_add, value_input_option='USER_ENTERED')
+                    HOMEWORK_QUESTIONS_SHEET.append_rows(rows_to_add, value_input_option='USER_ENTERED')
 
                     st.success("Homework submitted successfully!")
                     st.balloons()

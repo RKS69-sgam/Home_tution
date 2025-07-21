@@ -375,41 +375,51 @@ if st.session_state.logged_in:
 
     # --- FIX: This 'elif' and its content were incorrectly indented. They are now fixed. ---
     elif current_role == "student":
+        elif current_role == "student":
         st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
-        # Get the student's information and class
+        # छात्र की जानकारी और क्लास का पता लगाएं
         df_students = load_data(STUDENT_SHEET)
-        user_info = df_students[df_students["Student Name"] == st.session_state.user_name].iloc[0]
+        user_info = df_students[df_students["Gmail ID"] == st.session_state.user_gmail].iloc[0]
         student_class = user_info["Class"]
         st.subheader(f"Your Class: {student_class}")
         st.markdown("---")
 
         st.header("Your Homework Assignments")
 
-        # Load all homework questions
-        # NOTE: Make sure you have defined HOMEWORK_QUESTIONS_SHEET correctly at the top of your file
+        # सभी होमवर्क के प्रश्नों को लोड करें
         df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
-        
-        # Filter homework for the student's class
         homework_for_class = df_homework[df_homework["Class"] == student_class]
 
         if homework_for_class.empty:
             st.info("No homework has been assigned for your class yet.")
         else:
-            # Group homework by subject
             subjects = homework_for_class['Subject'].unique()
-            
             for subject in subjects:
                 with st.expander(f"📚 Subject: {subject}"):
                     subject_homework = homework_for_class[homework_for_class["Subject"] == subject]
-                    
-                    # Group assignments by date
                     assignments = subject_homework.groupby('Date')
+                    
                     for date, assignment_df in assignments:
                         st.markdown(f"**Assignment Date: {date}**")
                         
-                        # Display all questions for that date
                         for i, row in enumerate(assignment_df.itertuples()):
-                            st.write(f"**Q{i + 1}:** {row.Question}")
-                        
-                        st.markdown("---") # Separator between assignments
+                            st.write(f"**Q{i+1}:** {row.Question}")
+                            
+                            # हर प्रश्न के लिए उत्तर देने का फॉर्म
+                            with st.form(key=f"answer_form_{row.Index}"):
+                                answer_text = st.text_area("Your Answer:", key=f"answer_text_{row.Index}")
+                                submit_answer_button = st.form_submit_button("Save Answer")
+
+                                if submit_answer_button:
+                                    # मास्टर आंसर शीट में उत्तर सेव करें
+                                    MASTER_ANSWER_SHEET.append_row([
+                                        st.session_state.user_gmail,
+                                        date,
+                                        subject,
+                                        row.Question,
+                                        answer_text,
+                                        "" # Marks column left blank
+                                    ], value_input_option='USER_ENTERED')
+                                    st.success(f"Answer for Q{i+1} saved!")
+                        st.markdown("---")

@@ -312,27 +312,60 @@ if st.session_state.logged_in:
             confirmed_teachers = df_teachers[df_teachers.get("Confirmed") == "Yes"]
             st.dataframe(confirmed_teachers)
 
-    elif current_role == "teacher":
+        elif current_role == "teacher":
         st.header("🧑‍🏫 Teacher Dashboard")
-        st.subheader("Upload Homework")
-        with st.form("homework_upload_form"):
-            subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK"])
-            cls = st.selectbox("Class", [f"{i}th" for i in range(6, 13)])
-            date = st.date_input("Date", datetime.today())
-            uploaded_file = st.file_uploader("Upload Homework File", type=["docx", "pdf", "jpg", "png", "txt"])
-            upload_button = st.form_submit_button("Upload Homework")
+        st.subheader("Create Homework On-Screen")
 
-            if upload_button and uploaded_file:
-                fname = f"{subject}_{cls}_{date.strftime(DATE_FORMAT)}_{uploaded_file.name}"
-                path = f"/tmp/{fname}"
-                with open(path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
+        # Initialize session state to store questions temporarily
+        if 'questions_list' not in st.session_state:
+            st.session_state.questions_list = []
 
-                link = upload_to_drive(path, HOMEWORK_FOLDER_ID, fname)
-                if link:
-                    HOMEWORK_SHEET.append_row([cls, date.strftime(DATE_FORMAT), fname, link, st.session_state.user_name, subject])
-                    st.success(f"Homework uploaded successfully: [📎 {fname}]({link})")
-                    os.remove(path)
+        # Form for adding a single question
+        with st.form("add_question_form", clear_on_submit=True):
+            question_text = st.text_area("Enter a question:")
+            add_button = st.form_submit_button("Add Question")
+
+            if add_button and question_text:
+                st.session_state.questions_list.append(question_text)
+                st.success("Question added below!")
+
+        # Display the list of added questions
+        if st.session_state.questions_list:
+            st.markdown("---")
+            st.subheader("Homework Questions Added So Far:")
+            for i, q in enumerate(st.session_state.questions_list):
+                st.write(f"{i + 1}. {q}")
+
+            # Form for submitting the final homework
+            st.markdown("---")
+            with st.form("final_submit_form"):
+                st.info("Select the details and submit all the questions listed above as one homework assignment.")
+                subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK"])
+                cls = st.selectbox("Class", [f"{i}th" for i in range(6, 13)])
+                date = st.date_input("Date", datetime.today())
+                submit_homework_button = st.form_submit_button("Final Submit Homework")
+
+                if submit_homework_button:
+                    # Logic to save all questions to the master homework sheet
+                    rows_to_add = []
+                    for q_text in st.session_state.questions_list:
+                        rows_to_add.append([
+                            cls, 
+                            date.strftime(DATE_FORMAT), 
+                            st.session_state.user_name, 
+                            subject, 
+                            q_text
+                        ])
+                    
+                    # Append all rows to the Google Sheet at once
+                    HOMEWORK_SHEET.append_rows(rows_to_add)
+                    
+                    st.success("Homework submitted successfully to the main register!")
+                    st.balloons()
+                    
+                    # Clear the questions from session state after submission
+                    st.session_state.questions_list = []
+                    # You can add the Word file download logic here later.
 
     elif current_role == "student":
         st.header("🧑‍🎓 Student Dashboard")

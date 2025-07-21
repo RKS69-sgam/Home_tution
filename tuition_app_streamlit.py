@@ -382,52 +382,42 @@ if st.session_state.logged_in:
     
 
 
-    elif current_role == "student":
-        st.header("🧑‍🎓 Student Dashboard")
+        elif current_role == "student":
+        st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
+
+        # छात्र की जानकारी और क्लास का पता लगाएं
         df_students = load_data(STUDENT_SHEET)
         user_info = df_students[df_students["Student Name"] == st.session_state.user_name].iloc[0]
         student_class = user_info["Class"]
+        st.subheader(f"Your Class: {student_class}")
+        st.markdown("---")
 
-        st.subheader("View Homework")
-        hw_date = st.date_input("Select date for homework:", datetime.today())
+        st.header("Your Homework Assignments")
+
+        # सभी होमवर्क के प्रश्नों को लोड करें
+        # --- ध्यान दें: यहाँ HOMEWORK_QUESTIONS_SHEET का उपयोग करें ---
+        df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
         
-        all_homework = load_data(HOMEWORK_SHEET)
-        if not all_homework.empty:
-            hw_for_date = all_homework[(all_homework["Class"] == student_class) & (all_homework["Date"] == str(hw_date.strftime(DATE_FORMAT)))]
-            if not hw_for_date.empty:
-                for _, row in hw_for_date.iterrows():
-                    st.markdown(f"📘 **{row['Subject']}**: [{row['File Name']}]({row['Drive Link']})")
-            else:
-                st.warning("No homework found for the selected date.")
+        # सिर्फ इस छात्र की क्लास के लिए होमवर्क फ़िल्टर करें
+        homework_for_class = df_homework[df_homework["Class"] == student_class]
 
-        st.subheader("Upload Completed Work")
-        completed_work = st.file_uploader("Upload your notebook/worksheet", type=["pdf", "jpg", "png"])
-        if completed_work and st.button("Upload Completed Work"):
-            fname = f"{st.session_state.user_name}_{hw_date.strftime(DATE_FORMAT)}_{completed_work.name}"
-            path = f"/tmp/{fname}"
-            with open(path, "wb") as f:
-                f.write(completed_work.getbuffer())
-            
-            link = upload_to_drive(path, NOTEBOOK_FOLDER_ID, fname)
-            if link:
-                st.success(f"Your work was uploaded successfully: [📎 {fname}]({link})")
-                os.remove(path)
-
-    elif current_role == "principal":
-        st.header("🏛️ Principal Dashboard")
-        st.subheader("📊 Homework Upload Analytics")
-        df_homework = load_data(HOMEWORK_SHEET)
-        if not df_homework.empty:
-            df_homework["Date"] = pd.to_datetime(df_homework["Date"], errors='coerce').dt.date
-            
-            st.dataframe(df_homework)
-
-            fig1 = px.bar(df_homework, x="Uploaded By", y=None, color="Subject", title="Uploads per Teacher")
-            st.plotly_chart(fig1, use_container_width=True)
-            
-            trend = df_homework.groupby("Date").size().reset_index(name="Count")
-            fig2 = px.line(trend, x="Date", y="Count", title="Upload Trend Over Time", markers=True)
-            st.plotly_chart(fig2, use_container_width=True)
+        if homework_for_class.empty:
+            st.info("No homework has been assigned for your class yet.")
         else:
-            st.info("No homework data available for analysis.")
-
+            # होमवर्क को विषय के अनुसार ग्रुप करें
+            subjects = homework_for_class['Subject'].unique()
+            
+            for subject in subjects:
+                with st.expander(f"📚 Subject: {subject}"):
+                    subject_homework = homework_for_class[homework_for_class["Subject"] == subject]
+                    
+                    # हर तारीख के होमवर्क को अलग-अलग दिखाएं
+                    assignments = subject_homework.groupby('Date')
+                    for date, assignment_df in assignments:
+                        st.markdown(f"**Assignment Date: {date}**")
+                        
+                        # उस तारीख के सभी प्रश्न दिखाएं
+                        for i, row in enumerate(assignment_df.itertuples()):
+                            st.write(f"**Q{i + 1}:** {row.Question}")
+                        
+                        st.markdown("---") # हर असाइनमेंट के बाद एक लाइन

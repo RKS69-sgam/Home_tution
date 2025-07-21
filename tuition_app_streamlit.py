@@ -263,7 +263,6 @@ if st.session_state.logged_in:
             st.subheader("Manage Student Registrations")
             df_students = load_data(STUDENT_SHEET)
             st.markdown("#### Pending Payment Confirmations")
-            # --- FIX: Safely filter using .get() for robustness ---
             unconfirmed_students = df_students[df_students.get("Payment Confirmed") != "Yes"]
 
             if unconfirmed_students.empty:
@@ -290,7 +289,6 @@ if st.session_state.logged_in:
             st.subheader("Manage Teacher Registrations")
             df_teachers = load_data(TEACHER_SHEET)
             st.markdown("#### Pending Teacher Confirmations")
-            # --- FIX: Safely filter using .get() for robustness ---
             unconfirmed_teachers = df_teachers[df_teachers.get("Confirmed") != "Yes"]
 
             if unconfirmed_teachers.empty:
@@ -312,7 +310,8 @@ if st.session_state.logged_in:
             confirmed_teachers = df_teachers[df_teachers.get("Confirmed") == "Yes"]
             st.dataframe(confirmed_teachers)
 
-        elif current_role == "teacher":
+    # --- FIX: This 'elif' must be un-indented to align with the 'if' above ---
+    elif current_role == "teacher":
         st.header("🧑‍🏫 Teacher Dashboard")
         st.subheader("Create Homework On-Screen")
 
@@ -357,7 +356,7 @@ if st.session_state.logged_in:
                             q_text
                         ])
                     
-                    # Append all rows to the Google Sheet at once
+                    # NOTE: You will need to change HOMEWORK_SHEET to HOMEWORK_QUESTIONS_SHEET here
                     HOMEWORK_SHEET.append_rows(rows_to_add)
                     
                     st.success("Homework submitted successfully to the main register!")

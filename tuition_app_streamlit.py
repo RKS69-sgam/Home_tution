@@ -310,7 +310,6 @@ if st.session_state.logged_in:
             confirmed_teachers = df_teachers[df_teachers.get("Confirmed") == "Yes"]
             st.dataframe(confirmed_teachers)
 
-    # --- FIX: This 'elif' block was incorrectly indented. It is now fixed. ---
     elif current_role == "teacher":
         st.header("🧑‍🏫 Teacher Dashboard")
         st.subheader("Create Homework")
@@ -379,13 +378,11 @@ if st.session_state.logged_in:
                 del st.session_state.questions_list
                 st.rerun()
 
-    
-
-
-        elif current_role == "student":
+    # --- FIX: This 'elif' and its content were incorrectly indented. They are now fixed. ---
+    elif current_role == "student":
         st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
-        # छात्र की जानकारी और क्लास का पता लगाएं
+        # Get the student's information and class
         df_students = load_data(STUDENT_SHEET)
         user_info = df_students[df_students["Student Name"] == st.session_state.user_name].iloc[0]
         student_class = user_info["Class"]
@@ -394,30 +391,30 @@ if st.session_state.logged_in:
 
         st.header("Your Homework Assignments")
 
-        # सभी होमवर्क के प्रश्नों को लोड करें
-        # --- ध्यान दें: यहाँ HOMEWORK_QUESTIONS_SHEET का उपयोग करें ---
+        # Load all homework questions
+        # NOTE: Make sure you have defined HOMEWORK_QUESTIONS_SHEET correctly at the top of your file
         df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
         
-        # सिर्फ इस छात्र की क्लास के लिए होमवर्क फ़िल्टर करें
+        # Filter homework for the student's class
         homework_for_class = df_homework[df_homework["Class"] == student_class]
 
         if homework_for_class.empty:
             st.info("No homework has been assigned for your class yet.")
         else:
-            # होमवर्क को विषय के अनुसार ग्रुप करें
+            # Group homework by subject
             subjects = homework_for_class['Subject'].unique()
             
             for subject in subjects:
                 with st.expander(f"📚 Subject: {subject}"):
                     subject_homework = homework_for_class[homework_for_class["Subject"] == subject]
                     
-                    # हर तारीख के होमवर्क को अलग-अलग दिखाएं
+                    # Group assignments by date
                     assignments = subject_homework.groupby('Date')
                     for date, assignment_df in assignments:
                         st.markdown(f"**Assignment Date: {date}**")
                         
-                        # उस तारीख के सभी प्रश्न दिखाएं
+                        # Display all questions for that date
                         for i, row in enumerate(assignment_df.itertuples()):
                             st.write(f"**Q{i + 1}:** {row.Question}")
                         
-                        st.markdown("---") # हर असाइनमेंट के बाद एक लाइन
+                        st.markdown("---") # Separator between assignments

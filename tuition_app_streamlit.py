@@ -266,9 +266,7 @@ if st.session_state.logged_in:
         st.header("👑 Admin Panel")
         tab1, tab2 = st.tabs(["Student Management", "Teacher Management"])
 
-        # --- FIX: 'with tab1' must be indented inside the 'if' block ---
         with tab1:
-                with tab1:
             st.subheader("Manage Student Registrations")
             df_students = load_data(STUDENT_SHEET)
             st.markdown("#### Pending Payment Confirmations")
@@ -283,7 +281,6 @@ if st.session_state.logged_in:
                         st.write(f"**Name:** {row['Student Name']} | **Gmail:** {row['Gmail ID']}")
                     with col2:
                         if st.button("✅ Confirm Payment", key=f"confirm_student_{row['Gmail ID']}", use_container_width=True):
-                            # सिर्फ पेमेंट डिटेल्स अपडेट करें
                             df_students.loc[i, "Subscription Date"] = datetime.today().strftime(DATE_FORMAT)
                             df_students.loc[i, "Subscribed Till"] = (datetime.today() + timedelta(days=SUBSCRIPTION_DAYS)).strftime(DATE_FORMAT)
                             df_students.loc[i, "Payment Confirmed"] = "Yes"
@@ -296,13 +293,13 @@ if st.session_state.logged_in:
             confirmed_students = df_students[df_students.get("Payment Confirmed") == "Yes"]
             st.dataframe(confirmed_students)
 
-
-        # --- FIX: 'with tab2' must also be indented inside the 'if' block ---
         with tab2:
             st.subheader("Manage Teacher Registrations")
-            # ... (Your teacher management code will go here)
+            # (Your teacher management code will go here)
+            df_teachers = load_data(TEACHER_SHEET)
+            st.dataframe(df_teachers)
 
-    # --- FIX: 'elif' must be at the same indentation level as the 'if' above ---
+
     elif current_role == "teacher":
         st.header("🧑‍🏫 Teacher Dashboard")
         st.subheader("Create Homework")
@@ -371,55 +368,55 @@ if st.session_state.logged_in:
                 del st.session_state.questions_list
                 st.rerun()
 
-
-
-    # --- FIX: This 'elif' and its content were incorrectly indented. They are now fixed. ---
     elif current_role == "student":
-        elif current_role == "student":
         st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
-        # छात्र की जानकारी और क्लास का पता लगाएं
         df_students = load_data(STUDENT_SHEET)
-        user_info = df_students[df_students["Gmail ID"] == st.session_state.user_gmail].iloc[0]
-        student_class = user_info["Class"]
-        st.subheader(f"Your Class: {student_class}")
-        st.markdown("---")
+        # --- FIX: Need to save and use user_gmail in session_state for this to work ---
+        # For now, let's find the user by name as before.
+        user_info_row = df_students[df_students["Student Name"] == st.session_state.user_name]
+        
+        if not user_info_row.empty:
+            user_info = user_info_row.iloc[0]
+            student_class = user_info["Class"]
+            student_gmail = user_info["Gmail ID"] # Get gmail for saving answers
+            st.subheader(f"Your Class: {student_class}")
+            st.markdown("---")
 
-        st.header("Your Homework Assignments")
+            st.header("Your Homework Assignments")
 
-        # सभी होमवर्क के प्रश्नों को लोड करें
-        df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
-        homework_for_class = df_homework[df_homework["Class"] == student_class]
+            df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
+            homework_for_class = df_homework[df_homework["Class"] == student_class]
 
-        if homework_for_class.empty:
-            st.info("No homework has been assigned for your class yet.")
-        else:
-            subjects = homework_for_class['Subject'].unique()
-            for subject in subjects:
-                with st.expander(f"📚 Subject: {subject}"):
-                    subject_homework = homework_for_class[homework_for_class["Subject"] == subject]
-                    assignments = subject_homework.groupby('Date')
-                    
-                    for date, assignment_df in assignments:
-                        st.markdown(f"**Assignment Date: {date}**")
+            if homework_for_class.empty:
+                st.info("No homework has been assigned for your class yet.")
+            else:
+                subjects = homework_for_class['Subject'].unique()
+                for subject in subjects:
+                    with st.expander(f"📚 Subject: {subject}"):
+                        subject_homework = homework_for_class[homework_for_class["Subject"] == subject]
+                        assignments = subject_homework.groupby('Date')
                         
-                        for i, row in enumerate(assignment_df.itertuples()):
-                            st.write(f"**Q{i+1}:** {row.Question}")
+                        for date, assignment_df in assignments:
+                            st.markdown(f"**Assignment Date: {date}**")
                             
-                            # हर प्रश्न के लिए उत्तर देने का फॉर्म
-                            with st.form(key=f"answer_form_{row.Index}"):
-                                answer_text = st.text_area("Your Answer:", key=f"answer_text_{row.Index}")
-                                submit_answer_button = st.form_submit_button("Save Answer")
+                            for i, row in enumerate(assignment_df.itertuples()):
+                                st.write(f"**Q{i+1}:** {row.Question}")
+                                
+                                with st.form(key=f"answer_form_{row.Index}"):
+                                    answer_text = st.text_area("Your Answer:", key=f"answer_text_{row.Index}")
+                                    submit_answer_button = st.form_submit_button("Save Answer")
 
-                                if submit_answer_button:
-                                    # मास्टर आंसर शीट में उत्तर सेव करें
-                                    MASTER_ANSWER_SHEET.append_row([
-                                        st.session_state.user_gmail,
-                                        date,
-                                        subject,
-                                        row.Question,
-                                        answer_text,
-                                        "" # Marks column left blank
-                                    ], value_input_option='USER_ENTERED')
-                                    st.success(f"Answer for Q{i+1} saved!")
-                        st.markdown("---")
+                                    if submit_answer_button:
+                                        MASTER_ANSWER_SHEET.append_row([
+                                            student_gmail,
+                                            date,
+                                            subject,
+                                            row.Question,
+                                            answer_text,
+                                            "" # Marks column left blank
+                                        ], value_input_option='USER_ENTERED')
+                                        st.success(f"Answer for Q{i+1} saved!")
+                            st.markdown("---")
+        else:
+            st.error("Could not find your student record.")

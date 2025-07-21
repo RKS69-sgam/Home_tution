@@ -263,9 +263,9 @@ if st.session_state.logged_in:
     current_role = st.session_state.user_role.lower()
 
     if current_role == "admin":
-    st.header("👑 Admin Panel")
-    tab1, tab2 = st.tabs(["Student Management", "Teacher Management"])
-
+        # --- FIX: These lines must be indented ---
+        st.header("👑 Admin Panel")
+        tab1, tab2 = st.tabs(["Student Management", "Teacher Management"])
     # --- FIX: Indentation corrected on this line ---
     with tab1:
         st.subheader("Manage Student Registrations")

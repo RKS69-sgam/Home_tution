@@ -311,60 +311,83 @@ if st.session_state.logged_in:
             st.dataframe(confirmed_teachers)
 
     # --- FIX: This 'elif' must be un-indented to align with the 'if' above ---
-    elif current_role == "teacher":
+        elif current_role == "teacher":
         st.header("🧑‍🏫 Teacher Dashboard")
-        st.subheader("Create Homework On-Screen")
+        st.subheader("Create Homework")
 
-        # Initialize session state to store questions temporarily
-        if 'questions_list' not in st.session_state:
-            st.session_state.questions_list = []
+        # Session state to manage the two-step process
+        if 'context_set' not in st.session_state:
+            st.session_state.context_set = False
 
-        # Form for adding a single question
-        with st.form("add_question_form", clear_on_submit=True):
-            question_text = st.text_area("Enter a question:")
-            add_button = st.form_submit_button("Add Question")
-
-            if add_button and question_text:
-                st.session_state.questions_list.append(question_text)
-                st.success("Question added below!")
-
-        # Display the list of added questions
-        if st.session_state.questions_list:
-            st.markdown("---")
-            st.subheader("Homework Questions Added So Far:")
-            for i, q in enumerate(st.session_state.questions_list):
-                st.write(f"{i + 1}. {q}")
-
-            # Form for submitting the final homework
-            st.markdown("---")
-            with st.form("final_submit_form"):
-                st.info("Select the details and submit all the questions listed above as one homework assignment.")
+        # STEP 1: Form to set homework context (Subject, Class, etc.)
+        if not st.session_state.context_set:
+            with st.form("context_form"):
+                st.info("First, select the details for the homework assignment.")
                 subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK"])
                 cls = st.selectbox("Class", [f"{i}th" for i in range(6, 13)])
                 date = st.date_input("Date", datetime.today())
-                submit_homework_button = st.form_submit_button("Final Submit Homework")
+                start_button = st.form_submit_button("Start Adding Questions →")
 
-                if submit_homework_button:
-                    # Logic to save all questions to the master homework sheet
+                if start_button:
+                    st.session_state.context_set = True
+                    st.session_state.homework_context = {
+                        "subject": subject,
+                        "class": cls,
+                        "date": date
+                    }
+                    # Initialize an empty list for questions for this assignment
+                    st.session_state.questions_list = []
+                    st.rerun()
+
+        # STEP 2: Form to add questions after context is set
+        if st.session_state.context_set:
+            ctx = st.session_state.homework_context
+            st.success(f"Creating homework for: **{ctx['class']} - {ctx['subject']}** (Date: {ctx['date'].strftime(DATE_FORMAT)})")
+
+            # Form for adding a single question
+            with st.form("add_question_form", clear_on_submit=True):
+                question_text = st.text_area("Enter a question to add:", height=100)
+                add_button = st.form_submit_button("Add Question")
+
+                if add_button and question_text:
+                    st.session_state.questions_list.append(question_text)
+
+            # Display the list of added questions
+            if st.session_state.questions_list:
+                st.markdown("---")
+                st.write("#### Current Questions in this Assignment:")
+                for i, q in enumerate(st.session_state.questions_list):
+                    st.write(f"{i + 1}. {q}")
+
+                # Final submit button
+                if st.button("Final Submit Homework"):
                     rows_to_add = []
                     for q_text in st.session_state.questions_list:
                         rows_to_add.append([
-                            cls, 
-                            date.strftime(DATE_FORMAT), 
+                            ctx['class'], 
+                            ctx['date'].strftime(DATE_FORMAT), 
                             st.session_state.user_name, 
-                            subject, 
+                            ctx['subject'], 
                             q_text
                         ])
                     
-                    # NOTE: You will need to change HOMEWORK_SHEET to HOMEWORK_QUESTIONS_SHEET here
                     HOMEWORK_SHEET.append_rows(rows_to_add)
-                    
-                    st.success("Homework submitted successfully to the main register!")
+                    st.success("Homework submitted successfully!")
                     st.balloons()
                     
-                    # Clear the questions from session state after submission
-                    st.session_state.questions_list = []
-                    # You can add the Word file download logic here later.
+                    # Reset the state for a new homework assignment
+                    del st.session_state.context_set
+                    del st.session_state.homework_context
+                    del st.session_state.questions_list
+                    st.rerun()
+
+            # Button to reset and start a new homework assignment
+            if st.button("Create Another Homework (Reset)"):
+                del st.session_state.context_set
+                del st.session_state.homework_context
+                del st.session_state.questions_list
+                st.rerun()
+
 
     elif current_role == "student":
         st.header("🧑‍🎓 Student Dashboard")

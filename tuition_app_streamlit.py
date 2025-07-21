@@ -300,73 +300,115 @@ if st.session_state.logged_in:
             st.dataframe(df_teachers)
 
 
-    elif current_role == "teacher":
-        st.header("🧑‍🏫 Teacher Dashboard")
-        st.subheader("Create Homework")
+     elif current_role == "teacher":
+        st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
+        
+        # Use tabs to separate creating homework from grading
+        create_tab, grade_tab = st.tabs(["Create Homework", "Grade Answers"])
 
-        if 'context_set' not in st.session_state:
-            st.session_state.context_set = False
+        with create_tab:
+            st.subheader("Create a New Homework Assignment")
 
-        if not st.session_state.context_set:
-            with st.form("context_form"):
-                st.info("First, select the details for the homework assignment.")
-                subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK"])
-                cls = st.selectbox("Class", [f"{i}th" for i in range(6, 13)])
-                date = st.date_input("Date", datetime.today())
-                start_button = st.form_submit_button("Start Adding Questions →")
+            if 'context_set' not in st.session_state:
+                st.session_state.context_set = False
 
-                if start_button:
-                    st.session_state.context_set = True
-                    st.session_state.homework_context = {
-                        "subject": subject,
-                        "class": cls,
-                        "date": date
-                    }
-                    st.session_state.questions_list = []
-                    st.rerun()
+            if not st.session_state.context_set:
+                with st.form("context_form"):
+                    st.info("First, select the details for the homework assignment.")
+                    subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK"])
+                    cls = st.selectbox("Class", [f"{i}th" for i in range(6, 13)])
+                    date = st.date_input("Date", datetime.today())
+                    start_button = st.form_submit_button("Start Adding Questions →")
 
-        if st.session_state.context_set:
-            ctx = st.session_state.homework_context
-            st.success(f"Creating homework for: **{ctx['class']} - {ctx['subject']}** (Date: {ctx['date'].strftime(DATE_FORMAT)})")
+                    if start_button:
+                        st.session_state.context_set = True
+                        st.session_state.homework_context = {"subject": subject, "class": cls, "date": date}
+                        st.session_state.questions_list = []
+                        st.rerun()
 
-            with st.form("add_question_form", clear_on_submit=True):
-                question_text = st.text_area("Enter a question to add:", height=100)
-                add_button = st.form_submit_button("Add Question")
+            if st.session_state.context_set:
+                ctx = st.session_state.homework_context
+                st.success(f"Creating homework for: **{ctx['class']} - {ctx['subject']}** (Date: {ctx['date'].strftime(DATE_FORMAT)})")
 
-                if add_button and question_text:
-                    st.session_state.questions_list.append(question_text)
+                with st.form("add_question_form", clear_on_submit=True):
+                    question_text = st.text_area("Enter a question to add:", height=100)
+                    add_button = st.form_submit_button("Add Question")
 
-            if st.session_state.questions_list:
-                st.markdown("---")
-                st.write("#### Current Questions in this Assignment:")
-                for i, q in enumerate(st.session_state.questions_list):
-                    st.write(f"{i + 1}. {q}")
+                    if add_button and question_text:
+                        st.session_state.questions_list.append(question_text)
 
-                if st.button("Final Submit Homework"):
-                    rows_to_add = []
-                    for q_text in st.session_state.questions_list:
-                        rows_to_add.append([
-                            ctx['class'], 
-                            ctx['date'].strftime(DATE_FORMAT), 
-                            st.session_state.user_name, 
-                            ctx['subject'], 
-                            q_text
-                        ])
-                    
-                    HOMEWORK_QUESTIONS_SHEET.append_rows(rows_to_add, value_input_option='USER_ENTERED')
-                    st.success("Homework submitted successfully!")
-                    st.balloons()
-                    
+                if st.session_state.questions_list:
+                    st.markdown("---")
+                    st.write("#### Current Questions in this Assignment:")
+                    for i, q in enumerate(st.session_state.questions_list):
+                        st.write(f"{i + 1}. {q}")
+
+                    if st.button("Final Submit Homework"):
+                        rows_to_add = []
+                        for q_text in st.session_state.questions_list:
+                            rows_to_add.append([ctx['class'], ctx['date'].strftime(DATE_FORMAT), st.session_state.user_name, ctx['subject'], q_text])
+                        
+                        HOMEWORK_QUESTIONS_SHEET.append_rows(rows_to_add, value_input_option='USER_ENTERED')
+                        st.success("Homework submitted successfully!")
+                        st.balloons()
+                        
+                        del st.session_state.context_set
+                        del st.session_state.homework_context
+                        del st.session_state.questions_list
+                        st.rerun()
+
+                if st.button("Create Another Homework (Reset)"):
                     del st.session_state.context_set
                     del st.session_state.homework_context
                     del st.session_state.questions_list
                     st.rerun()
 
-            if st.button("Create Another Homework (Reset)"):
-                del st.session_state.context_set
-                del st.session_state.homework_context
-                del st.session_state.questions_list
-                st.rerun()
+        with grade_tab:
+            st.subheader("Grade Student Answers")
+            
+            # Get a list of confirmed students
+            df_students = load_data(STUDENT_SHEET)
+            confirmed_students = df_students[df_students['Payment Confirmed'] == 'Yes']
+            student_list = confirmed_students['Student Name'].tolist()
+            
+            if not student_list:
+                st.info("No confirmed students available to grade.")
+            else:
+                selected_student_name = st.selectbox("Select a Student to Grade", student_list)
+                
+                if selected_student_name:
+                    student_gmail = confirmed_students[confirmed_students['Student Name'] == selected_student_name].iloc[0]['Gmail ID']
+                    
+                    st.markdown(f"#### Showing answers for: **{selected_student_name}**")
+                    
+                    df_answers = pd.DataFrame(MASTER_ANSWER_SHEET.get_all_records())
+                    student_answers = df_answers[df_answers['Student Gmail'] == student_gmail]
+                    
+                    if student_answers.empty:
+                        st.warning(f"No answers found for {selected_student_name}.")
+                    else:
+                        for i, row in student_answers.iterrows():
+                            st.markdown(f"**Date:** {row['Date']} | **Subject:** {row['Subject']}")
+                            st.write(f"**Question:** {row['Question']}")
+                            st.info(f"**Answer:** {row['Answer']}")
+                            
+                            # Form for grading each answer
+                            with st.form(key=f"grade_form_{i}"):
+                                marks = st.number_input("Marks", min_value=0, max_value=100, value=int(row.get('Marks', 0)), key=f"marks_{i}")
+                                submit_marks_button = st.form_submit_button("Save Marks")
+                                
+                                if submit_marks_button:
+                                    # Find the cell to update in the Google Sheet and update it
+                                    # Note: Row numbers in gspread are 1-based, and we add 1 for the header
+                                    cell_row = i + 2 
+                                    # Find the column number for 'Marks' (it's the 6th column, so index 6)
+                                    marks_col = 6 
+                                    MASTER_ANSWER_SHEET.update_cell(cell_row, marks_col, marks)
+                                    st.success(f"Marks saved for this answer!")
+                                    st.rerun()
+                            st.markdown("---")
+
+
 
     elif current_role == "student":
         st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")

@@ -370,7 +370,7 @@ if st.session_state.logged_in:
                             q_text
                         ])
                     
-                    HOMEWORK_SHEET.append_rows(rows_to_add)
+                    HOMEWORK_QUESTIONS_SHEET.append_rows(rows_to_add)
                     st.success("Homework submitted successfully!")
                     st.balloons()
                     

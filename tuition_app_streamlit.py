@@ -263,59 +263,58 @@ if st.session_state.logged_in:
     current_role = st.session_state.user_role.lower()
 
     if current_role == "admin":
-        # --- FIX: These lines must be indented ---
         st.header("👑 Admin Panel")
         tab1, tab2 = st.tabs(["Student Management", "Teacher Management"])
-    # --- FIX: Indentation corrected on this line ---
-    with tab1:
-        st.subheader("Manage Student Registrations")
-        df_students = load_data(STUDENT_SHEET)
-        st.markdown("#### Pending Payment Confirmations")
-        unconfirmed_students = df_students[df_students.get("Payment Confirmed") != "Yes"]
 
-        if unconfirmed_students.empty:
-            st.info("No pending student payments to confirm.")
-        else:
-            for i, row in unconfirmed_students.iterrows():
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.write(f"**Name:** {row['Student Name']} | **Gmail:** {row['Gmail ID']}")
-                with col2:
-                    if st.button("✅ Confirm Payment", key=f"confirm_student_{row['Gmail ID']}", use_container_width=True):
-                        with st.spinner("Confirming student and creating answer sheet..."):
-                            student_name = row['Student Name']
-                            
-                            # 1. Create a new personal answer sheet by copying the template
-                            new_sheet_name = f"Answer Sheet - {student_name}"
-                            copied_file = drive_service.files().copy(
-                                fileId=STUDENT_ANSWER_SHEET_TEMPLATE_ID,
-                                body={'name': new_sheet_name},
-                                supportsAllDrives=True # Add this for Shared Drives
-                            ).execute()
-                            new_sheet_id = copied_file.get('id')
-                            
-                            # 2. Update the student's record with the new sheet ID
-                            df_students.loc[i, "Subscription Date"] = datetime.today().strftime(DATE_FORMAT)
-                            df_students.loc[i, "Subscribed Till"] = (datetime.today() + timedelta(days=SUBSCRIPTION_DAYS)).strftime(DATE_FORMAT)
-                            df_students.loc[i, "Payment Confirmed"] = "Yes"
-                            df_students.loc[i, "Answer Sheet ID"] = new_sheet_id
+        # --- FIX: 'with tab1' must be indented inside the 'if' block ---
+        with tab1:
+            st.subheader("Manage Student Registrations")
+            df_students = load_data(STUDENT_SHEET)
+            st.markdown("#### Pending Payment Confirmations")
+            unconfirmed_students = df_students[df_students.get("Payment Confirmed") != "Yes"]
 
-                            save_students_data(df_students)
-                            st.success(f"Payment confirmed for {student_name}. Their personal answer sheet has been created.")
-                            st.rerun()
+            if unconfirmed_students.empty:
+                st.info("No pending student payments to confirm.")
+            else:
+                for i, row in unconfirmed_students.iterrows():
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.write(f"**Name:** {row['Student Name']} | **Gmail:** {row['Gmail ID']}")
+                    with col2:
+                        if st.button("✅ Confirm Payment", key=f"confirm_student_{row['Gmail ID']}", use_container_width=True):
+                            with st.spinner("Confirming student and creating answer sheet..."):
+                                student_name = row['Student Name']
+                                
+                                # 1. Create a new personal answer sheet by copying the template
+                                new_sheet_name = f"Answer Sheet - {student_name}"
+                                copied_file = drive_service.files().copy(
+                                    fileId=STUDENT_ANSWER_SHEET_TEMPLATE_ID,
+                                    body={'name': new_sheet_name},
+                                    supportsAllDrives=True
+                                ).execute()
+                                new_sheet_id = copied_file.get('id')
+                                
+                                # 2. Update the student's record with the new sheet ID
+                                df_students.loc[i, "Subscription Date"] = datetime.today().strftime(DATE_FORMAT)
+                                df_students.loc[i, "Subscribed Till"] = (datetime.today() + timedelta(days=SUBSCRIPTION_DAYS)).strftime(DATE_FORMAT)
+                                df_students.loc[i, "Payment Confirmed"] = "Yes"
+                                df_students.loc[i, "Answer Sheet ID"] = new_sheet_id
 
-        st.markdown("---")
-        st.markdown("#### Confirmed Students")
-        confirmed_students = df_students[df_students.get("Payment Confirmed") == "Yes"]
-        st.dataframe(confirmed_students)
+                                save_students_data(df_students)
+                                st.success(f"Payment confirmed for {student_name}. Their personal answer sheet has been created.")
+                                st.rerun()
 
-    # The 'with tab2:' code should be at this same indentation level
-    with tab2:
-        st.subheader("Manage Teacher Registrations")
-        # ... (Your teacher management code will go here)
+            st.markdown("---")
+            st.markdown("#### Confirmed Students")
+            confirmed_students = df_students[df_students.get("Payment Confirmed") == "Yes"]
+            st.dataframe(confirmed_students)
 
+        # --- FIX: 'with tab2' must also be indented inside the 'if' block ---
+        with tab2:
+            st.subheader("Manage Teacher Registrations")
+            # ... (Your teacher management code will go here)
 
-
+    # --- FIX: 'elif' must be at the same indentation level as the 'if' above ---
     elif current_role == "teacher":
         st.header("🧑‍🏫 Teacher Dashboard")
         st.subheader("Create Homework")
@@ -370,7 +369,6 @@ if st.session_state.logged_in:
                         ])
                     
                     HOMEWORK_QUESTIONS_SHEET.append_rows(rows_to_add, value_input_option='USER_ENTERED')
-
                     st.success("Homework submitted successfully!")
                     st.balloons()
                     
@@ -384,6 +382,8 @@ if st.session_state.logged_in:
                 del st.session_state.homework_context
                 del st.session_state.questions_list
                 st.rerun()
+
+
 
     # --- FIX: This 'elif' and its content were incorrectly indented. They are now fixed. ---
     elif current_role == "student":

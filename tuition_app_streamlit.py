@@ -266,7 +266,7 @@ if st.session_state.logged_in:
         st.header("👑 Admin Panel")
         tab1, tab2 = st.tabs(["Student Management", "Teacher Management"])
 
-        with tab1:
+                with tab1:
             st.subheader("Manage Student Registrations")
             df_students = load_data(STUDENT_SHEET)
             st.markdown("#### Pending Payment Confirmations")
@@ -281,41 +281,34 @@ if st.session_state.logged_in:
                         st.write(f"**Name:** {row['Student Name']} | **Gmail:** {row['Gmail ID']}")
                     with col2:
                         if st.button("✅ Confirm Payment", key=f"confirm_student_{row['Gmail ID']}", use_container_width=True):
-                            df_students.loc[i, "Subscription Date"] = datetime.today().strftime(DATE_FORMAT)
-                            df_students.loc[i, "Subscribed Till"] = (datetime.today() + timedelta(days=SUBSCRIPTION_DAYS)).strftime(DATE_FORMAT)
-                            df_students.loc[i, "Payment Confirmed"] = "Yes"
-                            save_students_data(df_students)
-                            st.success(f"Payment confirmed for {row['Student Name']}.")
-                            st.rerun()
+                            with st.spinner("Confirming student and creating answer sheet..."):
+                                student_name = row['Student Name']
+                                
+                                # --- NEW LOGIC STARTS HERE ---
+                                # 1. Create a new personal answer sheet by copying the template
+                                new_sheet_name = f"Answer Sheet - {student_name}"
+                                copied_file = drive_service.files().copy(
+                                    fileId=STUDENT_ANSWER_SHEET_TEMPLATE_ID,
+                                    body={'name': new_sheet_name}
+                                ).execute()
+                                new_sheet_id = copied_file.get('id')
+                                
+                                # 2. Update the student's record with the new sheet ID
+                                df_students.loc[i, "Subscription Date"] = datetime.today().strftime(DATE_FORMAT)
+                                df_students.loc[i, "Subscribed Till"] = (datetime.today() + timedelta(days=SUBSCRIPTION_DAYS)).strftime(DATE_FORMAT)
+                                df_students.loc[i, "Payment Confirmed"] = "Yes"
+                                df_students.loc[i, "Answer Sheet ID"] = new_sheet_id
+                                # --- NEW LOGIC ENDS HERE ---
+
+                                save_students_data(df_students)
+                                st.success(f"Payment confirmed for {student_name}. Their personal answer sheet has been created.")
+                                st.rerun()
+
             st.markdown("---")
             st.markdown("#### Confirmed Students")
             confirmed_students = df_students[df_students.get("Payment Confirmed") == "Yes"]
             st.dataframe(confirmed_students)
 
-        with tab2:
-            st.subheader("Manage Teacher Registrations")
-            df_teachers = load_data(TEACHER_SHEET)
-            st.markdown("#### Pending Teacher Confirmations")
-            unconfirmed_teachers = df_teachers[df_teachers.get("Confirmed") != "Yes"]
-
-            if unconfirmed_teachers.empty:
-                st.info("No pending teacher confirmations.")
-            else:
-                for i, row in unconfirmed_teachers.iterrows():
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        st.write(f"**Name:** {row['Teacher Name']} | **Gmail:** {row['Gmail ID']}")
-                    with col2:
-                        if st.button("✅ Confirm Teacher", key=f"confirm_teacher_{row['Gmail ID']}", use_container_width=True):
-                            df_teachers.loc[i, "Confirmed"] = "Yes"
-                            save_teachers_data(df_teachers)
-                            st.success(f"Teacher {row['Teacher Name']} has been confirmed.")
-                            st.rerun()
-
-            st.markdown("---")
-            st.markdown("#### Confirmed Teachers")
-            confirmed_teachers = df_teachers[df_teachers.get("Confirmed") == "Yes"]
-            st.dataframe(confirmed_teachers)
 
     elif current_role == "teacher":
         st.header("🧑‍🏫 Teacher Dashboard")

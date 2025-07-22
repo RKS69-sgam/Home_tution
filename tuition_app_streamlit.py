@@ -43,6 +43,7 @@ except Exception as e:
     st.error("Error connecting to Google APIs. Please check credentials and sharing permissions.")
     st.stop()
 
+
 # === GOOGLE SHEETS ===
 try:
     STUDENT_SHEET = client.open_by_key("10rC5yXLzeCzxOLaSbNc3tmHLiTS4RmO1G_PSpxRpSno").sheet1
@@ -122,6 +123,21 @@ def save_teachers_data(df):
     TEACHER_SHEET.clear()
     TEACHER_SHEET.update([df_str.columns.values.tolist()] + df_str.values.tolist())
 
+def get_image_as_base64(path):
+    """Converts an image file to a Base64 string."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        encoded = base64.b64encode(data).decode()
+        mime_type, _ = mimetypes.guess_type(path)
+        if mime_type is None:
+            mime_type = "image/png" # Default if type cannot be guessed
+        return f"data:{mime_type};base64,{encoded}"
+    except FileNotFoundError:
+        return None
+
+
+
 # === SESSION STATE INITIALIZATION ===
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -137,39 +153,43 @@ if st.session_state.logged_in:
         st.session_state.clear()
         st.rerun()
 
-# --- Responsive Logo Section ---
-st.markdown(
-    """
-    <style>
-    .logo-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 20px; /* Space between logos */
-    }
-    .logo-img {
-        max-width: 45%; /* Each logo takes up to 45% of the container width */
-        height: auto;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+# --- Responsive Logo Section (FIXED) ---
+prk_logo_b64 = get_image_as_base64("PRK_logo.jpg")
+excellent_logo_b64 = get_image_as_base64("Excellent_logo.jpg")
 
-st.markdown(
-    """
-    <div class="logo-container">
-        <img src="PRK_logo.jpg" class="logo-img">
-        <img src="Excellent_logo.jpg" class="logo-img">
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+if prk_logo_b64 and excellent_logo_b64:
+    st.markdown(
+        """
+        <style>
+        .logo-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px; /* Space between logos */
+        }
+        .logo-img {
+            max-width: 45%; /* Each logo takes up to 45% of the container width */
+            height: auto;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        f"""
+        <div class="logo-container">
+            <img src="{prk_logo_b64}" class="logo-img">
+            <img src="{excellent_logo_b64}" class="logo-img">
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+else:
+    st.error("One or both logo files are missing. Please ensure 'PRK_logo.jpg' and 'Excellent_logo.jpg' are in the same folder as the script.")
 
 st.markdown("---")
-# -----------------------------
-
-
+# ------------------------------------
 
 
 

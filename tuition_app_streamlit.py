@@ -177,8 +177,10 @@ if not st.session_state.logged_in:
                             st.balloons()
             st.subheader("Payment Details")
             st.code(f"UPI ID: {UPI_ID}", language="text")
-     elif registration_type == "Teacher":
-         st.subheader("Teacher Registration")
+        
+        # --- FIX: This 'elif' must align with the 'if' above it ---
+        elif registration_type == "Teacher":
+            st.subheader("Teacher Registration")
             with st.form("teacher_registration_form"):
                 name = st.text_input("Full Name")
                 gmail = st.text_input("Gmail ID").lower().strip()
@@ -206,6 +208,8 @@ if not st.session_state.logged_in:
                             save_teachers_data(df_teachers)
                             st.success("Teacher registered successfully! Please wait for admin confirmation.")
                             st.balloons()
+
+    # --- FIX: This 'else' must align with 'if role == "Register":' ---
     else:
         st.header(f"🔑 {role} Login")
         with st.form(f"{role}_login_form"):
@@ -231,13 +235,11 @@ if not st.session_state.logged_in:
                     if check_hashes(login_pwd, hashed_pwd_from_sheet):
                         can_login = False
                         if role == "Student":
-                            # --- FIX: Use .get() to prevent crash if column doesn't exist ---
                             if user_row.get("Payment Confirmed") == "Yes" and datetime.today() <= pd.to_datetime(user_row.get("Subscribed Till")):
                                 can_login = True
                             else:
                                 st.error("Your subscription has expired or is not yet confirmed.")
                         elif role == "Teacher":
-                            # --- FIX: Use .get() to prevent crash if column doesn't exist ---
                             if user_row.get("Confirmed") == "Yes":
                                 can_login = True
                             else:
@@ -254,7 +256,6 @@ if not st.session_state.logged_in:
                         st.error("Invalid Gmail ID or Password.")
                 else:
                     st.error("Invalid Gmail ID or Password.")
-
 # === LOGGED-IN USER PANELS ===
 if st.session_state.logged_in:
     current_role = st.session_state.user_role.lower()

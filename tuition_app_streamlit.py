@@ -137,23 +137,38 @@ if st.session_state.logged_in:
         st.session_state.clear()
         st.rerun()
 
-# --- YEH BADLAV KAREN ---
-# Use columns to center both logos and the title
-col1, col2, col3 = st.columns([1, 2, 1]) # Create 3 columns: empty, content, empty
+# --- Responsive Logo Section ---
+st.markdown(
+    """
+    <style>
+    .logo-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 20px; /* Space between logos */
+    }
+    .logo-img {
+        max-width: 45%; /* Each logo takes up to 45% of the container width */
+        height: auto;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-with col2: # Use the middle column for content
-    # Create two inner columns for the images
-    img_col1, img_col2 = st.columns(2)
-    with img_col1:
-        st.image("PRK_logo.jpg", width=150) # Adjust width as needed
-    with img_col2:
-        st.image("Excellent_logo.jpg", width=150) # Adjust width as needed
-    
-    # Display the title below the images, centered
-    st.markdown("<h1 style='text-align: center;'>PRK Home Tuition App</h1>", unsafe_allow_html=True)
+st.markdown(
+    """
+    <div class="logo-container">
+        <img src="PRK_logo.jpg" class="logo-img">
+        <img src="Excellent_logo.jpg" class="logo-img">
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 st.markdown("---")
-# -----------------------
+# -----------------------------
+
 
 
 

@@ -374,38 +374,6 @@ if st.session_state.logged_in:
                 st.info("No confirmed students available to grade.")
             else:
                 selected_student_name = st.selectbox("Select a Student to Grade", student_list)
-                
-                if selected_student_name:
-                    student_gmail = confirmed_students[confirmed_students['Student Name'] == selected_student_name].iloc[0]['Gmail ID']
-                    
-                    st.markdown(f"#### Showing answers for: **{selected_student_name}**")
-                    
-                    df_answers = pd.DataFrame(MASTER_ANSWER_SHEET.get_all_records())
-                    student_answers = df_answers[df_answers['Student Gmail'] == student_gmail]
-                    
-                    if student_answers.empty:
-                        st.warning(f"No answers found for {selected_student_name}.")
-                    else:
-                        for i, row in student_answers.iterrows():
-                            st.markdown(f"**Date:** {row['Date']} | **Subject:** {row['Subject']}")
-                            st.write(f"**Question:** {row['Question']}")
-                            st.info(f"**Answer:** {row['Answer']}")
-                            
-                            # Form for grading each answer
-                            with st.form(key=f"grade_form_{i}"):
-                                marks = st.number_input("Marks", min_value=0, max_value=100, value=int(row.get('Marks', 0)), key=f"marks_{i}")
-                                submit_marks_button = st.form_submit_button("Save Marks")
-                                
-                                if submit_marks_button:
-                                    # Find the cell to update in the Google Sheet and update it
-                                    # Note: Row numbers in gspread are 1-based, and we add 1 for the header
-                                    cell_row = i + 2 
-                                    # Find the column number for 'Marks' (it's the 6th column, so index 6)
-                                    marks_col = 6 
-                                    MASTER_ANSWER_SHEET.update_cell(cell_row, marks_col, marks)
-                                    st.success(f"Marks saved for this answer!")
-                                    st.rerun()
-                            st.markdown("---")
 
 
 

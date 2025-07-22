@@ -162,7 +162,7 @@ st.markdown(
 st.markdown(
     f"""
     <div class="container">
-        <img class="logo-img" src="logo.png" alt="PRK Home Tuition Logo">
+        <img class="logo-img" src="logo.jpg" alt="PRK Home Tuition Logo">
         <h1 class="title-text">PRK Home Tuition App</h1>
     </div>
     """,

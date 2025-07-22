@@ -295,9 +295,7 @@ if st.session_state.logged_in:
             st.subheader("Manage Teacher Registrations")
             # (Your teacher management code will go here)
             df_teachers = load_data(TEACHER_SHEET)
-            st.dataframe(df_teachers)
-
- elif current_role == "teacher":
+            elif current_role == "teacher":
     st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
     
     # Display a summary of today's submitted homework
@@ -320,7 +318,6 @@ if st.session_state.logged_in:
     create_tab, grade_tab, report_tab = st.tabs(["Create Homework", "Grade Answers", "My Reports"])
 
     with create_tab:
-        # --- FILLED IN: Complete code for creating homework ---
         st.subheader("Create a New Homework Assignment")
         if 'context_set' not in st.session_state:
             st.session_state.context_set = False
@@ -370,7 +367,6 @@ if st.session_state.logged_in:
                 del st.session_state.homework_context
                 del st.session_state.questions_list
                 st.rerun()
-        # --- END OF FILLED IN SECTION ---
 
     with grade_tab:
         st.subheader("Grade Student Answers")
@@ -380,7 +376,6 @@ if st.session_state.logged_in:
         if df_answers.empty:
             st.info("No students have submitted any answers yet.")
         else:
-            # --- FILLED IN: Complete logic for student selection ---
             students_with_answers_gmail = df_answers['Student Gmail'].unique().tolist()
             df_students = load_data(STUDENT_SHEET)
             gradable_students = df_students[df_students['Gmail ID'].isin(students_with_answers_gmail)]
@@ -390,7 +385,6 @@ if st.session_state.logged_in:
                 st.info("No confirmed students have submitted answers yet.")
             else:
                 selected_student_name = st.selectbox("Select a Student to Grade", student_name_list)
-                # --- END OF FILLED IN SECTION ---
 
                 if selected_student_name:
                     student_gmail = gradable_students[gradable_students['Student Name'] == selected_student_name].iloc[0]['Gmail ID']
@@ -447,6 +441,8 @@ if st.session_state.logged_in:
             st.dataframe(report_summary)
             fig_report = px.bar(report_summary, x='Class', y='Total Questions', color='Subject', title='Your Homework Contributions')
             st.plotly_chart(fig_report, use_container_width=True)
+
+# The 'elif current_role == "student":' should be at this same indentation level
 elif current_role == "student":
         st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 

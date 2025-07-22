@@ -312,9 +312,57 @@ if st.session_state.logged_in:
         create_tab, grade_tab, report_tab = st.tabs(["Create Homework", "Grade Answers", "My Reports"])
 
         with create_tab:
-            # ... (Your "Create Homework" tab code remains here) ...
             st.subheader("Create a New Homework Assignment")
-            # (Paste your existing code for this tab here)
+            
+            # This logic manages the two-step homework creation process
+            if 'context_set' not in st.session_state:
+                st.session_state.context_set = False
+
+            if not st.session_state.context_set:
+                with st.form("context_form"):
+                    st.info("First, select the details for the homework assignment.")
+                    subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK"])
+                    cls = st.selectbox("Class", [f"{i}th" for i in range(6, 13)])
+                    date = st.date_input("Date", datetime.today())
+                    start_button = st.form_submit_button("Start Adding Questions →")
+                    if start_button:
+                        st.session_state.context_set = True
+                        st.session_state.homework_context = {"subject": subject, "class": cls, "date": date}
+                        st.session_state.questions_list = []
+                        st.rerun()
+
+            if st.session_state.context_set:
+                ctx = st.session_state.homework_context
+                st.success(f"Creating homework for: **{ctx['class']} - {ctx['subject']}** (Date: {ctx['date'].strftime(DATE_FORMAT)})")
+                with st.form("add_question_form", clear_on_submit=True):
+                    question_text = st.text_area("Enter a question to add:", height=100)
+                    add_button = st.form_submit_button("Add Question")
+                    if add_button and question_text:
+                        st.session_state.questions_list.append(question_text)
+                
+                if st.session_state.questions_list:
+                    st.markdown("---")
+                    st.write("#### Current Questions in this Assignment:")
+                    for i, q in enumerate(st.session_state.questions_list):
+                        st.write(f"{i + 1}. {q}")
+                    
+                    if st.button("Final Submit Homework"):
+                        rows_to_add = []
+                        for q_text in st.session_state.questions_list:
+                            rows_to_add.append([ctx['class'], ctx['date'].strftime(DATE_FORMAT), st.session_state.user_name, ctx['subject'], q_text])
+                        HOMEWORK_QUESTIONS_SHEET.append_rows(rows_to_add, value_input_option='USER_ENTERED')
+                        st.success("Homework submitted successfully!")
+                        st.balloons()
+                        del st.session_state.context_set
+                        del st.session_state.homework_context
+                        del st.session_state.questions_list
+                        st.rerun()
+
+                if st.session_state.context_set and st.button("Create Another Homework (Reset)"):
+                    del st.session_state.context_set
+                    del st.session_state.homework_context
+                    del st.session_state.questions_list
+                    st.rerun()
 
         with grade_tab:
             st.subheader("Grade Student Answers")

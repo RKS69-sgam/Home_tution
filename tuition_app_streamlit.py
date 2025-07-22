@@ -100,12 +100,12 @@ def create_answer_docx(student_name, student_class, answers_df):
 # --- FIX: Corrected and robust load_data function ---
 def load_data(sheet):
     """
-    Loads all data from a Google Sheet and correctly assigns the first row as the header.
-    This is more robust than get_all_records().
+    Loads all data from a Google Sheet and correctly assigns the 
+    first row as the header. This is more robust.
     """
     all_values = sheet.get_all_values()
-    if not all_values or len(all_values) < 2: # Check for header and at least one row of data
-        return pd.DataFrame() # Return empty dataframe if sheet is empty or only has a header
+    if not all_values:
+        return pd.DataFrame()  # Return empty dataframe if sheet is empty
     
     headers = all_values[0]
     data = all_values[1:]

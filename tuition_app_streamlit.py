@@ -292,7 +292,16 @@ if st.session_state.logged_in:
             confirmed_teachers = df_teachers[df_teachers.get("Confirmed") == "Yes"]
             st.dataframe(confirmed_teachers)
 
-    elif current_role == "teacher":
+    # This code should be part of your main if/elif chain for user roles
+# Example:
+# if current_role == "admin":
+#     ...
+# elif current_role == "teacher":
+#     ... (the code below)
+# elif current_role == "student":
+#     ...
+
+elif current_role == "teacher":
     st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
     
     # Display a summary of today's submitted homework
@@ -300,22 +309,21 @@ if st.session_state.logged_in:
     today_str = datetime.today().strftime(DATE_FORMAT)
     df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
     todays_homework = df_homework[
-        (df_homework.get('Uploaded By') == st.session_state.user_name) & 
-        (df_homework.get('Date') == today_str)
+        (df_homework['Uploaded By'] == st.session_state.user_name) & 
+        (df_homework['Date'] == today_str)
     ]
     if todays_homework.empty:
         st.info("You have not created any homework assignments today.")
     else:
         summary = todays_homework.groupby(['Class', 'Subject']).size().reset_index(name='Question Count')
         for index, row in summary.iterrows():
-            st.success(f"Class: **{row.get('Class')}** | Subject: **{row.get('Subject')}** | Questions: **{row.get('Question Count')}**")
+            st.success(f"Class: **{row['Class']}** | Subject: **{row['Subject']}** | Questions Added: **{row['Question Count']}**")
     
     st.markdown("---")
     
     create_tab, grade_tab, report_tab = st.tabs(["Create Homework", "Grade Answers", "My Reports"])
 
     with create_tab:
-        # --- FILLED IN: Complete code for creating homework ---
         st.subheader("Create a New Homework Assignment")
         if 'context_set' not in st.session_state:
             st.session_state.context_set = False
@@ -405,7 +413,6 @@ if st.session_state.logged_in:
                     
                     st.markdown("---")
                     for i, row in student_answers_df.sort_values(by='Date', ascending=False).iterrows():
-                        # --- FILLED IN: Complete code for the grading form ---
                         st.markdown(f"**Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
                         st.write(f"**Question:** {row.get('Question')}")
                         st.info(f"**Answer:** {row.get('Answer')}")
@@ -432,7 +439,6 @@ if st.session_state.logged_in:
         if my_homework_report.empty:
             st.info("You have not created any homework assignments yet.")
         else:
-            # --- FILLED IN: Complete code for the date filter and report ---
             st.markdown("##### Filter by Date")
             col1, col2 = st.columns(2)
             default_start_date = datetime.today() - timedelta(days=7)
@@ -470,8 +476,11 @@ if st.session_state.logged_in:
                 
                 st.write("Total answers you have graded per student:")
                 st.dataframe(grading_summary[['Student Name', 'Answers Graded']])
-    elif current_role == "student":
-        st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
+
+# The 'elif current_role == "student":' should be at this same indentation level
+elif current_role == "student":
+    st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
+    # ... Your student dashboard code goes here ...
         df_students = load_data(STUDENT_SHEET)
         user_info_row = df_students[df_students["Gmail ID"] == st.session_state.user_gmail]
         

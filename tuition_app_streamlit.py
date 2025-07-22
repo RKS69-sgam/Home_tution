@@ -137,18 +137,41 @@ if st.session_state.logged_in:
         st.session_state.clear()
         st.rerun()
 
-# --- YEH BADLAV KAREN ---
-# Use columns to center the logo and title
-col1, col2 = st.columns([1, 4]) # Adjust the ratio if needed
+# --- UPDATED LOGO AND TITLE SECTION ---
+st.markdown(
+    """
+    <style>
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .logo-img {
+            width: 200px !important; /* Adjust size as needed */
+            height: auto;
+            margin-bottom: 10px;
+        }
+        .title-text {
+            text-align: center;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-with col1:
-    st.image("logo.jpg", width=100) # Adjust width as needed
-
-with col2:
-    st.title("PRK Home Tuition App")
+st.markdown(
+    f"""
+    <div class="container">
+        <img class="logo-img" src="logo.png" alt="PRK Home Tuition Logo">
+        <h1 class="title-text">PRK Home Tuition App</h1>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.markdown("---")
-# -----------------------
+# --------------------------------------
+
 
 
 # === LOGIN / REGISTRATION ROUTING ===

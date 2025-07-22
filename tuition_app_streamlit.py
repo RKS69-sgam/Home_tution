@@ -448,7 +448,7 @@ elif current_role == "teacher":
             st.dataframe(report_summary)
             fig_report = px.bar(report_summary, x='Class', y='Total Questions', color='Subject', title='Your Homework Contributions')
             st.plotly_chart(fig_report, use_container_width=True)
-   elif current_role == "student":
+    elif current_role == "student":
         st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
         df_students = load_data(STUDENT_SHEET)

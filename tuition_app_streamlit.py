@@ -299,7 +299,7 @@ if st.session_state.logged_in:
 
 
     # --- FIX: 'elif' must be at the same level as the 'if' above ---
-elif current_role == "teacher":
+ elif current_role == "teacher":
     st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
     
     # Display a summary of today's submitted homework

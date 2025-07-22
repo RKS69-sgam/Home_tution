@@ -98,14 +98,7 @@ def create_answer_docx(student_name, student_class, answers_df):
     return buffer
 
 def load_data(sheet):
-    """
-    Loads all data from a Google Sheet and correctly assigns the first row as the header.
-    This is more robust than get_all_records().
-    """
-    all_values = sheet.get_all_values()
-    if not all_values or len(all_values) < 1:
-        # Return an empty dataframe with no columns if the sheet is empty
-        return pd.DataFrame()
+    return pd.DataFrame(sheet.get_all_records())
     
     headers = all_values[0]
     data = all_values[1:]

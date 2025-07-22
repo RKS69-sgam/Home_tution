@@ -370,17 +370,48 @@ if st.session_state.logged_in:
                             st.markdown("---")
                             
         with report_tab:
-            # ... (Your "My Reports" tab code remains here) ...
             st.subheader("My Homework Submission Report")
-            # (Paste your existing code for this tab here)
-            my_homework = df_homework[df_homework.get('Uploaded By') == st.session_state.user_name]
+            
+            # Load all homework created by the logged-in teacher
+            df_homework_report = load_data(HOMEWORK_QUESTIONS_SHEET)
+            my_homework = df_homework_report[df_homework_report.get('Uploaded By') == st.session_state.user_name]
+
             if my_homework.empty:
                 st.info("You have not created any homework assignments yet.")
             else:
-                report_summary = my_homework.groupby(['Class', 'Subject']).size().reset_index(name='Total Questions')
-                st.dataframe(report_summary)
-                fig_report = px.bar(report_summary, x='Class', y='Total Questions', color='Subject', title='Your Homework Contributions')
-                st.plotly_chart(fig_report, use_container_width=True)
+                # --- NEW FEATURE: Date Range Filter ---
+                st.markdown("#### Filter by Date")
+                col1, col2 = st.columns(2)
+                
+                # Set default start date to 7 days ago
+                default_start_date = datetime.today() - timedelta(days=7)
+                
+                with col1:
+                    start_date = st.date_input("Start Date", default_start_date)
+                with col2:
+                    end_date = st.date_input("End Date", datetime.today())
+                
+                # Convert the sheet's 'Date' column to a proper date format for comparison
+                my_homework['Date'] = pd.to_datetime(my_homework['Date']).dt.date
+                
+                # Filter the dataframe based on the selected date range
+                filtered_report = my_homework[
+                    (my_homework['Date'] >= start_date) & 
+                    (my_homework['Date'] <= end_date)
+                ]
+                
+                if filtered_report.empty:
+                    st.warning("No homework found in the selected date range.")
+                else:
+                    st.markdown("---")
+                    st.markdown("#### Total Questions Created by You (in selected range):")
+                    
+                    # Perform analysis on the FILTERED data
+                    report_summary = filtered_report.groupby(['Class', 'Subject']).size().reset_index(name='Total Questions')
+                    st.dataframe(report_summary)
+                    
+                    fig_report = px.bar(report_summary, x='Class', y='Total Questions', color='Subject', title='Your Homework Contributions in Selected Range')
+                    st.plotly_chart(fig_report, use_container_width=True)
 
     elif current_role == "student":
         st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")

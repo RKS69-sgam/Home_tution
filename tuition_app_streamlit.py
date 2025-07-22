@@ -178,8 +178,8 @@ if not st.session_state.logged_in:
             st.subheader("Payment Details")
             st.code(f"UPI ID: {UPI_ID}", language="text")
 
-        elif registration_type == "Teacher":
-            st.subheader("Teacher Registration")
+     elif registration_type == "Teacher":
+         st.subheader("Teacher Registration")
             with st.form("teacher_registration_form"):
                 name = st.text_input("Full Name")
                 gmail = st.text_input("Gmail ID").lower().strip()

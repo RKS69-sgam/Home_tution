@@ -137,40 +137,24 @@ if st.session_state.logged_in:
         st.session_state.clear()
         st.rerun()
 
-# --- UPDATED LOGO AND TITLE SECTION ---
-st.markdown(
-    """
-    <style>
-        .container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .logo-img {
-            width: 200px !important; /* Adjust size as needed */
-            height: auto;
-            margin-bottom: 10px;
-        }
-        .title-text {
-            text-align: center;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+# --- YEH BADLAV KAREN ---
+# Use columns to center both logos and the title
+col1, col2, col3 = st.columns([1, 2, 1]) # Create 3 columns: empty, content, empty
 
-st.markdown(
-    f"""
-    <div class="container">
-        <img class="logo-img" src="logo.jpg" alt="PRK Home Tuition Logo">
-        <h1 class="title-text">PRK Home Tuition App</h1>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+with col2: # Use the middle column for content
+    # Create two inner columns for the images
+    img_col1, img_col2 = st.columns(2)
+    with img_col1:
+        st.image("PRK_logo.jpg", width=150) # Adjust width as needed
+    with img_col2:
+        st.image("Excellent_logo.jpg", width=150) # Adjust width as needed
+    
+    # Display the title below the images, centered
+    st.markdown("<h1 style='text-align: center;'>PRK Home Tuition App</h1>", unsafe_allow_html=True)
 
 st.markdown("---")
-# --------------------------------------
+# -----------------------
+
 
 
 

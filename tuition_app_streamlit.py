@@ -446,19 +446,77 @@ elif current_role == "teacher":
             fig_report = px.bar(report_summary, x='Class', y='Total Questions', color='Subject', title='Your Homework Contributions')
             st.plotly_chart(fig_report, use_container_width=True)
     # --- FIX: 'elif' must be at the same level as the 'if' above ---
-  elif current_role == "student":
-        st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
-        df_students = load_data(STUDENT_SHEET)
-        user_info_row = df_students[df_students["Student Name"] == st.session_state.user_name]
+elif current_role == "student":
+    st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
+
+    df_students = load_data(STUDENT_SHEET)
+    user_info_row = df_students[df_students["Student Name"] == st.session_state.user_name]
+    
+    if not user_info_row.empty:
+        user_info = user_info_row.iloc[0]
+        student_class = user_info["Class"]
+        student_gmail = user_info["Gmail ID"]
+        st.subheader(f"Your Class: {student_class}")
+        st.markdown("---")
+
+        df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
+        df_all_answers = pd.DataFrame(MASTER_ANSWER_SHEET.get_all_records())
         
-        if not user_info_row.empty:
-            user_info = user_info_row.iloc[0]
-            student_class = user_info["Class"]
-            student_gmail = user_info["Gmail ID"]
-            st.subheader(f"Your Class: {student_class}")
-            st.markdown("---")
+        homework_for_class = df_homework[df_homework["Class"] == student_class]
+        student_answers = df_all_answers[df_all_answers['Student Gmail'] == student_gmail]
 
-            # ... (Rest of your student dashboard code goes here) ...
-
+        st.header("Your Growth Chart")
+        if not student_answers.empty and 'Marks' in student_answers.columns and pd.to_numeric(student_answers['Marks'], errors='coerce').notna().any():
+            student_answers['Marks'] = pd.to_numeric(student_answers['Marks'], errors='coerce')
+            marks_by_subject = student_answers.groupby('Subject')['Marks'].mean().reset_index()
+            fig = px.bar(marks_by_subject, x='Subject', y='Marks', title='Your Average Marks by Subject', text='Marks')
+            fig.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+            st.plotly_chart(fig, use_container_width=True)
         else:
-            st.error("Could not find your student record.")
+            st.info("Your growth chart will appear here once your answers are graded.")
+
+        st.markdown("---")
+        st.header("Your Homework Assignments")
+
+        if homework_for_class.empty:
+            st.info("No homework has been assigned for your class yet.")
+        else:
+            homework_for_class = homework_for_class.sort_values(by='Date', ascending=False)
+            
+            subjects = homework_for_class['Subject'].unique()
+            for subject in subjects:
+                with st.expander(f"📚 Subject: {subject}", expanded=True):
+                    subject_homework = homework_for_class[homework_for_class["Subject"] == subject]
+                    assignments = subject_homework.groupby('Date')
+                    
+                    for date, assignment_df in assignments:
+                        st.markdown(f"**Assignment Date: {date}**")
+                        
+                        for i, row in enumerate(assignment_df.itertuples()):
+                            is_answered = not student_answers[
+                                (student_answers['Date'] == date) &
+                                (student_answers['Question'] == row.Question)
+                            ].empty
+                            
+                            st.write(f"**Q{i+1}:** {row.Question}")
+                            
+                            if is_answered:
+                                saved_answer = student_answers[
+                                    (student_answers['Date'] == date) &
+                                    (student_answers['Question'] == row.Question)
+                                ].iloc[0]['Answer']
+                                st.success(f"**Your Saved Answer:** {saved_answer}")
+                            else:
+                                with st.form(key=f"answer_form_{row.Index}"):
+                                    answer_text = st.text_area("Your Answer:", key=f"answer_text_{row.Index}")
+                                    submit_answer_button = st.form_submit_button("Save Answer")
+                                    if submit_answer_button and answer_text:
+                                        MASTER_ANSWER_SHEET.append_row([
+                                            student_gmail, date, subject, row.Question,
+                                            answer_text, ""
+                                        ], value_input_option='USER_ENTERED')
+                                        st.success(f"Answer for Q{i+1} saved!")
+                                        st.rerun()
+                        st.markdown("---")
+    else:
+        st.error("Could not find your student record.")

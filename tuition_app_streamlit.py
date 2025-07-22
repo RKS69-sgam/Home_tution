@@ -137,8 +137,19 @@ if st.session_state.logged_in:
         st.session_state.clear()
         st.rerun()
 
-st.title("🏫 PRK Home Tuition App")
+# --- YEH BADLAV KAREN ---
+# Use columns to center the logo and title
+col1, col2 = st.columns([1, 4]) # Adjust the ratio if needed
+
+with col1:
+    st.image("logo.png", width=100) # Adjust width as needed
+
+with col2:
+    st.title("PRK Home Tuition App")
+
 st.markdown("---")
+# -----------------------
+
 
 # === LOGIN / REGISTRATION ROUTING ===
 if not st.session_state.logged_in:

@@ -50,7 +50,7 @@ try:
     HOMEWORK_QUESTIONS_SHEET = client.open_by_key("1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI").sheet1
     MASTER_ANSWER_SHEET = client.open_by_key("16poJSlKbTiezSG119QapoCVcjmAOicsJlyaeFpCKGd8").sheet1
 except Exception as e:
-    st.error(f"Could not open Google Sheets. Please ensure all Sheet Keys are correct and shared with the service account: {e}")
+    st.error(f"Could not open Google Sheets. Ensure all Sheet Keys are correct and shared with the service account: {e}")
     st.stop()
 
 # === UTILITY FUNCTIONS ===
@@ -97,8 +97,15 @@ def create_answer_docx(student_name, student_class, answers_df):
     buffer.seek(0)
     return buffer
 
+# --- FIX: Corrected and robust load_data function ---
 def load_data(sheet):
-    return pd.DataFrame(sheet.get_all_records())
+    """
+    Loads all data from a Google Sheet and correctly assigns the first row as the header.
+    This is more robust than get_all_records().
+    """
+    all_values = sheet.get_all_values()
+    if not all_values or len(all_values) < 2: # Check for header and at least one row of data
+        return pd.DataFrame() # Return empty dataframe if sheet is empty or only has a header
     
     headers = all_values[0]
     data = all_values[1:]
@@ -142,23 +149,19 @@ if not st.session_state.logged_in:
         registration_type = st.radio("Register as:", ["Student", "Teacher"])
         
         if registration_type == "Student":
-            # Student registration form
             with st.form("student_registration_form", clear_on_submit=True):
                 name = st.text_input("Full Name")
                 gmail = st.text_input("Gmail ID").lower().strip()
                 cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
                 pwd = st.text_input("Password", type="password")
-                submitted = st.form_submit_button("Register (After Payment)")
-
-                if submitted:
+                if st.form_submit_button("Register (After Payment)"):
                     if not all([name, gmail, cls, pwd]):
                         st.warning("Please fill in all details.")
                     else:
                         df = load_data(STUDENT_SHEET)
-                        if gmail in df["Gmail ID"].values:
+                        if not df.empty and gmail in df["Gmail ID"].values:
                             st.error("This Gmail is already registered.")
                         else:
-                            # Add student to sheet
                             hashed_password = make_hashes(pwd)
                             till_date = (datetime.today() + timedelta(days=SUBSCRIPTION_DAYS)).strftime(DATE_FORMAT)
                             new_row = {"Sr. No.": len(df) + 1, "Student Name": name, "Gmail ID": gmail, "Class": cls, "Password": hashed_password, "Subscription Date": "", "Subscribed Till": till_date, "Payment Confirmed": "No", "Answer Sheet ID": ""}
@@ -171,22 +174,18 @@ if not st.session_state.logged_in:
             st.code(f"UPI ID: {UPI_ID}", language="text")
         
         elif registration_type == "Teacher":
-            # Teacher registration form
             with st.form("teacher_registration_form", clear_on_submit=True):
                 name = st.text_input("Full Name")
                 gmail = st.text_input("Gmail ID").lower().strip()
                 pwd = st.text_input("Password", type="password")
-                submitted = st.form_submit_button("Register Teacher")
-                
-                if submitted:
+                if st.form_submit_button("Register Teacher"):
                     if not all([name, gmail, pwd]):
                         st.warning("Please fill in all details.")
                     else:
                         df_teachers = load_data(TEACHER_SHEET)
-                        if gmail in df_teachers["Gmail ID"].values:
+                        if not df_teachers.empty and gmail in df_teachers["Gmail ID"].values:
                             st.error("This Gmail is already registered as a teacher.")
                         else:
-                            # Add teacher to sheet
                             hashed_password = make_hashes(pwd)
                             new_row = {"Sr. No.": len(df_teachers) + 1, "Teacher Name": name, "Gmail ID": gmail, "Password": hashed_password, "Confirmed": "No"}
                             df_new = pd.DataFrame([new_row])
@@ -199,46 +198,47 @@ if not st.session_state.logged_in:
         with st.form(f"{role}_login_form"):
             login_gmail = st.text_input("Gmail ID").lower().strip()
             login_pwd = st.text_input("Password", type="password")
-            login_submitted = st.form_submit_button("Login")
-
-            if login_submitted:
+            if st.form_submit_button("Login"):
                 sheet_to_check = TEACHER_SHEET if role in ["Admin", "Principal", "Teacher"] else STUDENT_SHEET
                 name_col = "Teacher Name" if role in ["Admin", "Principal", "Teacher"] else "Student Name"
 
                 df_users = load_data(sheet_to_check)
-                user_data = df_users[df_users["Gmail ID"] == login_gmail]
+                if not df_users.empty:
+                    user_data = df_users[df_users["Gmail ID"] == login_gmail]
 
-                if not user_data.empty:
-                    user_row = user_data.iloc[0]
-                    if check_hashes(login_pwd, user_row.get("Password")):
-                        can_login = False
-                        if role == "Student":
-                            if user_row.get("Payment Confirmed") == "Yes" and datetime.today() <= pd.to_datetime(user_row.get("Subscribed Till")):
+                    if not user_data.empty:
+                        user_row = user_data.iloc[0]
+                        if check_hashes(login_pwd, user_row.get("Password")):
+                            can_login = False
+                            if role == "Student":
+                                if user_row.get("Payment Confirmed") == "Yes" and datetime.today() <= pd.to_datetime(user_row.get("Subscribed Till")):
+                                    can_login = True
+                                else:
+                                    st.error("Subscription expired or not confirmed.")
+                            elif role == "Teacher":
+                                if user_row.get("Confirmed") == "Yes":
+                                    can_login = True
+                                else:
+                                    st.error("Registration is pending admin confirmation.")
+                            elif role in ["Admin", "Principal"]:
                                 can_login = True
-                            else:
-                                st.error("Subscription expired or not confirmed.")
-                        elif role == "Teacher":
-                            if user_row.get("Confirmed") == "Yes":
-                                can_login = True
-                            else:
-                                st.error("Registration is pending admin confirmation.")
-                        elif role in ["Admin", "Principal"]:
-                            can_login = True
 
-                        if can_login:
-                            st.session_state.logged_in = True
-                            st.session_state.user_name = user_row.get(name_col)
-                            st.session_state.user_role = role.lower()
-                            st.session_state.user_gmail = login_gmail # --- CRITICAL FIX ---
-                            st.rerun()
+                            if can_login:
+                                st.session_state.logged_in = True
+                                st.session_state.user_name = user_row.get(name_col)
+                                st.session_state.user_role = role.lower()
+                                st.session_state.user_gmail = login_gmail
+                                st.rerun()
+                        else:
+                            st.error("Invalid Gmail ID or Password.")
                     else:
                         st.error("Invalid Gmail ID or Password.")
                 else:
-                    st.error("Invalid Gmail ID or Password.")
+                    st.error("User database is empty or could not be loaded.")
 
 # === LOGGED-IN USER PANELS ===
 if st.session_state.logged_in:
-    current_role = st.session_state.user_role.lower()
+    current_role = st.session_state.user_role
 
     if current_role == "admin":
         st.header("👑 Admin Panel")
@@ -249,7 +249,6 @@ if st.session_state.logged_in:
             df_students = load_data(STUDENT_SHEET)
             st.markdown("#### Pending Payment Confirmations")
             unconfirmed_students = df_students[df_students.get("Payment Confirmed") != "Yes"]
-
             if unconfirmed_students.empty:
                 st.info("No pending student payments.")
             else:
@@ -265,7 +264,6 @@ if st.session_state.logged_in:
                             save_students_data(df_students)
                             st.success(f"Payment confirmed for {row.get('Student Name')}.")
                             st.rerun()
-
             st.markdown("---")
             st.markdown("#### Confirmed Students")
             confirmed_students = df_students[df_students.get("Payment Confirmed") == "Yes"]
@@ -276,7 +274,6 @@ if st.session_state.logged_in:
             df_teachers = load_data(TEACHER_SHEET)
             st.markdown("#### Pending Teacher Confirmations")
             unconfirmed_teachers = df_teachers[df_teachers.get("Confirmed") != "Yes"]
-
             if unconfirmed_teachers.empty:
                 st.info("No pending teacher confirmations.")
             else:
@@ -300,10 +297,7 @@ if st.session_state.logged_in:
         st.subheader("Today's Submitted Homework")
         today_str = datetime.today().strftime(DATE_FORMAT)
         df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
-        todays_homework = df_homework[
-            (df_homework.get('Uploaded By') == st.session_state.user_name) & 
-            (df_homework.get('Date') == today_str)
-        ]
+        todays_homework = df_homework[(df_homework.get('Uploaded By') == st.session_state.user_name) & (df_homework.get('Date') == today_str)]
         if todays_homework.empty:
             st.info("You have not created any homework assignments today.")
         else:
@@ -353,7 +347,7 @@ if st.session_state.logged_in:
 
         with grade_tab:
             st.subheader("Grade Student Answers")
-            df_answers = pd.DataFrame(MASTER_ANSWER_SHEET.get_all_records())
+            df_answers = load_data(MASTER_ANSWER_SHEET)
             if df_answers.empty:
                 st.info("No students have submitted any answers yet.")
             else:
@@ -422,9 +416,7 @@ if st.session_state.logged_in:
                     st.plotly_chart(fig_report, use_container_width=True)
             st.markdown("---")
             st.markdown("#### Answer Grading Report")
-            if answers_to_my_questions.empty:
-                st.info("No answers have been submitted for your questions yet.")
-            else:
+            if 'answers_to_my_questions' in locals() and not answers_to_my_questions.empty:
                 graded_answers = answers_to_my_questions[pd.to_numeric(answers_to_my_questions.get('Marks', ''), errors='coerce').notna()]
                 if graded_answers.empty:
                     st.info("You have not graded any answers yet.")
@@ -434,6 +426,8 @@ if st.session_state.logged_in:
                     grading_summary = pd.merge(grading_summary, df_students_report, left_on='Student Gmail', right_on='Gmail ID', how='left')
                     st.write("Total answers you have graded per student:")
                     st.dataframe(grading_summary[['Student Name', 'Answers Graded']])
+            else:
+                st.info("No answers have been submitted for your questions yet.")
 
     elif current_role == "student":
         st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
@@ -446,7 +440,7 @@ if st.session_state.logged_in:
             st.markdown("---")
             
             df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
-            df_all_answers = pd.DataFrame(MASTER_ANSWER_SHEET.get_all_records())
+            df_all_answers = load_data(MASTER_ANSWER_SHEET)
             homework_for_class = df_homework[df_homework.get("Class") == student_class]
             student_answers = df_all_answers[df_all_answers.get('Student Gmail') == st.session_state.user_gmail]
 

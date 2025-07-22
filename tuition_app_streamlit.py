@@ -293,28 +293,28 @@ if st.session_state.logged_in:
             st.dataframe(confirmed_teachers)
 
     elif current_role == "teacher":
-    st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
+      st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
     
-    # Load all necessary data at the beginning
-    df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
-    df_all_answers = load_data(MASTER_ANSWER_SHEET)
-    df_students = load_data(STUDENT_SHEET)
+      # Load all necessary data at the beginning
+      df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
+      df_all_answers = load_data(MASTER_ANSWER_SHEET)
+      df_students = load_data(STUDENT_SHEET)
 
-    # Display a summary of today's submitted homework
-    st.subheader("Today's Submitted Homework")
-    today_str = datetime.today().strftime(DATE_FORMAT)
-    todays_homework = df_homework[
-        (df_homework.get('Uploaded By') == st.session_state.user_name) & 
-        (df_homework.get('Date') == today_str)
+      # Display a summary of today's submitted homework
+      st.subheader("Today's Submitted Homework")
+      today_str = datetime.today().strftime(DATE_FORMAT)
+      todays_homework = df_homework[
+          (df_homework.get('Uploaded By') == st.session_state.user_name) & 
+          (df_homework.get('Date') == today_str)
     ]
-    if todays_homework.empty:
-        st.info("You have not created any homework assignments today.")
-    else:
-        summary = todays_homework.groupby(['Class', 'Subject']).size().reset_index(name='Question Count')
-        for index, row in summary.iterrows():
-            st.success(f"Class: **{row.get('Class')}** | Subject: **{row.get('Subject')}** | Questions: **{row.get('Question Count')}**")
+      if todays_homework.empty:
+          st.info("You have not created any homework assignments today.")
+      else:
+          summary = todays_homework.groupby(['Class', 'Subject']).size().reset_index(name='Question Count')
+          for index, row in summary.iterrows():
+              st.success(f"Class: **{row.get('Class')}** | Subject: **{row.get('Subject')}** | Questions: **{row.get('Question Count')}**")
     
-    st.markdown("---")
+      st.markdown("---")
     
     create_tab, grade_tab, report_tab = st.tabs(["Create Homework", "Grade Answers", "My Reports"])
 

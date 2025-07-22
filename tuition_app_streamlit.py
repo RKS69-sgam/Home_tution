@@ -165,7 +165,7 @@ if prk_logo_b64 and excellent_logo_b64:
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 20px; /* Space between logos */
+            gap: 10px; /* Space between logos */
         }
         .logo-img {
             max-width: 15%; /* --- SIZE CHANGED HERE --- */

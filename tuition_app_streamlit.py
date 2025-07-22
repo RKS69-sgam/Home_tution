@@ -142,7 +142,7 @@ if st.session_state.logged_in:
 col1, col2 = st.columns([1, 4]) # Adjust the ratio if needed
 
 with col1:
-    st.image("logo.png", width=100) # Adjust width as needed
+    st.image("logo.jpg", width=100) # Adjust width as needed
 
 with col2:
     st.title("PRK Home Tuition App")

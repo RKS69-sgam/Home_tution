@@ -348,7 +348,7 @@ if st.session_state.logged_in:
                     if selected_student_name:
                         # ... (Rest of the grading logic goes here) ...
 
-    with report_tab:
+      with report_tab:
             st.subheader("My Reports")
             st.markdown("#### Homework Creation Report")
             my_homework_report = df_homework[df_homework.get('Uploaded By') == st.session_state.user_name]

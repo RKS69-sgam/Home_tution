@@ -348,9 +348,6 @@ if st.session_state.logged_in:
 
         with grade_tab:
             st.subheader("Grade Student Answers")
-            with grade_tab:
-            st.subheader("Grade Student Answers")
-            
             # --- DEBUGGING CODE START ---
             st.warning("RUNNING DEBUG TEST FOR MASTER_ANSWER_SHEET")
             

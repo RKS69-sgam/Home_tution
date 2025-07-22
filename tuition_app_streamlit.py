@@ -153,7 +153,7 @@ if st.session_state.logged_in:
         st.session_state.clear()
         st.rerun()
 
-# --- Responsive Logo Section (FIXED) ---
+# --- Responsive Logo Section (FIXED FOR TRANSPARENCY & SIZE) ---
 prk_logo_b64 = get_image_as_base64("PRK_logo.jpg")
 excellent_logo_b64 = get_image_as_base64("Excellent_logo.jpg")
 
@@ -168,8 +168,9 @@ if prk_logo_b64 and excellent_logo_b64:
             gap: 20px; /* Space between logos */
         }
         .logo-img {
-            max-width: 45%; /* Each logo takes up to 45% of the container width */
+            max-width: 35%; /* --- SIZE CHANGED HERE --- */
             height: auto;
+            opacity: 0.5; /* --- TRANSPARENCY ADDED HERE --- */
         }
         </style>
         """,
@@ -189,7 +190,8 @@ else:
     st.error("One or both logo files are missing. Please ensure 'PRK_logo.jpg' and 'Excellent_logo.jpg' are in the same folder as the script.")
 
 st.markdown("---")
-# ------------------------------------
+# -----------------------------------------------------------------
+
 
 
 

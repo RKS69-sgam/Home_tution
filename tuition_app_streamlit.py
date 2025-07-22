@@ -376,50 +376,50 @@ if st.session_state.logged_in:
             if df_answers.empty:
                 st.info("No students have submitted any answers yet.")
             else:
-                # Get list of students who have submitted answers
                 students_with_answers_gmail = df_answers['Student Gmail'].unique().tolist()
                 
                 df_students = load_data(STUDENT_SHEET)
-                # Filter the main student list to get names of those who have answered
-                gradable_students = df_students[df_students['Gmail ID'].isin(students_with_answers_gmail)]
-                student_name_list = gradable_students['Student Name'].tolist()
+                gradable_students = df_students[
+                    (df_students['Gmail ID'].isin(students_with_answers_gmail)) &
+                    (df_students['Payment Confirmed'] == 'Yes')
+                ]
 
-                if not student_name_list:
-                    st.info("No confirmed students have submitted answers yet.")
+                if gradable_students.empty:
+                    st.warning("No confirmed students have submitted answers. Please check the Admin panel.")
                 else:
+                    student_name_list = gradable_students['Student Name'].tolist()
                     selected_student_name = st.selectbox("Select a Student to Grade", student_name_list)
                     
                     if selected_student_name:
-                        # Get the selected student's Gmail to filter their answers
                         student_gmail = gradable_students[gradable_students['Student Name'] == selected_student_name].iloc[0]['Gmail ID']
                         
                         st.markdown(f"#### Showing answers for: **{selected_student_name}**")
                         
-                        # --- FIX: Filter the answers DataFrame for the selected student ---
                         student_answers_df = df_answers[df_answers['Student Gmail'] == student_gmail]
                         
-                        if student_answers_df.empty:
-                            st.warning(f"No answers found for {selected_student_name}.")
-                        else:
-                            # Loop through the *filtered* DataFrame
-                            for i, row in student_answers_df.iterrows():
-                                st.markdown(f"**Date:** {row['Date']} | **Subject:** {row['Subject']}")
-                                st.write(f"**Question:** {row['Question']}")
-                                st.info(f"**Answer:** {row['Answer']}")
+                        for i, row in student_answers_df.iterrows():
+                            st.markdown(f"**Date:** {row['Date']} | **Subject:** {row['Subject']}")
+                            st.write(f"**Question:** {row['Question']}")
+                            st.info(f"**Answer:** {row['Answer']}")
+                            
+                            with st.form(key=f"grade_form_{i}"):
+                                # --- FIX: Handle empty strings before converting to int ---
+                                current_marks_value = row.get('Marks', '0')
+                                if not current_marks_value: # Check if the value is an empty string
+                                    current_marks_value = '0'
                                 
-                                with st.form(key=f"grade_form_{i}"):
-                                    marks = st.number_input("Marks", min_value=0, max_value=100, value=int(row.get('Marks', 0)), key=f"marks_{i}")
-                                    submit_marks_button = st.form_submit_button("Save Marks")
-                                    
-                                    if submit_marks_button:
-                                        # gspread rows are 1-based, and we add 1 for the header
-                                        cell_row = i + 2 
-                                        marks_col = 6 
-                                        MASTER_ANSWER_SHEET.update_cell(cell_row, marks_col, marks)
-                                        st.success(f"Marks saved for this answer!")
-                                        st.rerun()
-                                st.markdown("---")
-
+                                marks = st.number_input("Marks", min_value=0, max_value=100, value=int(current_marks_value), key=f"marks_{i}")
+                                # -----------------------------------------------------------
+                                
+                                submit_marks_button = st.form_submit_button("Save Marks")
+                                
+                                if submit_marks_button:
+                                    cell_row = i + 2 
+                                    marks_col = 6 
+                                    MASTER_ANSWER_SHEET.update_cell(cell_row, marks_col, marks)
+                                    st.success(f"Marks saved for this answer!")
+                                    st.rerun()
+                            st.markdown("---")
 
 
     elif current_role == "student":

@@ -348,25 +348,6 @@ if st.session_state.logged_in:
 
         with grade_tab:
             st.subheader("Grade Student Answers")
-            # --- DEBUGGING CODE START ---
-            st.warning("RUNNING DEBUG TEST FOR MASTER_ANSWER_SHEET")
-            
-            try:
-                # Load the sheet and print exactly what it sees
-                df_answers_debug = pd.DataFrame(MASTER_ANSWER_SHEET.get_all_records())
-                
-                st.write("Columns found in MASTER_ANSWER_SHEET:")
-                st.write(list(df_answers_debug.columns))
-                
-                st.write("First 5 rows of data:")
-                st.dataframe(df_answers_debug.head())
-                
-            except Exception as e:
-                st.error("An error occurred while reading the sheet:")
-                st.exception(e)
-
-            st.stop() # Stop the app here to show the debug info
-            # --- DEBUGGING CODE END ---
             df_answers = pd.DataFrame(MASTER_ANSWER_SHEET.get_all_records())
             if df_answers.empty:
                 st.info("No students have submitted any answers yet.")

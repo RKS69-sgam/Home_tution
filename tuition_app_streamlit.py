@@ -10,12 +10,10 @@ import base64
 import mimetypes
 import hashlib
 import plotly.express as px
-
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
-
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="PRK Home Tuition")
 UPI_ID = "9685840429@pnb"

@@ -481,7 +481,7 @@ elif current_role == "teacher":
 elif current_role == "student":
     st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
     # ... Your student dashboard code goes here ...
-        df_students = load_data(STUDENT_SHEET)
+    df_students = load_data(STUDENT_SHEET)
         user_info_row = df_students[df_students["Gmail ID"] == st.session_state.user_gmail]
         
         if not user_info_row.empty:

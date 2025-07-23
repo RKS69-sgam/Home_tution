@@ -153,7 +153,7 @@ if st.session_state.logged_in:
         st.session_state.clear()
         st.rerun()
 
-# --- Responsive Logo Section (FINAL FIX for Mobile) ---
+# --- Responsive Header Section with Title and Logos ---
 prk_logo_b64 = get_image_as_base64("PRK_logo.jpg")
 excellent_logo_b64 = get_image_as_base64("Excellent_logo.jpg")
 
@@ -161,19 +161,32 @@ if prk_logo_b64 and excellent_logo_b64:
     st.markdown(
         """
         <style>
+        .header-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .header-text {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2E4053;
+            text-align: center;
+            margin-bottom: 15px;
+        }
         .logo-container {
             display: flex;
             justify-content: center;
             align-items: center;
             width: 100%;
+            gap: 20px;
         }
         .logo-wrapper {
-            flex: 1; /* Each wrapper takes up equal space */
+            flex: 1;
             text-align: center;
-            padding: 5px; /* Adds a small space around the logos */
+            padding: 5px;
         }
         .logo-img {
-            max-width: 100%; /* Image fills its wrapper but doesn't overflow */
+            max-width: 100%;
             height: auto;
             opacity: 0.9;
         }
@@ -184,12 +197,17 @@ if prk_logo_b64 and excellent_logo_b64:
 
     st.markdown(
         f"""
-        <div class="logo-container">
-            <div class="logo-wrapper">
-                <img src="{prk_logo_b64}" class="logo-img">
+        <div class="header-container">
+            <div class="header-text">
+                Excellent Public School High-tech Homework System 📈
             </div>
-            <div class="logo-wrapper">
-                <img src="{excellent_logo_b64}" class="logo-img">
+            <div class="logo-container">
+                <div class="logo-wrapper">
+                    <img src="{prk_logo_b64}" class="logo-img">
+                </div>
+                <div class="logo-wrapper">
+                    <img src="{excellent_logo_b64}" class="logo-img">
+                </div>
             </div>
         </div>
         """,

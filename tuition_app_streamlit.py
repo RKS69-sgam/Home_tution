@@ -168,7 +168,7 @@ if prk_logo_b64 and excellent_logo_b64:
             gap: 10px; /* Space between logos */
         }
         .logo-img {
-            max-width: 5%; /* --- SIZE CHANGED HERE --- */
+            max-width: 45%; /* --- SIZE CHANGED HERE --- */
             height: auto;
             opacity: 0.9; /* --- TRANSPARENCY ADDED HERE --- */
         }

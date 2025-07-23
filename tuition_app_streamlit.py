@@ -153,7 +153,7 @@ if st.session_state.logged_in:
         st.session_state.clear()
         st.rerun()
 
-# --- Responsive Logo Section (FIXED FOR TRANSPARENCY & SIZE) ---
+# --- Responsive Logo Section (FINAL FIX for Mobile) ---
 prk_logo_b64 = get_image_as_base64("PRK_logo.jpg")
 excellent_logo_b64 = get_image_as_base64("Excellent_logo.jpg")
 
@@ -165,12 +165,17 @@ if prk_logo_b64 and excellent_logo_b64:
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 10px; /* Space between logos */
+            width: 100%;
+        }
+        .logo-wrapper {
+            flex: 1; /* Each wrapper takes up equal space */
+            text-align: center;
+            padding: 5px; /* Adds a small space around the logos */
         }
         .logo-img {
-            width: auto; /* --- SIZE CHANGED HERE --- */
+            max-width: 100%; /* Image fills its wrapper but doesn't overflow */
             height: auto;
-            opacity: 0.9; /* --- TRANSPARENCY ADDED HERE --- */
+            opacity: 0.9;
         }
         </style>
         """,
@@ -180,17 +185,22 @@ if prk_logo_b64 and excellent_logo_b64:
     st.markdown(
         f"""
         <div class="logo-container">
-            <img src="{prk_logo_b64}" class="logo-img">
-            <img src="{excellent_logo_b64}" class="logo-img">
+            <div class="logo-wrapper">
+                <img src="{prk_logo_b64}" class="logo-img">
+            </div>
+            <div class="logo-wrapper">
+                <img src="{excellent_logo_b64}" class="logo-img">
+            </div>
         </div>
         """,
         unsafe_allow_html=True
     )
 else:
-    st.error("One or both logo files are missing. Please ensure 'PRK_logo.jpg' and 'Excellent_logo.jpg' are in the same folder as the script.")
+    st.error("One or both logo files are missing.")
 
 st.markdown("---")
-# -----------------------------------------------------------------
+# --------------------------------------------------------
+
 
 
 

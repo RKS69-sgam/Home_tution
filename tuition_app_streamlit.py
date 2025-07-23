@@ -199,7 +199,7 @@ if prk_logo_b64 and excellent_logo_b64:
         f"""
         <div class="header-container">
             <div class="header-text">
-                Excellent Public School High-tech Homework System विद्या ददाति विनयं
+                Excellent Public School High-tech Homework System
             </div>
             <div class="logo-container">
                 <div class="logo-wrapper">

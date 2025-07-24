@@ -77,13 +77,16 @@ def check_hashes(password, hashed_text):
             return False
     return False
 
-@st.cache_data(ttl=300)
+# Tell Streamlit how to hash a gspread.Worksheet object
+# by using its unique ID as the key.
+@st.cache_data(ttl=300, hash_funcs={gspread.worksheet.Worksheet: lambda s: s.id})
 def load_data(sheet):
     all_values = sheet.get_all_values()
     if not all_values: return pd.DataFrame()
     headers = all_values[0]
     data = all_values[1:]
     return pd.DataFrame(data, columns=headers)
+
 
 def save_data(df, sheet):
     df_str = df.fillna("").astype(str)

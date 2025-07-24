@@ -246,13 +246,15 @@ if st.session_state.logged_in:
                 st.dataframe(top_students)
     
     elif current_role == "teacher":
-        st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
-        df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
-        df_teachers_live = load_data(TEACHER_SHEET)
-        teacher_info = df_teachers_live[df_teachers_live['Teacher Name'] == st.session_state.user_name]
-        if not teacher_info.empty and teacher_info.iloc[0].get("Instructions"):
+    st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
+    
+    df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
+    df_teachers_live = load_data(TEACHER_SHEET)
+    teacher_info = df_teachers_live[df_teachers_live['Teacher Name'] == st.session_state.user_name]
+    if not teacher_info.empty and teacher_info.iloc[0].get("Instructions"):
         st.warning(f"**Instruction from Principal:** {teacher_info.iloc[0].get('Instructions')}")
-        create_tab, grade_tab, report_tab = st.tabs(["Create Homework", "Grade Answers", "My Reports"])
+    
+    create_tab, grade_tab, report_tab = st.tabs(["Create Homework", "Grade Answers", "My Reports"])
     
     with create_tab:
         # Your homework creation code here...
@@ -299,7 +301,6 @@ if st.session_state.logged_in:
                                     st.rerun()
                                     break
                     st.markdown("---")
-    
     with report_tab:
         st.subheader("Class-wise Top 3 Students Report")  
         df_answers_report = load_data(MASTER_ANSWER_SHEET)

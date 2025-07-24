@@ -442,38 +442,38 @@ if st.session_state.logged_in:
                         st.warning("Answer cannot be empty.")
             st.markdown("---")
         
-with revision_tab:
-    st.subheader("Previously Graded Answers (Revision Zone)")
+    with revision_tab:
+        st.subheader("Previously Graded Answers (Revision Zone)")
 
-    # The 'student_answers' DataFrame is already loaded and filtered for the student
+        # The 'student_answers' DataFrame is already loaded and filtered for the student
     
-    # Ensure the 'Marks' column is numeric, converting errors to NaN (Not a Number)
-    student_answers['Marks_Numeric'] = pd.to_numeric(student_answers['Marks'], errors='coerce')
+        # Ensure the 'Marks' column is numeric, converting errors to NaN (Not a Number)
+        student_answers['Marks_Numeric'] = pd.to_numeric(student_answers['Marks'], errors='coerce')
     
-    # Filter for rows where 'Marks' is a valid number (not NaN)
-    graded_answers = student_answers.dropna(subset=['Marks_Numeric'])
+        # Filter for rows where 'Marks' is a valid number (not NaN)
+        graded_answers = student_answers.dropna(subset=['Marks_Numeric'])
 
-    if graded_answers.empty:
-        st.info("You have no graded answers to review yet.")
-    else:
-        # Sort by date to show the newest graded answers first
-        sorted_graded_answers = graded_answers.sort_values(by='Date', ascending=False)
+        if graded_answers.empty:
+            st.info("You have no graded answers to review yet.")
+        else:
+            # Sort by date to show the newest graded answers first
+            sorted_graded_answers = graded_answers.sort_values(by='Date', ascending=False)
         
-        st.write("Review your previously submitted and graded work below.")
+            st.write("Review your previously submitted and graded work below.")
         
-        for i, row in sorted_graded_answers.iterrows():
-            st.markdown(f"**Assignment Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
-            st.write(f"**Question:** {row.get('Question')}")
-            st.info(f"**Your Answer:** {row.get('Answer')}")
+            for i, row in sorted_graded_answers.iterrows():
+                st.markdown(f"**Assignment Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
+                st.write(f"**Question:** {row.get('Question')}")
+                st.info(f"**Your Answer:** {row.get('Answer')}")
 
-            # Display the grade and any remarks from the teacher
-            grade_value = int(row.get('Marks_Numeric'))
-            grade_text = GRADE_MAP_REVERSE.get(grade_value, "N/A")
-            st.success(f"**Grade:** {grade_text} ({grade_value}/5)")
+                # Display the grade and any remarks from the teacher
+                grade_value = int(row.get('Marks_Numeric'))
+                grade_text = GRADE_MAP_REVERSE.get(grade_value, "N/A")
+                st.success(f"**Grade:** {grade_text} ({grade_value}/5)")
             
-            remarks = row.get('Remarks', '').strip()
-            if remarks:
-                st.warning(f"**Teacher's Remark:** {remarks}")
+                remarks = row.get('Remarks', '').strip()
+                if remarks:
+                    st.warning(f"**Teacher's Remark:** {remarks}")
             
             st.markdown("---")
         

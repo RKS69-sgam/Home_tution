@@ -31,6 +31,7 @@ except Exception as e:
     st.error(f"Error connecting to Google APIs. Please check credentials. Error: {e}")
     st.stop()
 
+
 # === GOOGLE SHEETS SETUP ===
 try:
     STUDENT_SHEET = client.open_by_key("10rC5yXLzeCzxOLaSbNc3tmHLiTS4RmO1G_PSpxRpSno").sheet1
@@ -64,7 +65,7 @@ def save_data(df, sheet):
     df_str = df.fillna("").astype(str)
     sheet.clear()
     sheet.update([df_str.columns.values.tolist()] + df_str.values.tolist(), value_input_option='USER_ENTERED')
-    st.cache_data.clear()
+    st.cache_data.clear() # Clear cache after saving data
 
 @st.cache_data(ttl=300) # Cache rankings for 5 minutes
 def get_class_rankings(class_name):
@@ -76,7 +77,7 @@ def get_class_rankings(class_name):
     class_student_gmails = class_students['Gmail ID'].tolist()
     class_answers = df_all_answers[df_all_answers['Student Gmail'].isin(class_student_gmails)].copy()
     
-    if class_answers.empty: return pd.DataFrame()
+    if class_answers.empty or 'Score' not in class_answers.columns: return pd.DataFrame()
 
     scores = class_answers.groupby('Student Gmail')['Score'].sum().reset_index()
     
@@ -100,7 +101,6 @@ if st.session_state.logged_in:
         st.cache_data.clear()
         st.session_state.clear()
         st.rerun()
-# (Header display code can be added here)
 
 # === LOGIN / REGISTRATION ROUTING ===
 if not st.session_state.logged_in:
@@ -135,18 +135,12 @@ if not st.session_state.logged_in:
                             
                             new_row_dict = {"Student Name": name, "Gmail ID": gmail, "Class": cls, "Password": make_hashes(pwd), "Subscription Type": sub_type, "Payment Confirmed": "No"}
                             
-                            # Add new row, ensuring all columns from sheet are present
-                            sheet_cols = load_data(STUDENT_SHEET).columns
-                            new_row_df = pd.DataFrame([new_row_dict])
-                            # Reorder and fill missing columns
-                            new_row_df = new_row_df.reindex(columns=sheet_cols).fillna('')
-                            
-                            df_students = pd.concat([load_data(STUDENT_SHEET), new_row_df], ignore_index=True)
-                            
+                            sheet_cols = df_students.columns
+                            new_row_df = pd.DataFrame([new_row_dict]).reindex(columns=sheet_cols).fillna('')
+                            df_students = pd.concat([df_students, new_row_df], ignore_index=True)
                             save_data(df_students, STUDENT_SHEET)
                             st.success("Registration successful! Please wait for admin to confirm your payment.")
                             st.balloons()
-
     elif role in ["Student", "Teacher", "Admin", "Principal"]:
         st.header(f"🔑 {role} Login")
         with st.form(f"{role}_login_form"):
@@ -163,10 +157,14 @@ if not st.session_state.logged_in:
                         if check_hashes(login_pwd, user_row.get("Password")):
                             can_login = False
                             if role == "Student":
-                                if user_row.get("Payment Confirmed") == "Yes" and datetime.today() <= pd.to_datetime(user_row.get("Subscribed Till")):
-                                    can_login = True
-                                else:
-                                    st.error("Subscription expired or not confirmed.")
+                                try:
+                                    subscribed_till_date = pd.to_datetime(user_row.get("Subscribed Till"))
+                                    if user_row.get("Payment Confirmed") == "Yes" and datetime.today() <= subscribed_till_date:
+                                        can_login = True
+                                    else:
+                                        st.error("Subscription expired or not confirmed.")
+                                except:
+                                    st.error("Subscription date invalid. Contact admin.")
                             elif role == "Teacher":
                                 if user_row.get("Confirmed") == "Yes": can_login = True
                                 else: st.error("Registration is pending admin confirmation.")
@@ -209,7 +207,6 @@ if st.session_state.logged_in:
                 save_data(df_students_admin, STUDENT_SHEET)
                 st.success(f"Payment confirmed for {row.get('Student Name')}")
                 st.rerun()
-        # (Other admin functionalities can be added here)
 
     elif current_role == "teacher":
         st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
@@ -227,6 +224,23 @@ if st.session_state.logged_in:
         
         create_tab, grade_tab, report_tab = st.tabs(["Create Homework", "Grade Answers", "My Reports"])
 
+        with create_tab:
+            st.subheader("Create a New Homework Assignment")
+            with st.form("context_form"):
+                subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance Classes"])
+                cls = st.selectbox("Class", [f"{i}th" for i in range(6, 13)])
+                date = st.date_input("Date", datetime.today())
+                question_text = st.text_area("Enter all questions for this assignment (one question per line):", height=200)
+                if st.form_submit_button("Submit Homework"):
+                    if question_text.strip():
+                        questions = [q.strip() for q in question_text.split('\n') if q.strip()]
+                        rows_to_add = [[cls, date.strftime(DATE_FORMAT), st.session_state.user_name, subject, q] for q in questions]
+                        HOMEWORK_QUESTIONS_SHEET.append_rows(rows_to_add, value_input_option='USER_ENTERED')
+                        st.success(f"Homework with {len(questions)} questions submitted successfully!")
+                        st.balloons()
+                    else:
+                        st.warning("Please enter at least one question.")
+        
         with grade_tab:
             st.subheader("Grade Student Answers")
             df_all_answers = load_data(MASTER_ANSWER_SHEET)
@@ -235,8 +249,6 @@ if st.session_state.logged_in:
                 st.info("You haven't created any questions yet.")
             else:
                 answers_to_my_questions = df_all_answers[df_all_answers['Question'].isin(my_questions_df['Question'].tolist())]
-                
-                # Find answers that need grading (Grade is empty)
                 needs_grading = answers_to_my_questions[answers_to_my_questions['Grade'].str.strip() == '']
                 
                 if needs_grading.empty:
@@ -252,13 +264,12 @@ if st.session_state.logged_in:
                             st.markdown(f"**Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
                             st.write(f"**Question:** {row.get('Question')}")
                             st.info(f"**Student's Answer:** {row.get('Answer')}")
-                            
                             with st.form(key=f"grade_form_{i}"):
                                 grade_val = st.selectbox("Grade", options=list(GRADE_MAP.keys()), index=2)
                                 remarks = st.text_area("Remarks for Correction (if any)")
                                 if st.form_submit_button("Save Grade"):
                                     score_val = GRADE_MAP[grade_val]
-                                    row_num = i + 2 # Sheet row number is DataFrame index + 2
+                                    row_num = i + 2
                                     MASTER_ANSWER_SHEET.update_cell(row_num, df_all_answers.columns.get_loc('Grade') + 1, grade_val)
                                     MASTER_ANSWER_SHEET.update_cell(row_num, df_all_answers.columns.get_loc('Score') + 1, score_val)
                                     MASTER_ANSWER_SHEET.update_cell(row_num, df_all_answers.columns.get_loc('Remarks') + 1, remarks)
@@ -307,38 +318,43 @@ if st.session_state.logged_in:
             st.header("Assignments to be Completed")
             pending_found = False
             for i, hw_row in homework_for_class.sort_values(by='Date', ascending=False).iterrows():
-                answer_row = student_answers[student_answers['Question'] == hw_row['Question']]
+                answer_row_df = student_answers[student_answers['Question'] == hw_row['Question']]
                 
-                # Condition 1: No answer submitted yet
-                if answer_row.empty:
+                if answer_row_df.empty:
                     pending_found = True
-                    st.markdown(f"**Question:** {hw_row['Question']} ({hw_row['Subject']} - {hw_row['Date']})")
-                    with st.form(key=f"new_{i}"):
-                        answer_text = st.text_area("Your Answer")
-                        if st.form_submit_button("Submit Answer"):
-                            new_row_data = [st.session_state.user_gmail, hw_row['Date'], hw_row['Subject'], hw_row['Question'], answer_text, "", "", ""]
-                            MASTER_ANSWER_SHEET.append_row(new_row_data, value_input_option='USER_ENTERED')
-                            st.success("Answer Submitted!")
-                            st.rerun()
-                    st.markdown("---")
-                else: # Answer exists, check if needs correction
-                    remark = answer_row.iloc[0].get('Remarks', '').strip()
-                    grade = answer_row.iloc[0].get('Grade', '').strip()
-                    if remark: # Condition 2: Needs correction
-                        pending_found = True
+                    with st.container(border=True):
                         st.markdown(f"**Question:** {hw_row['Question']} ({hw_row['Subject']} - {hw_row['Date']})")
-                        st.warning(f"**Teacher's Remark:** {remark}")
-                        with st.form(key=f"edit_{answer_row.index[0]}"):
-                            edited_answer = st.text_area("Your Corrected Answer", value=answer_row.iloc[0]['Answer'])
-                            if st.form_submit_button("Resubmit Corrected Answer"):
-                                row_num_to_update = answer_row.index[0] + 2
-                                MASTER_ANSWER_SHEET.update_cell(row_num_to_update, student_answers.columns.get_loc('Answer') + 1, edited_answer)
-                                MASTER_ANSWER_SHEET.update_cell(row_num_to_update, student_answers.columns.get_loc('Remarks') + 1, "") # Clear remark
-                                MASTER_ANSWER_SHEET.update_cell(row_num_to_update, student_answers.columns.get_loc('Grade') + 1, "") # Clear grade for re-grading
-                                MASTER_ANSWER_SHEET.update_cell(row_num_to_update, student_answers.columns.get_loc('Score') + 1, "") # Clear score
-                                st.success("Corrected Answer Resubmitted!")
+                        with st.form(key=f"new_{i}"):
+                            answer_text = st.text_area("Your Answer", key=f"text_new_{i}")
+                            if st.form_submit_button("Submit Answer"):
+                                new_row_data = [st.session_state.user_gmail, hw_row['Date'], hw_row['Subject'], hw_row['Question'], answer_text, "", "", ""]
+                                MASTER_ANSWER_SHEET.append_row(new_row_data, value_input_option='USER_ENTERED')
+                                st.success("Answer Submitted!")
                                 st.rerun()
-                        st.markdown("---")
+                else:
+                    answer_row = answer_row_df.iloc[0]
+                    remark = answer_row.get('Remarks', '').strip()
+                    grade = answer_row.get('Grade', '').strip()
+                    if remark:
+                        pending_found = True
+                        with st.container(border=True):
+                            st.markdown(f"**Question:** {hw_row['Question']} ({hw_row['Subject']} - {hw_row['Date']})")
+                            st.warning(f"**Teacher's Remark:** {remark}")
+                            with st.form(key=f"edit_{answer_row_df.index[0]}"):
+                                edited_answer = st.text_area("Your Corrected Answer", value=answer_row['Answer'])
+                                if st.form_submit_button("Resubmit Corrected Answer"):
+                                    row_num_to_update = answer_row_df.index[0] + 2
+                                    all_answers_cols = load_data(MASTER_ANSWER_SHEET).columns
+                                    MASTER_ANSWER_SHEET.update_cell(row_num_to_update, all_answers_cols.get_loc('Answer') + 1, edited_answer)
+                                    MASTER_ANSWER_SHEET.update_cell(row_num_to_update, all_answers_cols.get_loc('Remarks') + 1, "")
+                                    MASTER_ANSWER_SHEET.update_cell(row_num_to_update, all_answers_cols.get_loc('Grade') + 1, "")
+                                    MASTER_ANSWER_SHEET.update_cell(row_num_to_update, all_answers_cols.get_loc('Score') + 1, "")
+                                    st.success("Corrected Answer Resubmitted!")
+                                    st.rerun()
+                    elif not grade:
+                         with st.container(border=True):
+                            st.markdown(f"**Question:** {hw_row['Question']} ({hw_row['Subject']} - {hw_row['Date']})")
+                            st.info("Your answer has been submitted and is awaiting grading.")
             if not pending_found:
                 st.success("🎉 Great job! You have no pending homework.")
 
@@ -375,3 +391,4 @@ if st.session_state.logged_in:
             with st.expander(f"🏆 Top Performers in {cls_p}"):
                 rankings_p = get_class_rankings(cls_p)
                 st.dataframe(rankings_p.head(3)[['Rank', 'Student Name', 'Score']]) if not rankings_p.empty else st.info("No data.")
+

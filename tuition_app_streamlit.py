@@ -477,49 +477,49 @@ if st.session_state.logged_in:
             
             st.markdown("---")
         
-with leaderboard_tab:
-    st.subheader(f"Class Leaderboard ({student_class})")
+    with leaderboard_tab:
+        st.subheader(f"Class Leaderboard ({student_class})")
 
-    # Filter answers for the student's entire class
-    class_gmail_list = df_students[df_students['Class'] == student_class]['Gmail ID'].tolist()
-    class_answers = df_all_answers[df_all_answers['Student Gmail'].isin(class_gmail_list)].copy()
+        # Filter answers for the student's entire class
+        class_gmail_list = df_students[df_students['Class'] == student_class]['Gmail ID'].tolist()
+        class_answers = df_all_answers[df_all_answers['Student Gmail'].isin(class_gmail_list)].copy()
 
-    if class_answers.empty:
-        st.info("The leaderboard will appear once answers have been graded for your class.")
-    else:
-        # Calculate average marks for each student in the class
-        class_answers['Marks'] = pd.to_numeric(class_answers['Marks'], errors='coerce')
-        graded_class_answers = class_answers.dropna(subset=['Marks'])
-        
-        if graded_class_answers.empty:
+        if class_answers.empty:
             st.info("The leaderboard will appear once answers have been graded for your class.")
         else:
-            # Group by student and calculate their average score
-            leaderboard_df = graded_class_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
-            
-            # Merge with student names for display
-            df_students_names = df_students[['Student Name', 'Gmail ID']]
-            leaderboard_df = pd.merge(leaderboard_df, df_students_names, left_on='Student Gmail', right_on='Gmail ID', how='left')
-            
-            # Create a rank column
-            leaderboard_df['Rank'] = leaderboard_df['Marks'].rank(method='dense', ascending=False).astype(int)
-            leaderboard_df = leaderboard_df.sort_values(by='Rank')
-            
-            # Format the 'Marks' column to two decimal places
-            leaderboard_df['Marks'] = leaderboard_df['Marks'].round(2)
-
-            # Display Top 3 Performers
-            st.markdown("##### 🏆 Top 3 Performers")
-            top_3 = leaderboard_df.head(3)
-            st.dataframe(top_3[['Rank', 'Student Name', 'Marks']])
-
-            # --- Show the logged-in student's rank ---
-            st.markdown("---")
-            my_rank_row = leaderboard_df[leaderboard_df['Student Gmail'] == st.session_state.user_gmail]
-            
-            if not my_rank_row.empty:
-                my_rank = my_rank_row.iloc[0]['Rank']
-                my_avg_marks = my_rank_row.iloc[0]['Marks']
-                st.success(f"**Your Current Rank:** {my_rank} (with an average score of **{my_avg_marks}**)")
+            # Calculate average marks for each student in the class
+            class_answers['Marks'] = pd.to_numeric(class_answers['Marks'], errors='coerce')
+            graded_class_answers = class_answers.dropna(subset=['Marks'])
+        
+            if graded_class_answers.empty:
+                st.info("The leaderboard will appear once answers have been graded for your class.")
             else:
-                st.warning("Your rank will be shown here after your answers are graded.")
+                # Group by student and calculate their average score
+                leaderboard_df = graded_class_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
+            
+                # Merge with student names for display
+                df_students_names = df_students[['Student Name', 'Gmail ID']]
+                leaderboard_df = pd.merge(leaderboard_df, df_students_names, left_on='Student Gmail', right_on='Gmail ID', how='left')
+            
+                # Create a rank column
+                leaderboard_df['Rank'] = leaderboard_df['Marks'].rank(method='dense', ascending=False).astype(int)
+                leaderboard_df = leaderboard_df.sort_values(by='Rank')
+            
+                # Format the 'Marks' column to two decimal places
+                leaderboard_df['Marks'] = leaderboard_df['Marks'].round(2)
+
+                # Display Top 3 Performers
+                st.markdown("##### 🏆 Top 3 Performers")
+                top_3 = leaderboard_df.head(3)
+                st.dataframe(top_3[['Rank', 'Student Name', 'Marks']])
+
+                # --- Show the logged-in student's rank ---
+                st.markdown("---")
+                my_rank_row = leaderboard_df[leaderboard_df['Student Gmail'] == st.session_state.user_gmail]
+            
+                if not my_rank_row.empty:
+                    my_rank = my_rank_row.iloc[0]['Rank']
+                    my_avg_marks = my_rank_row.iloc[0]['Marks']
+                    st.success(f"**Your Current Rank:** {my_rank} (with an average score of **{my_avg_marks}**)")
+                else:
+                    st.warning("Your rank will be shown here after your answers are graded.")

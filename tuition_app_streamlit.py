@@ -7,7 +7,6 @@ import json
 import base64
 import mimetypes
 import hashlib
-import plotly.express as px
 import io
 
 # === CONFIGURATION ===
@@ -26,7 +25,6 @@ try:
     credentials_dict = json.loads(decoded_creds)
     credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
     client = gspread.authorize(credentials)
-    drive_service = build("drive", "v3", credentials=credentials)
 except Exception as e:
     st.error(f"Error connecting to Google APIs. Please check credentials. Error: {e}")
     st.stop()
@@ -226,18 +224,28 @@ if st.session_state.logged_in:
 
         with create_tab:
             st.subheader("Create a New Homework Assignment")
-            with st.form("context_form"):
-                subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance Classes"])
+            with st.form("create_homework_form"):
+                subject = st.selectbox(
+                    "Subject",
+                    ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance Classes"]
+                )
                 cls = st.selectbox("Class", [f"{i}th" for i in range(6, 13)])
                 date = st.date_input("Date", datetime.today())
-                question_text = st.text_area("Enter all questions for this assignment (one question per line):", height=200)
+                question_text = st.text_area(
+                    "Enter all questions for this assignment (one question per line):",
+                    height=200
+                )
                 if st.form_submit_button("Submit Homework"):
                     if question_text.strip():
                         questions = [q.strip() for q in question_text.split('\n') if q.strip()]
-                        rows_to_add = [[cls, date.strftime(DATE_FORMAT), st.session_state.user_name, subject, q] for q in questions]
+                        rows_to_add = [
+                            [cls, date.strftime(DATE_FORMAT), st.session_state.user_name, subject, q]
+                            for q in questions
+                        ]
                         HOMEWORK_QUESTIONS_SHEET.append_rows(rows_to_add, value_input_option='USER_ENTERED')
                         st.success(f"Homework with {len(questions)} questions submitted successfully!")
                         st.balloons()
+                        st.cache_data.clear()
                     else:
                         st.warning("Please enter at least one question.")
         
@@ -352,7 +360,8 @@ if st.session_state.logged_in:
                                     st.success("Corrected Answer Resubmitted!")
                                     st.rerun()
                     elif not grade:
-                         with st.container(border=True):
+                        pending_found = True
+                        with st.container(border=True):
                             st.markdown(f"**Question:** {hw_row['Question']} ({hw_row['Subject']} - {hw_row['Date']})")
                             st.info("Your answer has been submitted and is awaiting grading.")
             if not pending_found:
@@ -391,4 +400,3 @@ if st.session_state.logged_in:
             with st.expander(f"🏆 Top Performers in {cls_p}"):
                 rankings_p = get_class_rankings(cls_p)
                 st.dataframe(rankings_p.head(3)[['Rank', 'Student Name', 'Score']]) if not rankings_p.empty else st.info("No data.")
-

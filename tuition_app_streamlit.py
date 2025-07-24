@@ -297,6 +297,24 @@ if st.session_state.logged_in:
     
     elif current_role == "teacher":
         st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
+        # --- DEBUGGING CODE START ---
+        st.warning("RUNNING DEBUG TEST FOR HOMEWORK_QUESTIONS_SHEET")
+        
+        try:
+            df_homework_debug = load_data(HOMEWORK_QUESTIONS_SHEET)
+            
+            st.write("Columns found in HOMEWORK_QUESTIONS_SHEET:")
+            st.write(list(df_homework_debug.columns))
+            
+            st.write("First 5 rows of data:")
+            st.dataframe(df_homework_debug.head())
+            
+        except Exception as e:
+            st.error("An error occurred while reading the sheet:")
+            st.exception(e)
+
+        st.stop()
+        # --- DEBUGGING CODE END ---
         df_teachers_live = load_data(TEACHER_SHEET)
         teacher_info = df_teachers_live[df_teachers_live['Teacher Name'] == st.session_state.user_name]
         if not teacher_info.empty and teacher_info.iloc[0].get("Instructions"):

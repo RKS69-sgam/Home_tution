@@ -331,7 +331,7 @@ if st.session_state.logged_in:
                 st.session_state.context_set = False
             if not st.session_state.context_set:
                 with st.form("context_form"):
-                    subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK"])
+                    subject = st.selectbox("Subject", ["Hindi", "Sanskrit", "English", "Math", "Science", "SST", "Computer", "GK", "Advance Classes"])
                     cls = st.selectbox("Class", [f"{i}th" for i in range(6, 13)])
                     date = st.date_input("Date", datetime.today())
                     if st.form_submit_button("Start Adding Questions →"):

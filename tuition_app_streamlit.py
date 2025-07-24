@@ -2,16 +2,15 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime, timedelta
+from docx import Document
+from docx.shared import Pt
 import gspread
 import json
 import base64
 import mimetypes
+import hashlib
 import plotly.express as px
 import io
-from uuid import uuid4
-
-# FIX: Import libraries for secure password hashing
-from passlib.context import CryptContext
 
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -21,21 +20,13 @@ from googleapiclient.errors import HttpError
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="PRK Home Tuition")
 UPI_ID = "9685840429@pnb"
+SUBSCRIPTION_DAYS = 30
 DATE_FORMAT = "%Y-%m-%d"
-# FEATURE: Grading System
-GRADE_MAP = {"Needs Improvement": 1, "Average": 2, "Good": 3, "Very Good": 4, "Outstanding": 5}
-REVERSE_GRADE_MAP = {v: k for k, v in GRADE_MAP.items()}
 
-# === GOOGLE IDs & KEYS ===
-# (Apne Google Drive Folder IDs yahan daalein)
-HOMEWORK_FOLDER_ID = "1e83Kseh47VMiKep7DKdOHr9ciwrbMyiO" 
-# (Apne Google Sheet Keys yahan daalein)
-STUDENT_SHEET_KEY = "10rC5yXLzeCzxOLaSbNc3tmHLiTS4RmO1G_PSpxRpSno"
-TEACHER_SHEET_KEY = "1BRyQ5-Hv5Qr8ZnDzkj1awoxLjbLh3ubsWzpXskFL4h8"
-HOMEWORK_QUESTIONS_SHEET_KEY = "1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI"
-MASTER_ANSWER_SHEET_KEY = "16poJSlKbTiezSG119QapoCVcjmAOicsJlyaeFpCKGd8"
-# FEATURE: Add your new Instructions Sheet Key here
-INSTRUCTIONS_SHEET_KEY = "1wixh6SRJLW8MgSAKKhE73g1Q6A08MCmm5xYhQ15PYgc" # <-- IMPORTANT!!
+# === GOOGLE IDs ===
+HOMEWORK_FOLDER_ID = "1e83Kseh47VMiKep7DKdOHr9ciwrbMyiO"
+NOTEBOOK_FOLDER_ID = "1e9UpIdbkAw6AnUa3xAixIcdih5K9TRAH"
+RECEIPT_FOLDER_ID = "1e9se9uNbpjdFGhzzOi1GdhYRcG4ZOmxn"
 
 # === AUTHENTICATION ===
 scopes = [
@@ -49,83 +40,101 @@ try:
     client = gspread.authorize(credentials)
     drive_service = build("drive", "v3", credentials=credentials)
 except Exception as e:
-    st.error(f"Error connecting to Google APIs: {e}")
+    st.error("Error connecting to Google APIs. Please check credentials and sharing permissions.")
     st.stop()
 
-# === GOOGLE SHEETS ACCESS ===
+
+# === GOOGLE SHEETS ===
 try:
-    STUDENT_SHEET = client.open_by_key(STUDENT_SHEET_KEY).sheet1
-    TEACHER_SHEET = client.open_by_key(TEACHER_SHEET_KEY).sheet1
-    HOMEWORK_QUESTIONS_SHEET = client.open_by_key(HOMEWORK_QUESTIONS_SHEET_KEY).sheet1
-    MASTER_ANSWER_SHEET = client.open_by_key(MASTER_ANSWER_SHEET_KEY).sheet1
-    INSTRUCTIONS_SHEET = client.open_by_key(INSTRUCTIONS_SHEET_KEY).sheet1
+    STUDENT_SHEET = client.open_by_key("10rC5yXLzeCzxOLaSbNc3tmHLiTS4RmO1G_PSpxRpSno").sheet1
+    TEACHER_SHEET = client.open_by_key("1BRyQ5-Hv5Qr8ZnDzkj1awoxLjbLh3ubsWzpXskFL4h8").sheet1
+    HOMEWORK_QUESTIONS_SHEET = client.open_by_key("1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI").sheet1
+    MASTER_ANSWER_SHEET = client.open_by_key("16poJSlKbTiezSG119QapoCVcjmAOicsJlyaeFpCKGd8").sheet1
 except Exception as e:
     st.error(f"Could not open Google Sheets. Ensure all Sheet Keys are correct and shared with the service account: {e}")
     st.stop()
 
 # === UTILITY FUNCTIONS ===
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 def make_hashes(password):
-    return pwd_context.hash(password)
+    return hashlib.sha256(str.encode(password)).hexdigest()
 
 def check_hashes(password, hashed_text):
     if hashed_text:
-        try:
-            return pwd_context.verify(password, hashed_text)
-        except Exception:
-            return False
+        return make_hashes(password) == hashed_text
     return False
 
-# Tell Streamlit how to hash a gspread.Worksheet object
-# by using its unique ID as the key.
-@st.cache_data(ttl=300, hash_funcs={gspread.worksheet.Worksheet: lambda s: s.id})
+def upload_to_drive(path, folder_id, filename):
+    try:
+        mime_type, _ = mimetypes.guess_type(path)
+        if mime_type is None:
+            mime_type = 'application/octet-stream'
+        media = MediaFileUpload(path, mimetype=mime_type, resumable=True)
+        metadata = {"name": filename, "parents": [folder_id]}
+        file = drive_service.files().create(body=metadata, media_body=media, fields="id, webViewLink", supportsAllDrives=True).execute()
+        return file.get('webViewLink')
+    except HttpError as error:
+        st.error(f"An error occurred while uploading to Google Drive: {error}")
+        return None
+
+def create_answer_docx(student_name, student_class, answers_df):
+    doc = Document()
+    doc.add_heading('PRK Home Tuition - Submitted Answers', 0)
+    doc.add_paragraph(f"**Student:** {student_name}")
+    doc.add_paragraph(f"**Class:** {student_class}")
+    doc.add_paragraph(f"**Date Generated:** {datetime.now().strftime(DATE_FORMAT)}")
+    doc.add_paragraph()
+    for (date, subject), group in answers_df.groupby(['Date', 'Subject']):
+        doc.add_heading(f"Subject: {subject} (Assignment Date: {date})", level=2)
+        for i, row in group.iterrows():
+            p = doc.add_paragraph()
+            p.add_run('Question: ').bold = True
+            p.add_run(row.get('Question', ''))
+            p_ans = doc.add_paragraph()
+            p_ans.add_run('Your Answer: ').italic = True
+            p_ans.add_run(row.get('Answer', ''))
+            doc.add_paragraph()
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer
+
 def load_data(sheet):
     all_values = sheet.get_all_values()
-    if not all_values: return pd.DataFrame()
+    if not all_values:
+        return pd.DataFrame()
     headers = all_values[0]
     data = all_values[1:]
-    return pd.DataFrame(data, columns=headers)
+    df = pd.DataFrame(data, columns=headers)
+    return df
 
-
-def save_data(df, sheet):
+def save_students_data(df):
     df_str = df.fillna("").astype(str)
-    sheet.clear()
-    sheet.update([df_str.columns.values.tolist()] + df_str.values.tolist())
-    st.cache_data.clear()
+    STUDENT_SHEET.clear()
+    STUDENT_SHEET.update([df_str.columns.values.tolist()] + df_str.values.tolist())
 
-# FEATURE: Reusable function to calculate and display leaderboards
-def display_leaderboard(df_answers, df_students, student_class, current_student_gmail=None):
-    class_answers = df_answers[df_answers['Class'] == student_class].copy()
-    if class_answers.empty:
-        st.info(f"No graded assignments found for {student_class} to create a leaderboard.")
-        return
+def save_teachers_data(df):
+    df_str = df.fillna("").astype(str)
+    TEACHER_SHEET.clear()
+    TEACHER_SHEET.update([df_str.columns.values.tolist()] + df_str.values.tolist())
 
-    class_answers['Score'] = pd.to_numeric(class_answers['Score'], errors='coerce')
-    graded_answers = class_answers.dropna(subset=['Score'])
-    if graded_answers.empty:
-        st.info(f"No graded assignments found for {student_class} to create a leaderboard.")
-        return
-
-    student_scores = graded_answers.groupby('Student Gmail')['Score'].mean().reset_index()
-    leaderboard = pd.merge(student_scores, df_students[['Student Name', 'Gmail ID']], left_on='Student Gmail', right_on='Gmail ID').sort_values(by='Score', ascending=False)
-    leaderboard['Rank'] = leaderboard['Score'].rank(method='min', ascending=False).astype(int)
-    
-    st.markdown(f"#### 🏆 Leaderboard for {student_class}")
-    
-    top_3 = leaderboard.head(3)
-    st.dataframe(top_3[['Rank', 'Student Name', 'Score']], use_container_width=True)
-
-    if current_student_gmail:
-        student_rank_info = leaderboard[leaderboard['Gmail ID'] == current_student_gmail]
-        if not student_rank_info.empty:
-            rank = student_rank_info.iloc[0]['Rank']
-            total_students = len(leaderboard)
-            st.success(f"**Your Rank: {rank}** out of {total_students} students.")
+def get_image_as_base64(path):
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        encoded = base64.b64encode(data).decode()
+        mime_type, _ = mimetypes.guess_type(path)
+        if mime_type is None:
+            mime_type = "image/png"
+        return f"data:{mime_type};base64,{encoded}"
+    except FileNotFoundError:
+        return None
 
 # === SESSION STATE INITIALIZATION ===
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+    st.session_state.user_name = ""
+    st.session_state.user_role = ""
+    st.session_state.user_gmail = ""
 
 # === SIDEBAR & HEADER ===
 st.sidebar.title("Login / Register")
@@ -133,61 +142,71 @@ if st.session_state.logged_in:
     st.sidebar.success(f"Welcome, {st.session_state.user_name}")
     if st.sidebar.button("Logout"):
         st.session_state.clear()
-        st.cache_data.clear()
         st.rerun()
 
-st.markdown("## Excellent Public School - High-tech Homework System")
+prk_logo_b64 = get_image_as_base64("PRK_logo.jpg")
+excellent_logo_b64 = get_image_as_base64("Excellent_logo.jpg")
+if prk_logo_b64 and excellent_logo_b64:
+    st.markdown("""<style>.header-container{display:flex;flex-direction:column;align-items:center;}.header-text{font-size:24px;font-weight:bold;color:#2E4053;text-align:center;margin-bottom:15px;}.logo-container{display:flex;justify-content:center;align-items:center;width:100%;gap:20px;}.logo-wrapper{flex:1;text-align:center;padding:5px;}.logo-img{max-width:100%;height:auto;opacity:0.9;}</style>""", unsafe_allow_html=True)
+    st.markdown(f"""<div class="header-container"><div class="header-text">Excellent Public School High-tech Homework System</div><div class="logo-container"><div class="logo-wrapper"><img src="{prk_logo_b64}" class="logo-img"></div><div class="logo-wrapper"><img src="{excellent_logo_b64}" class="logo-img"></div></div></div>""", unsafe_allow_html=True)
+else:
+    st.error("One or both logo files are missing.")
 st.markdown("---")
 
 # === LOGIN / REGISTRATION ROUTING ===
 if not st.session_state.logged_in:
-    # FEATURE: Changed "Register" to "New Registration"
-    role = st.sidebar.radio("Login As:", ["Student", "Teacher", "New Registration", "Admin", "Principal"])
-    if role == "New Registration":
-        st.header("✍️ New Registration")
-        # Student Registration with Subscription Plans
-        st.subheader("Student Registration")
-        st.info("After submitting, please pay the subscription fee to the UPI ID below for your account to be activated.")
+    role = st.sidebar.radio("Login As:", ["Student", "Teacher", "Register", "Admin", "Principal"])
+    # (Registration and Login logic remains unchanged)
+    if role == "Register":
+        st.header("✍️ Registration")
+        registration_type = st.radio("Register as:", ["Student", "Teacher"])
         
-        # FEATURE: Subscription Plans
-        PLANS = {
-            "₹100 for 30 days (Normal)": {"duration": 30, "amount": 100},
-            "₹550 for 6 months (Advance)": {"duration": 180, "amount": 550},
-            "₹1000 for 1 year (Advance)": {"duration": 365, "amount": 1000},
-        }
-        
-        with st.form("student_registration_form", clear_on_submit=True):
-            name = st.text_input("Full Name")
-            gmail = st.text_input("Gmail ID").lower().strip()
-            cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
-            pwd = st.text_input("Password", type="password")
-            plan_name = st.selectbox("Choose Subscription Plan", list(PLANS.keys()))
-            
-            if st.form_submit_button(f"Register and Proceed to Pay {plan_name.split(' ')[0]}"):
-                if not all([name, gmail, cls, pwd, plan_name]):
-                    st.warning("Please fill in all details.")
-                else:
-                    df = load_data(STUDENT_SHEET)
-                    if not df.empty and gmail in df["Gmail ID"].values:
-                        st.error("This Gmail is already registered.")
+        if registration_type == "Student":
+            with st.form("student_registration_form", clear_on_submit=True):
+                name = st.text_input("Full Name")
+                gmail = st.text_input("Gmail ID").lower().strip()
+                cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
+                pwd = st.text_input("Password", type="password")
+                if st.form_submit_button("Register (After Payment)"):
+                    if not all([name, gmail, cls, pwd]):
+                        st.warning("Please fill in all details.")
                     else:
-                        hashed_password = make_hashes(pwd)
-                        plan_details = PLANS[plan_name]
-                        new_row = {
-                            "Sr. No.": len(df) + 1, "Student Name": name, "Gmail ID": gmail, 
-                            "Class": cls, "Password": hashed_password, "Subscription Date": "", 
-                            "Subscribed Till": "", "Payment Confirmed": "No", "Answer Sheet ID": "",
-                            "Plan Name": plan_name, "Plan Duration Days": plan_details["duration"]
-                        }
-                        df_new = pd.DataFrame([new_row])
-                        df = pd.concat([df, df_new], ignore_index=True)
-                        save_data(df, STUDENT_SHEET)
-                        st.success("Registration successful! Please complete the payment. Your account will be activated by the admin shortly.")
-                        st.balloons()
-        st.subheader("Payment Details")
-        st.code(f"UPI ID: {UPI_ID}", language="text")
+                        df = load_data(STUDENT_SHEET)
+                        if not df.empty and gmail in df["Gmail ID"].values:
+                            st.error("This Gmail is already registered.")
+                        else:
+                            hashed_password = make_hashes(pwd)
+                            till_date = (datetime.today() + timedelta(days=SUBSCRIPTION_DAYS)).strftime(DATE_FORMAT)
+                            new_row = {"Sr. No.": len(df) + 1, "Student Name": name, "Gmail ID": gmail, "Class": cls, "Password": hashed_password, "Subscription Date": "", "Subscribed Till": till_date, "Payment Confirmed": "No", "Answer Sheet ID": ""}
+                            df_new = pd.DataFrame([new_row])
+                            df = pd.concat([df, df_new], ignore_index=True)
+                            save_students_data(df)
+                            st.success("Registration successful! Waiting for payment confirmation.")
+                            st.balloons()
+            st.subheader("Payment Details")
+            st.code(f"UPI ID: {UPI_ID}", language="text")
         
-    else: # Login logic
+        elif registration_type == "Teacher":
+            with st.form("teacher_registration_form", clear_on_submit=True):
+                name = st.text_input("Full Name")
+                gmail = st.text_input("Gmail ID").lower().strip()
+                pwd = st.text_input("Password", type="password")
+                if st.form_submit_button("Register Teacher"):
+                    if not all([name, gmail, pwd]):
+                        st.warning("Please fill in all details.")
+                    else:
+                        df_teachers = load_data(TEACHER_SHEET)
+                        if not df_teachers.empty and gmail in df_teachers["Gmail ID"].values:
+                            st.error("This Gmail is already registered as a teacher.")
+                        else:
+                            hashed_password = make_hashes(pwd)
+                            new_row = {"Sr. No.": len(df_teachers) + 1, "Teacher Name": name, "Gmail ID": gmail, "Password": hashed_password, "Confirmed": "No"}
+                            df_new = pd.DataFrame([new_row])
+                            df_teachers = pd.concat([df_teachers, df_new], ignore_index=True)
+                            save_teachers_data(df_teachers)
+                            st.success("Teacher registered! Please wait for admin confirmation.")
+                            st.balloons()
+    else:
         st.header(f"🔑 {role} Login")
         with st.form(f"{role}_login_form"):
             login_gmail = st.text_input("Gmail ID").lower().strip()
@@ -195,9 +214,11 @@ if not st.session_state.logged_in:
             if st.form_submit_button("Login"):
                 sheet_to_check = TEACHER_SHEET if role in ["Admin", "Principal", "Teacher"] else STUDENT_SHEET
                 name_col = "Teacher Name" if role in ["Admin", "Principal", "Teacher"] else "Student Name"
+
                 df_users = load_data(sheet_to_check)
                 if not df_users.empty:
                     user_data = df_users[df_users["Gmail ID"] == login_gmail]
+
                     if not user_data.empty:
                         user_row = user_data.iloc[0]
                         if check_hashes(login_pwd, user_row.get("Password")):
@@ -206,208 +227,354 @@ if not st.session_state.logged_in:
                                 if user_row.get("Payment Confirmed") == "Yes" and datetime.today() <= pd.to_datetime(user_row.get("Subscribed Till")):
                                     can_login = True
                                 else:
-                                    st.error("Your subscription may have expired or is awaiting payment confirmation.")
+                                    st.error("Subscription expired or not confirmed.")
                             elif role == "Teacher":
-                                if user_row.get("Confirmed") == "Yes": can_login = True
-                                else: st.error("Your registration is pending admin confirmation.")
-                            elif role in ["Admin", "Principal"]: can_login = True
-                            
+                                if user_row.get("Confirmed") == "Yes":
+                                    can_login = True
+                                else:
+                                    st.error("Registration is pending admin confirmation.")
+                            elif role in ["Admin", "Principal"]:
+                                can_login = True
+
                             if can_login:
                                 st.session_state.logged_in = True
                                 st.session_state.user_name = user_row.get(name_col)
                                 st.session_state.user_role = role.lower()
                                 st.session_state.user_gmail = login_gmail
-                                st.session_state.user_class = user_row.get("Class") if role == "Student" else None
                                 st.rerun()
-                        else: st.error("Invalid Gmail ID or Password.")
-                    else: st.error("Invalid Gmail ID or Password.")
-                else: st.error("User database could not be loaded.")
+                        else:
+                            st.error("Invalid Gmail ID or Password.")
+                    else:
+                        st.error("Invalid Gmail ID or Password.")
+                else:
+                    st.error("User database is empty or could not be loaded.")
+
 
 # === LOGGED-IN USER PANELS ===
 if st.session_state.logged_in:
     current_role = st.session_state.user_role
-    df_students_all = load_data(STUDENT_SHEET)
-    df_answers_all = load_data(MASTER_ANSWER_SHEET)
-    
+
     if current_role == "admin":
         st.header("👑 Admin Panel")
-        tab1, tab2, tab3 = st.tabs(["Student Management", "Teacher Management", "Performance Reports"])
+        tab1, tab2 = st.tabs(["Student Management", "Teacher Management"])
+
         with tab1:
             st.subheader("Manage Student Registrations")
             df_students = load_data(STUDENT_SHEET)
-            unconfirmed = df_students[df_students["Payment Confirmed"] != "Yes"]
-            if unconfirmed.empty: st.info("No pending student payments.")
+            st.markdown("#### Pending Payment Confirmations")
+            unconfirmed_students = df_students[df_students.get("Payment Confirmed") != "Yes"]
+            if unconfirmed_students.empty:
+                st.info("No pending student payments.")
             else:
-                for i, row in unconfirmed.iterrows():
-                    # FEATURE: Admin sees selected plan and activates accordingly
-                    st.write(f"**Name:** {row['Student Name']} | **Gmail:** {row['Gmail ID']} | **Plan:** {row.get('Plan Name', 'N/A')}")
-                    if st.button("✅ Confirm Payment", key=f"confirm_{row['Gmail ID']}"):
-                        duration = int(row.get('Plan Duration Days', 30))
-                        df_students.loc[i, "Subscription Date"] = datetime.today().strftime(DATE_FORMAT)
-                        df_students.loc[i, "Subscribed Till"] = (datetime.today() + timedelta(days=duration)).strftime(DATE_FORMAT)
-                        df_students.loc[i, "Payment Confirmed"] = "Yes"
-                        save_data(df_students, STUDENT_SHEET)
-                        st.success(f"Payment confirmed for {row['Student Name']}.")
-                        st.rerun()
-        with tab2: # Teacher management (unchanged)
+                for i, row in unconfirmed_students.iterrows():
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.write(f"**Name:** {row.get('Student Name')} | **Gmail:** {row.get('Gmail ID')}")
+                    with col2:
+                        if st.button("✅ Confirm Payment", key=f"confirm_student_{row.get('Gmail ID')}", use_container_width=True):
+                            df_students.loc[i, "Subscription Date"] = datetime.today().strftime(DATE_FORMAT)
+                            df_students.loc[i, "Subscribed Till"] = (datetime.today() + timedelta(days=SUBSCRIPTION_DAYS)).strftime(DATE_FORMAT)
+                            df_students.loc[i, "Payment Confirmed"] = "Yes"
+                            save_students_data(df_students)
+                            st.success(f"Payment confirmed for {row.get('Student Name')}.")
+                            st.rerun()
+            st.markdown("---")
+            st.markdown("#### Confirmed Students")
+            confirmed_students = df_students[df_students.get("Payment Confirmed") == "Yes"]
+            st.dataframe(confirmed_students)
+
+        with tab2:
             st.subheader("Manage Teacher Registrations")
             df_teachers = load_data(TEACHER_SHEET)
-            unconfirmed_teachers = df_teachers[df_teachers["Confirmed"] != "Yes"]
-            for i, row in unconfirmed_teachers.iterrows():
-                st.write(f"**Name:** {row['Teacher Name']} | **Gmail:** {row['Gmail ID']}")
-                if st.button("✅ Confirm Teacher", key=f"confirm_teacher_{row['Gmail ID']}"):
-                    df_teachers.loc[i, "Confirmed"] = "Yes"
-                    save_data(df_teachers, TEACHER_SHEET)
-                    st.rerun()
-        with tab3:
-            st.subheader("Class-wise Performance")
-            selected_class = st.selectbox("Select Class to View Leaderboard", df_students_all['Class'].unique())
-            if selected_class:
-                display_leaderboard(df_answers_all, df_students_all, selected_class)
+            st.markdown("#### Pending Teacher Confirmations")
+            unconfirmed_teachers = df_teachers[df_teachers.get("Confirmed") != "Yes"]
+            if unconfirmed_teachers.empty:
+                st.info("No pending teacher confirmations.")
+            else:
+                for i, row in unconfirmed_teachers.iterrows():
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.write(f"**Name:** {row.get('Teacher Name')} | **Gmail:** {row.get('Gmail ID')}")
+                    with col2:
+                        if st.button("✅ Confirm Teacher", key=f"confirm_teacher_{row.get('Gmail ID')}", use_container_width=True):
+                            df_teachers.loc[i, "Confirmed"] = "Yes"
+                            save_teachers_data(df_teachers)
+                            st.success(f"Teacher {row.get('Teacher Name')} confirmed.")
+                            st.rerun()
+            st.markdown("---")
+            st.markdown("#### Confirmed Teachers")
+            confirmed_teachers = df_teachers[df_teachers.get("Confirmed") == "Yes"]
+            st.dataframe(confirmed_teachers)
+
 
     elif current_role == "teacher":
         st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
-        # FEATURE: Display instructions from Principal
-        df_instructions = load_data(INSTRUCTIONS_SHEET)
-        my_instructions = df_instructions[(df_instructions['Teacher Gmail'] == st.session_state.user_gmail) & (df_instructions['Read Status'] == 'Unread')]
-        if not my_instructions.empty:
-            st.warning("🚨 New Instructions from Principal:")
-            for i, row in my_instructions.iterrows():
-                st.info(f"**Instruction:** {row['Instruction Text']}")
-                if st.button("Mark as Read", key=f"read_{row['Instruction ID']}"):
-                    INSTRUCTIONS_SHEET.update_cell(i + 2, df_instructions.columns.get_loc('Read Status') + 1, "Read")
-                    st.cache_data.clear()
-                    st.rerun()
-        
-        create_tab, grade_tab, report_tab = st.tabs(["Create Homework", "Grade Answers", "My Reports"])
-        with create_tab:
-            st.subheader("Create a New Homework Assignment")
-            # FEATURE: Added "Advance Classes" to subject list
-            subjects = ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance Classes"]
-            subject = st.selectbox("Subject", subjects)
-            cls = st.selectbox("Class", [f"{i}th" for i in range(6, 13)])
-            # ... (rest of the creation form is simplified for brevity)
-        with grade_tab:
-            st.subheader("Grade Student Answers")
-            df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
-            my_questions = df_homework[df_homework['Uploaded By'] == st.session_state.user_name]['Question'].tolist()
-            answers_to_grade = df_answers_all[df_answers_all['Question'].isin(my_questions)].copy()
-            answers_to_grade['Score'] = pd.to_numeric(answers_to_grade['Score'], errors='coerce')
-            ungraded = answers_to_grade[answers_to_grade['Score'].isna()]
-            
-            # FEATURE: Filter student dropdown
-            if ungraded.empty:
-                st.success("🎉 All submitted answers for your questions have been graded!")
-            else:
-                students_to_grade = ungraded['Student Gmail'].unique()
-                student_names = df_students_all[df_students_all['Gmail ID'].isin(students_to_grade)]['Student Name'].tolist()
-                selected_student_name = st.selectbox("Select a Student to Grade", student_names)
-                if selected_student_name:
-                    student_gmail = df_students_all[df_students_all['Student Name'] == selected_student_name].iloc[0]['Gmail ID']
-                    student_ungraded = ungraded[ungraded['Student Gmail'] == student_gmail]
-                    for i, row in student_ungraded.iterrows():
-                        st.write(f"**Q:** {row['Question']}")
-                        st.info(f"**Ans:** {row['Answer']}")
-                        with st.form(key=f"grade_{row['Answer ID']}"):
-                            # FEATURE: 5-point grading system
-                            grade = st.selectbox("Grade", list(GRADE_MAP.keys()), key=f"g_{row['Answer ID']}")
-                            remarks = st.text_area("Remarks (if Needs Improvement)", key=f"r_{row['Answer ID']}")
-                            if st.form_submit_button("Submit Grade"):
-                                score = GRADE_MAP[grade]
-                                cell = MASTER_ANSWER_SHEET.find(row['Answer ID'])
-                                if cell:
-                                    g_col = df_answers_all.columns.get_loc('Grade') + 1
-                                    s_col = df_answers_all.columns.get_loc('Score') + 1
-                                    r_col = df_answers_all.columns.get_loc('Remarks') + 1
-                                    MASTER_ANSWER_SHEET.update_cell(cell.row, g_col, grade)
-                                    MASTER_ANSWER_SHEET.update_cell(cell.row, s_col, score)
-                                    MASTER_ANSWER_SHEET.update_cell(cell.row, r_col, remarks)
-                                    st.cache_data.clear()
-                                    st.rerun()
-        with report_tab:
-            st.subheader("Class-wise Performance")
-            # FEATURE: Show Top 3 students report
-            class_list = df_students_all['Class'].unique().tolist()
-            selected_class_report = st.selectbox("Select Class", class_list)
-            if selected_class_report:
-                display_leaderboard(df_answers_all, df_students_all, selected_class_report)
-
-    elif current_role == "student":
-        st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
-        # FEATURE: Student Leaderboard
-        display_leaderboard(df_answers_all, df_students_all, st.session_state.user_class, st.session_state.user_gmail)
-        
-        # FEATURE: Multi-colored growth chart
-        student_answers = df_answers_all[df_answers_all['Student Gmail'] == st.session_state.user_gmail].copy()
-        student_answers['Score'] = pd.to_numeric(student_answers['Score'], errors='coerce')
-        graded_answers = student_answers.dropna(subset=['Score'])
-        if not graded_answers.empty:
-            st.markdown("#### Your Performance Graph")
-            marks_by_subject = graded_answers.groupby('Subject')['Score'].mean().reset_index()
-            fig = px.bar(marks_by_subject, x='Subject', y='Score', title='Your Average Score by Subject', text='Score', color='Subject')
-            st.plotly_chart(fig, use_container_width=True)
-
-        st.markdown("---")
-        # FEATURE: Pending vs. Revision tabs
-        pending_tab, revision_tab = st.tabs(["Pending Homework", "My Previous Question Answer (Revision Zone)"])
         
         df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
-        my_class_hw = df_homework[df_homework['Class'] == st.session_state.user_class]
         
-        with pending_tab:
-            st.subheader("Assignments Needing Your Attention")
-            # Logic to find pending/remarked questions
-            # This is a complex join/merge, simplified here for demonstration
-            # In a real app, this logic would be more robust
-            all_pending_found = False
-            for i, hw_row in my_class_hw.iterrows():
-                answer_row_df = student_answers[student_answers['Question'] == hw_row['Question']]
-                # Case 1: Not answered yet
-                if answer_row_df.empty:
-                    # (Display form to submit new answer)
-                    all_pending_found = True
-                # Case 2: Remarked by teacher
-                elif not answer_row_df.empty and answer_row_df.iloc[0]['Grade'] == 'Needs Improvement':
-                    # (Display form to edit answer)
-                    all_pending_found = True
-            if not all_pending_found:
-                st.success("Great job! You have no pending homework.")
+        st.subheader("Today's Submitted Homework")
+        today_str = datetime.today().strftime(DATE_FORMAT)
+        todays_homework = df_homework[(df_homework.get('Uploaded By') == st.session_state.user_name) & (df_homework.get('Date') == today_str)]
+        if todays_homework.empty:
+            st.info("You have not created any homework assignments today.")
+        else:
+            summary = todays_homework.groupby(['Class', 'Subject']).size().reset_index(name='Question Count')
+            for index, row in summary.iterrows():
+                st.success(f"Class: **{row.get('Class')}** | Subject: **{row.get('Subject')}** | Questions: **{row.get('Question Count')}**")
+        st.markdown("---")
+        
+        create_tab, grade_tab, report_tab = st.tabs(["Create Homework", "Grade Answers", "My Reports"])
 
-        with revision_tab:
-            st.subheader("Review Your Graded Work")
-            # Filter for finally graded answers
-            revision_answers = student_answers[student_answers['Grade'] != 'Needs Improvement'].dropna(subset=['Score'])
-            if revision_answers.empty:
-                st.info("No graded answers available for revision yet.")
+        with create_tab:
+            st.subheader("Create a New Homework Assignment")
+            if 'context_set' not in st.session_state:
+                st.session_state.context_set = False
+            if not st.session_state.context_set:
+                with st.form("context_form"):
+                    subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK"])
+                    cls = st.selectbox("Class", [f"{i}th" for i in range(6, 13)])
+                    date = st.date_input("Date", datetime.today())
+                    if st.form_submit_button("Start Adding Questions →"):
+                        st.session_state.context_set = True
+                        st.session_state.homework_context = {"subject": subject, "class": cls, "date": date}
+                        st.session_state.questions_list = []
+                        st.rerun()
+            if st.session_state.context_set:
+                ctx = st.session_state.homework_context
+                st.success(f"Creating homework for: **{ctx['class']} - {ctx['subject']}** (Date: {ctx['date'].strftime(DATE_FORMAT)})")
+                with st.form("add_question_form", clear_on_submit=True):
+                    question_text = st.text_area("Enter a question to add:", height=100)
+                    if st.form_submit_button("Add Question") and question_text:
+                        st.session_state.questions_list.append(question_text)
+                if st.session_state.questions_list:
+                    st.write("#### Current Questions in this Assignment:")
+                    for i, q in enumerate(st.session_state.questions_list):
+                        st.write(f"{i + 1}. {q}")
+                    if st.button("Final Submit Homework"):
+                        rows_to_add = [[ctx['class'], ctx['date'].strftime(DATE_FORMAT), st.session_state.user_name, ctx['subject'], q_text] for q_text in st.session_state.questions_list]
+                        HOMEWORK_QUESTIONS_SHEET.append_rows(rows_to_add, value_input_option='USER_ENTERED')
+                        st.success("Homework submitted successfully!")
+                        st.balloons()
+                        del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
+                        st.rerun()
+                if st.session_state.context_set and st.button("Create Another Homework (Reset)"):
+                    del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
+                    st.rerun()
+
+        with grade_tab:
+            # === MODIFICATION START: Grade Tab Overhaul ===
+            st.subheader("Grade Student Answers")
+            df_all_answers = load_data(MASTER_ANSWER_SHEET)
+            
+            if 'Remarks' not in df_all_answers.columns:
+                st.error("Sheet Error: 'Remarks' column not found in MASTER_ANSWER_SHEET. Please add it after the 'Marks' column.")
             else:
-                for i, ans_row in revision_answers.sort_values(by="Date", ascending=False).iterrows():
-                    st.markdown(f"**Q:** {ans_row['Question']}")
-                    st.info(f"**Your Ans:** {ans_row['Answer']}")
-                    st.success(f"**Grade:** {ans_row['Grade']} ({ans_row['Score']})")
+                my_questions_df = df_homework[df_homework['Uploaded By'] == st.session_state.user_name]
+                if my_questions_df.empty:
+                    st.info("You have not created any questions yet. No answers to grade.")
+                else:
+                    my_questions_list = my_questions_df['Question'].tolist()
+                    answers_to_my_questions = df_all_answers[df_all_answers['Question'].isin(my_questions_list)].copy()
+
+                    if answers_to_my_questions.empty:
+                        st.info("No answers have been submitted for your questions yet.")
+                    else:
+                        answers_to_my_questions['Marks'] = pd.to_numeric(answers_to_my_questions['Marks'], errors='coerce')
+                        ungraded_answers = answers_to_my_questions[answers_to_my_questions['Marks'].isna()]
+                        
+                        if ungraded_answers.empty:
+                            st.success("🎉 All submitted answers for your questions have been graded!")
+                        else:
+                            students_with_ungraded_answers_gmail = ungraded_answers['Student Gmail'].unique().tolist()
+                            df_students = load_data(STUDENT_SHEET)
+                            gradable_students = df_students[df_students['Gmail ID'].isin(students_with_ungraded_answers_gmail)]
+                            
+                            selected_student_name = st.selectbox("Select a Student to Grade", gradable_students['Student Name'].tolist())
+                            
+                            if selected_student_name:
+                                student_gmail = gradable_students[gradable_students['Student Name'] == selected_student_name].iloc[0]['Gmail ID']
+                                student_answers_df = answers_to_my_questions[answers_to_my_questions['Student Gmail'] == student_gmail]
+                                
+                                st.markdown("##### Student Growth Chart")
+                                graded_student_answers = student_answers_df.dropna(subset=['Marks'])
+                                if not graded_student_answers.empty:
+                                    marks_by_subject = graded_student_answers.groupby('Subject')['Marks'].mean().reset_index()
+                                    fig = px.bar(marks_by_subject, x='Subject', y='Marks', title=f'Average Marks for {selected_student_name}', text='Marks', color='Subject')
+                                    fig.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+                                    st.plotly_chart(fig, use_container_width=True)
+                                else:
+                                    st.info("Growth chart will appear once answers are graded.")
+
+                                st.markdown("---")
+                                st.write("#### Answers to Grade")
+                                
+                                # Iterate through only ungraded answers for this student
+                                for i, row in student_answers_df[student_answers_df['Marks'].isna()].sort_values(by='Date', ascending=False).iterrows():
+                                    st.markdown(f"**Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
+                                    st.write(f"**Question:** {row.get('Question')}")
+                                    st.info(f"**Answer:** {row.get('Answer')}")
+                                    
+                                    with st.form(key=f"grade_form_{i}"):
+                                        marks = st.number_input("Marks", min_value=0, max_value=100, value=0, key=f"marks_{i}")
+                                        remarks = st.text_area("Remarks/Feedback (Optional - Leave blank if answer is correct)", key=f"remarks_{i}")
+                                        
+                                        if st.form_submit_button("Save Grade & Remarks"):
+                                            cell_row = i + 2  # +2 because sheet is 1-indexed and has a header
+                                            marks_col = df_all_answers.columns.get_loc('Marks') + 1
+                                            remarks_col = df_all_answers.columns.get_loc('Remarks') + 1
+                                            MASTER_ANSWER_SHEET.update_cell(cell_row, marks_col, marks)
+                                            MASTER_ANSWER_SHEET.update_cell(cell_row, remarks_col, remarks)
+                                            st.success(f"Grade and remarks saved!")
+                                            st.rerun()
+                                    st.markdown("---")
+            # === MODIFICATION END ===
+
+        with report_tab:
+            st.subheader("My Reports")
+            st.markdown("#### Homework Creation Report")
+            my_homework_report = df_homework[df_homework.get('Uploaded By') == st.session_state.user_name]
+            if my_homework_report.empty:
+                st.info("You have not created any homework assignments yet.")
+            else:
+                st.markdown("##### Filter by Date")
+                col1, col2 = st.columns(2)
+                default_start_date = datetime.today() - timedelta(days=7)
+                with col1:
+                    start_date = st.date_input("Start Date", default_start_date)
+                with col2:
+                    end_date = st.date_input("End Date", datetime.today())
+                my_homework_report['Date_dt'] = pd.to_datetime(my_homework_report['Date']).dt.date
+                filtered_report = my_homework_report[(my_homework_report['Date_dt'] >= start_date) & (my_homework_report['Date_dt'] <= end_date)]
+                if filtered_report.empty:
+                    st.warning("No homework found in the selected date range.")
+                else:
                     st.markdown("---")
+                    report_summary = filtered_report.groupby(['Class', 'Subject']).size().reset_index(name='Total Questions')
+                    st.dataframe(report_summary)
+                    fig_report = px.bar(report_summary, x='Class', y='Total Questions', color='Subject', title='Your Homework Contributions')
+                    st.plotly_chart(fig_report, use_container_width=True)
+            st.markdown("---")
+            st.markdown("#### Answer Grading Report")
+            # This check needs to be safe
+            if 'answers_to_my_questions' in locals() and not answers_to_my_questions.empty:
+                graded_answers = answers_to_my_questions.dropna(subset=['Marks'])
+                if graded_answers.empty:
+                    st.info("You have not graded any answers yet.")
+                else:
+                    df_students_report = load_data(STUDENT_SHEET)[['Student Name', 'Gmail ID']]
+                    grading_summary = graded_answers.groupby('Student Gmail').size().reset_index(name='Answers Graded')
+                    grading_summary = pd.merge(grading_summary, df_students_report, left_on='Student Gmail', right_on='Gmail ID', how='left')
+                    st.write("Total answers you have graded per student:")
+                    st.dataframe(grading_summary[['Student Name', 'Answers Graded']])
+            else:
+                st.info("No answers have been submitted for your questions yet.")
+
+    elif current_role == "student":
+        # === MODIFICATION START: Student Dashboard Overhaul ===
+        st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
+        df_students = load_data(STUDENT_SHEET)
+        user_info_row = df_students[df_students["Gmail ID"] == st.session_state.user_gmail]
+
+        if not user_info_row.empty:
+            user_info = user_info_row.iloc[0]
+            student_class = user_info.get("Class")
+            st.subheader(f"Your Class: {student_class}")
+            st.markdown("---")
+            
+            df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
+            df_all_answers = load_data(MASTER_ANSWER_SHEET)
+            homework_for_class = df_homework[df_homework.get("Class") == student_class]
+            student_answers = df_all_answers[df_all_answers.get('Student Gmail') == st.session_state.user_gmail].copy()
+
+            if 'Remarks' not in student_answers.columns:
+                st.error("Sheet Error: 'Remarks' column not found. Please contact your administrator.")
+            else:
+                if not student_answers.empty:
+                    student_answers['Marks'] = pd.to_numeric(student_answers['Marks'], errors='coerce')
+                    graded_answers = student_answers.dropna(subset=['Marks'])
+                    if not graded_answers.empty:
+                        st.header("Your Growth Chart")
+                        marks_by_subject = graded_answers.groupby('Subject')['Marks'].mean().reset_index()
+                        fig = px.bar(marks_by_subject, x='Subject', y='Marks', title='Your Average Marks by Subject', text='Marks', color='Subject')
+                        fig.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+                        st.plotly_chart(fig, use_container_width=True)
+
+                st.markdown("---")
+                st.header("Your Homework Assignments")
+                if homework_for_class.empty:
+                    st.info("No homework has been assigned for your class yet.")
+                else:
+                    homework_for_class_sorted = homework_for_class.sort_values(by='Date', ascending=False)
+                    for subject, group in homework_for_class_sorted.groupby('Subject'):
+                        with st.expander(f"📚 Subject: {subject}", expanded=True):
+                            for date, assignment_df in group.groupby('Date'):
+                                st.markdown(f"**Assignment Date: {date}**")
+                                for i, row in enumerate(assignment_df.itertuples()):
+                                    
+                                    question_text = row.Question
+                                    matching_answer_series = student_answers[(student_answers.get('Question') == question_text) & (student_answers.get('Date') == date)]
+                                    is_answered = not matching_answer_series.empty
+
+                                    st.write(f"**Q{i+1}:** {question_text}")
+                                    
+                                    if is_answered:
+                                        answer_row = matching_answer_series.iloc[0]
+                                        answer_row_index = matching_answer_series.index[0]
+                                        sheet_row_number = answer_row_index + 2
+
+                                        saved_answer = answer_row.get('Answer', '')
+                                        saved_marks_val = answer_row.get('Marks', '')
+                                        saved_remarks = answer_row.get('Remarks', '')
+
+                                        st.info(f"**Your Answer:** {saved_answer}")
+
+                                        if pd.notna(saved_remarks) and saved_remarks.strip() != "":
+                                            st.warning(f"**Teacher's Remark:** {saved_remarks}")
+                                            st.markdown("Please correct your answer and resubmit.")
+                                            with st.form(key=f"edit_form_{row.Index}"):
+                                                edited_answer = st.text_area("Your Corrected Answer:", value=saved_answer, key=f"edit_text_{row.Index}")
+                                                if st.form_submit_button("Save Corrected Answer"):
+                                                    # Find column numbers dynamically
+                                                    ans_col = df_all_answers.columns.get_loc('Answer') + 1
+                                                    marks_col = df_all_answers.columns.get_loc('Marks') + 1
+                                                    remarks_col = df_all_answers.columns.get_loc('Remarks') + 1
+                                                    
+                                                    MASTER_ANSWER_SHEET.update_cell(sheet_row_number, ans_col, edited_answer)
+                                                    MASTER_ANSWER_SHEET.update_cell(sheet_row_number, marks_col, "")
+                                                    MASTER_ANSWER_SHEET.update_cell(sheet_row_number, remarks_col, "")
+                                                    st.success("Corrected answer submitted for re-grading!")
+                                                    st.rerun()
+                                        
+                                        elif pd.notna(saved_marks_val) and str(saved_marks_val).strip() != "":
+                                            st.success(f"**Graded: {saved_marks_val} Marks**")
+                                        
+                                        else:
+                                            st.success("Your answer is saved and is awaiting grading.")
+
+                                    else:
+                                        with st.form(key=f"answer_form_{row.Index}"):
+                                            answer_text = st.text_area("Your Answer:", key=f"answer_text_{row.Index}")
+                                            if st.form_submit_button("Save Answer") and answer_text:
+                                                new_row_data = [st.session_state.user_gmail, date, subject, question_text, answer_text, "", ""]
+                                                MASTER_ANSWER_SHEET.append_row(new_row_data, value_input_option='USER_ENTERED')
+                                                st.success(f"Answer for Q{i+1} saved!")
+                                                st.rerun()
+                                st.markdown("---")
+        else:
+            st.error("Could not find your student record.")
+        # === MODIFICATION END ===
 
     elif current_role == "principal":
         st.header("🏛️ Principal Dashboard")
-        tab1, tab2, tab3 = st.tabs(["Analytics", "Send Instructions", "Performance Reports"])
-        with tab1: # Analytics (unchanged)
-             st.subheader("📊 Homework Upload Analytics")
-        with tab2:
-            st.subheader("Send Instruction to a Teacher")
-            # FEATURE: Principal sends instructions
-            df_teachers = load_data(TEACHER_SHEET)
-            teacher_list = df_teachers['Gmail ID'].tolist()
-            selected_teacher = st.selectbox("Select Teacher", teacher_list)
-            instruction_text = st.text_area("Instruction:")
-            if st.button("Send Instruction") and instruction_text and selected_teacher:
-                new_instruction = {
-                    "Instruction ID": str(uuid4()), "Teacher Gmail": selected_teacher,
-                    "Instruction Text": instruction_text, "Timestamp": datetime.now().strftime(DATE_FORMAT),
-                    "Read Status": "Unread"
-                }
-                INSTRUCTIONS_SHEET.append_row(list(new_instruction.values()))
-                st.success(f"Instruction sent to {selected_teacher}")
-        with tab3:
-            st.subheader("Class-wise Performance")
-            selected_class_p = st.selectbox("Select Class to View", df_students_all['Class'].unique(), key="p_class")
-            if selected_class_p:
-                display_leaderboard(df_answers_all, df_students_all, selected_class_p)
+        st.subheader("📊 Homework Upload Analytics")
+        df_homework_analytics = load_data(HOMEWORK_QUESTIONS_SHEET)
+        if not df_homework_analytics.empty:
+            df_homework_analytics["Date_dt"] = pd.to_datetime(df_homework_analytics["Date"], errors='coerce').dt.date
+            st.dataframe(df_homework_analytics)
+            fig1 = px.bar(df_homework_analytics, x="Uploaded By", color="Subject", title="Uploads per Teacher")
+            st.plotly_chart(fig1, use_container_width=True)
+            trend = df_homework_analytics.groupby("Date_dt").size().reset_index(name="Count")
+            fig2 = px.line(trend, x="Date_dt", y="Count", title="Upload Trend Over Time", markers=True)
+            st.plotly_chart(fig2, use_container_width=True)
+        else:
+            st.info("No homework data available for analysis.")

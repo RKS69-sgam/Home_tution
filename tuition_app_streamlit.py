@@ -369,11 +369,11 @@ if st.session_state.logged_in:
     
         # Iterate through all homework assigned to the student's class
         for index, hw_row in homework_for_class.iterrows():
-        question_text = hw_row.get('Question')
-        assignment_date = hw_row.get('Date')
+            question_text = hw_row.get('Question')
+            assignment_date = hw_row.get('Date')
         
-        # Check if there's a corresponding answer
-        answer_row = student_answers[
+            # Check if there's a corresponding answer
+            answer_row = student_answers[
             (student_answers['Question'] == question_text) &
             (student_answers['Date'] == assignment_date)
         ]

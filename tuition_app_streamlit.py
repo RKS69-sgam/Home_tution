@@ -359,16 +359,16 @@ if st.session_state.logged_in:
         homework_for_class = df_homework[df_homework.get("Class") == student_class]
         student_answers = df_all_answers[df_all_answers.get('Student Gmail') == st.session_state.user_gmail].copy()
         
-with pending_tab:
-    st.subheader("Pending Questions")
+    with pending_tab:
+        st.subheader("Pending Questions")
     
-    # DataFrames are already loaded at the top of the student panel
-    # (homework_for_class, student_answers, df_all_answers)
+        # DataFrames are already loaded at the top of the student panel
+        # (homework_for_class, student_answers, df_all_answers)
     
-    pending_questions_list = []
+        pending_questions_list = []
     
-    # Iterate through all homework assigned to the student's class
-    for index, hw_row in homework_for_class.iterrows():
+        # Iterate through all homework assigned to the student's class
+        for index, hw_row in homework_for_class.iterrows():
         question_text = hw_row.get('Question')
         assignment_date = hw_row.get('Date')
         

@@ -8,6 +8,9 @@ import base64
 import mimetypes
 import hashlib
 import io
+# ZAROORI FIX: Yeh import missing tha
+from google.oauth2.service_account import Credentials
+
 
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="Excellent Homework System")
@@ -104,7 +107,6 @@ if not st.session_state.logged_in:
     if role == "New Registration":
         st.header("✍️ New Registration")
         registration_type = st.radio("Register as:", ["Student", "Teacher"])
-        
         if registration_type == "Student":
             st.subheader("Choose Your Subscription Plan")
             plan = st.radio(
@@ -128,6 +130,7 @@ if not st.session_state.logged_in:
                             if "Normal" in plan: sub_type = "Normal_30D"
                             elif "6 months" in plan: sub_type = "Advance_6M"
                             else: sub_type = "Advance_1Y"
+                            
                             new_row_dict = {"Student Name": name, "Gmail ID": gmail, "Class": cls, "Password": make_hashes(pwd), "Subscription Type": sub_type, "Payment Confirmed": "No"}
                             sheet_cols = df_students.columns
                             new_row_df = pd.DataFrame([new_row_dict]).reindex(columns=sheet_cols).fillna('')
@@ -425,3 +428,4 @@ if st.session_state.logged_in:
             with st.expander(f"🏆 Top Performers in {cls_p}"):
                 rankings_p = get_class_rankings(cls_p)
                 st.dataframe(rankings_p.head(3)[['Rank', 'Student Name', 'Score']]) if not rankings_p.empty else st.info("No data.")
+

@@ -322,7 +322,43 @@ if st.session_state.logged_in:
                                         break
         with report_tab:
             st.subheader("Class-wise Top 3 Students")
-            # Leaderboard logic here
+            st.subheader("Class-wise Top 3 Students Report")
+
+df_answers_report = load_data(MASTER_ANSWER_SHEET)
+df_students_report = load_data(STUDENT_SHEET)
+
+if df_answers_report.empty or df_students_report.empty:
+    st.info("Leaderboard will be generated once students submit answers and they are graded.")
+else:
+    # Ensure 'Marks' column is numeric and remove ungraded answers
+    df_answers_report['Marks'] = pd.to_numeric(df_answers_report['Marks'], errors='coerce')
+    df_answers_report.dropna(subset=['Marks'], inplace=True)
+    
+    if df_answers_report.empty:
+        st.info("The leaderboard is available after answers have been graded.")
+    else:
+        # Merge data to get student names and classes
+        df_merged = pd.merge(df_answers_report, df_students_report, left_on='Student Gmail', right_on='Gmail ID')
+        
+        # Calculate average marks for each student
+        leaderboard_df = df_merged.groupby(['Class', 'Student Name'])['Marks'].mean().reset_index()
+        
+        # Find the top 3 students in each class
+        top_students_df = leaderboard_df.groupby('Class').apply(
+            lambda x: x.nlargest(3, 'Marks')
+        ).reset_index(drop=True)
+        
+        # Format marks to two decimal places for display
+        top_students_df['Marks'] = top_students_df['Marks'].round(2)
+        
+        st.dataframe(top_students_df)
+        
+        # Optional: Display as a chart
+        fig = px.bar(top_students_df, x='Student Name', y='Marks', color='Class',
+                     title='Top 3 Students by Average Marks per Class',
+                     labels={'Marks': 'Average Marks', 'Student Name': 'Student'})
+        st.plotly_chart(fig, use_container_width=True)
+
             
     elif current_role == "student":
         st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
@@ -338,12 +374,156 @@ if st.session_state.logged_in:
         
         with pending_tab:
             st.subheader("Pending Questions")
-            # Logic to show unanswered or remarked questions
+            st.subheader("Pending Questions")
+
+# These DataFrames should be loaded at the start of the student panel
+# df_homework_for_class = ...
+# student_answers = ...
+# df_all_answers = ...
+
+pending_questions_list = []
+
+# Iterate through all homework assigned to the student's class
+for index, hw_row in homework_for_class.iterrows():
+    question_text = hw_row.get('Question')
+    assignment_date = hw_row.get('Date')
+    
+    # Check if a corresponding answer exists
+    answer_row = student_answers[
+        (student_answers['Question'] == question_text) &
+        (student_answers['Date'] == assignment_date)
+    ]
+    
+    is_answered = not answer_row.empty
+    has_remarks = False
+    if is_answered:
+        remarks = answer_row.iloc[0].get('Remarks', '').strip()
+        if remarks:
+            has_remarks = True
+
+    # A question is "pending" if it's unanswered OR has remarks
+    if not is_answered or has_remarks:
+        pending_questions_list.append(hw_row)
+
+if not pending_questions_list:
+    st.success("🎉 Good job! You have no pending homework.")
+else:
+    # Display the pending questions, newest first
+    df_pending = pd.DataFrame(pending_questions_list).sort_values(by='Date', ascending=False)
+    
+    for i, row in df_pending.iterrows():
+        st.markdown(f"**Assignment Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
+        st.write(f"**Question:** {row.get('Question')}")
+        
+        # If it has remarks, show them
+        matching_answer = student_answers[
+            (student_answers['Question'] == row.get('Question')) &
+            (student_answers['Date'] == row.get('Date'))
+        ]
+        if not matching_answer.empty and matching_answer.iloc[0].get('Remarks'):
+             st.warning(f"**Teacher's Remark:** {matching_answer.iloc[0].get('Remarks')}")
+             st.markdown("Please correct your answer and resubmit.")
+
+        # Show a form to submit or resubmit the answer
+        with st.form(key=f"pending_form_{i}"):
+            answer_text = st.text_area("Your Answer:", key=f"pending_text_{i}", value=matching_answer.iloc[0].get('Answer', '') if not matching_answer.empty else "")
+            
+            if st.form_submit_button("Submit Answer"):
+                if answer_text:
+                    # Logic to update an existing row (if it has remarks) or append a new one
+                    # This part needs to be fully implemented with gspread update/append calls
+                    pass
+                else:
+                    st.warning("Answer cannot be empty.")
+        st.markdown("---")
+
         
         with revision_tab:
             st.subheader("Previously Graded Answers")
-            # Logic to show all graded answers
+            st.subheader("Previously Graded Answers (Revision Zone)")
+
+# The 'student_answers' DataFrame is assumed to be loaded and filtered already
+# Ensure the 'Marks' column is numeric, converting errors to NaN
+student_answers['Marks_Numeric'] = pd.to_numeric(student_answers['Marks'], errors='coerce')
+
+# Filter for rows where 'Marks' is a valid number (not NaN)
+graded_answers = student_answers.dropna(subset=['Marks_Numeric'])
+
+if graded_answers.empty:
+    st.info("You have no graded answers to review yet.")
+else:
+    # Sort by date to show the newest graded answers first
+    sorted_graded_answers = graded_answers.sort_values(by='Date', ascending=False)
+    
+    st.write("Review your previously submitted and graded work below.")
+    
+    for i, row in sorted_graded_answers.iterrows():
+        st.markdown(f"**Assignment Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
+        st.write(f"**Question:** {row.get('Question')}")
+        st.info(f"**Your Answer:** {row.get('Answer')}")
+
+        # Display the grade and any remarks from the teacher
+        grade_value = int(row.get('Marks_Numeric'))
+        grade_text = GRADE_MAP_REVERSE.get(grade_value, "N/A")
+        st.success(f"**Grade:** {grade_text} ({grade_value}/5)")
+        
+        remarks = row.get('Remarks', '').strip()
+        if remarks:
+            st.warning(f"**Teacher's Remark:** {remarks}")
+        
+        st.markdown("---")
+
+
         
         with leaderboard_tab:
             st.subheader("Class Leaderboard")
-            # Leaderboard and rank logic here
+            st.subheader(f"Class Leaderboard ({student_class})")
+
+# These DataFrames are assumed to be loaded at the start of the student panel
+# df_all_answers = ...
+# df_students = ...
+
+# Filter answers for the student's entire class
+class_gmail_list = df_students[df_students['Class'] == student_class]['Gmail ID'].tolist()
+class_answers = df_all_answers[df_all_answers['Student Gmail'].isin(class_gmail_list)].copy()
+
+if class_answers.empty:
+    st.info("The leaderboard will appear once answers have been graded for your class.")
+else:
+    # Calculate average marks for each student in the class
+    class_answers['Marks'] = pd.to_numeric(class_answers['Marks'], errors='coerce')
+    graded_class_answers = class_answers.dropna(subset=['Marks'])
+    
+    if graded_class_answers.empty:
+        st.info("The leaderboard will appear once answers have been graded for your class.")
+    else:
+        # Group by student and calculate their average score
+        leaderboard_df = graded_class_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
+        
+        # Merge with student names for display
+        df_students_names = df_students[['Student Name', 'Gmail ID']]
+        leaderboard_df = pd.merge(leaderboard_df, df_students_names, left_on='Student Gmail', right_on='Gmail ID', how='left')
+        
+        # Create a rank column
+        leaderboard_df['Rank'] = leaderboard_df['Marks'].rank(method='dense', ascending=False).astype(int)
+        leaderboard_df = leaderboard_df.sort_values(by='Rank')
+        
+        # Format the 'Marks' column to two decimal places
+        leaderboard_df['Marks'] = leaderboard_df['Marks'].round(2)
+
+        # Display Top 3 Performers
+        st.markdown("##### 🏆 Top 3 Performers")
+        top_3 = leaderboard_df.head(3)
+        st.dataframe(top_3[['Rank', 'Student Name', 'Marks']])
+
+        # --- Show the logged-in student's rank ---
+        st.markdown("---")
+        my_rank_row = leaderboard_df[leaderboard_df['Student Gmail'] == st.session_state.user_gmail]
+        
+        if not my_rank_row.empty:
+            my_rank = my_rank_row.iloc[0]['Rank']
+            my_avg_marks = my_rank_row.iloc[0]['Marks']
+            st.success(f"**Your Current Rank:** {my_rank} (with an average score of **{my_avg_marks}**)")
+        else:
+            st.warning("Your rank will be shown here after your answers are graded.")
+

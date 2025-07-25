@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import os
 from datetime import datetime, timedelta
 import gspread
 import json
@@ -85,7 +86,6 @@ if prk_logo_b64 and excellent_logo_b64:
     with col1: st.image("PRK_logo.jpg")
     with col2: st.image("Excellent_logo.jpg")
 st.markdown("---")
-
 
 # === LOGIN / REGISTRATION ROUTING ===
 if not st.session_state.logged_in:
@@ -224,7 +224,8 @@ if st.session_state.logged_in:
                     teacher_rows = TEACHER_SHEET.findall(selected_teacher)
                     if teacher_rows:
                         cell_row = teacher_rows[0].row
-                        instruction_col = df_teachers.columns.get_loc('Instructions') + 1
+                        # Assuming 'Instructions' is the 6th column (F)
+                        instruction_col = 6 
                         TEACHER_SHEET.update_cell(cell_row, instruction_col, instruction_text)
                         st.success(f"Instruction sent to {selected_teacher}.")
                     else:
@@ -250,8 +251,38 @@ if st.session_state.logged_in:
         
         with create_tab:
             st.subheader("Create a New Homework Assignment")
-            # Homework creation logic
-            pass
+            if 'context_set' not in st.session_state:
+                st.session_state.context_set = False
+            if not st.session_state.context_set:
+                with st.form("context_form"):
+                    subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance Classes"])
+                    cls = st.selectbox("Class", [f"{i}th" for i in range(6, 13)])
+                    date = st.date_input("Date", datetime.today())
+                    if st.form_submit_button("Start Adding Questions →"):
+                        st.session_state.context_set = True
+                        st.session_state.homework_context = {"subject": subject, "class": cls, "date": date}
+                        st.session_state.questions_list = []
+                        st.rerun()
+            if st.session_state.context_set:
+                ctx = st.session_state.homework_context
+                st.success(f"Creating homework for: **{ctx['class']} - {ctx['subject']}** (Date: {ctx['date'].strftime(DATE_FORMAT)})")
+                with st.form("add_question_form", clear_on_submit=True):
+                    question_text = st.text_area("Enter a question to add:", height=100)
+                    if st.form_submit_button("Add Question") and question_text:
+                        st.session_state.questions_list.append(question_text)
+                if st.session_state.questions_list:
+                    st.write("#### Current Questions:")
+                    for i, q in enumerate(st.session_state.questions_list):
+                        st.write(f"{i + 1}. {q}")
+                    if st.button("Final Submit Homework"):
+                        rows_to_add = [[ctx['class'], ctx['date'].strftime(DATE_FORMAT), st.session_state.user_name, ctx['subject'], q_text] for q_text in st.session_state.questions_list]
+                        HOMEWORK_QUESTIONS_SHEET.append_rows(rows_to_add, value_input_option='USER_ENTERED')
+                        st.success("Homework submitted successfully!")
+                        del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
+                        st.rerun()
+                if st.session_state.context_set and st.button("Create Another Homework (Reset)"):
+                    del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
+                    st.rerun()
 
         with grade_tab:
             st.subheader("Grade Student Answers")
@@ -272,17 +303,18 @@ if st.session_state.logged_in:
                     student_gmail = gradable_students[gradable_students['Student Name'] == selected_student_name].iloc[0]['Gmail ID']
                     student_answers_df = ungraded_answers[ungraded_answers['Student Gmail'] == student_gmail]
                     for i, row in student_answers_df.sort_values(by='Date', ascending=False).iterrows():
+                        st.write(f"**Question:** {row.get('Question')}")
+                        st.info(f"**Answer:** {row.get('Answer')}")
                         with st.form(key=f"grade_form_{i}"):
                             grade = st.selectbox("Grade", list(GRADE_MAP.keys()), key=f"grade_{i}")
                             remarks = st.text_area("Remarks/Feedback", key=f"remarks_{i}")
                             if st.form_submit_button("Save Grade"):
-                                # This is a robust way to find the row to update
                                 cells = MASTER_ANSWER_SHEET.findall(row.get('Question'))
                                 for cell in cells:
                                     record = MASTER_ANSWER_SHEET.row_values(cell.row)
                                     if record[0] == student_gmail and record[1] == row.get('Date'):
-                                        marks_col = df_all_answers.columns.get_loc('Marks') + 1
-                                        remarks_col = df_all_answers.columns.get_loc('Remarks') + 1
+                                        marks_col = list(df_all_answers.columns).index('Marks') + 1
+                                        remarks_col = list(df_all_answers.columns).index('Remarks') + 1
                                         MASTER_ANSWER_SHEET.update_cell(cell.row, marks_col, GRADE_MAP[grade])
                                         MASTER_ANSWER_SHEET.update_cell(cell.row, remarks_col, remarks)
                                         st.success(f"Grade and remarks saved!")
@@ -315,4 +347,3 @@ if st.session_state.logged_in:
         with leaderboard_tab:
             st.subheader("Class Leaderboard")
             # Leaderboard and rank logic here
-

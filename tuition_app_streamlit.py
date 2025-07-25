@@ -361,7 +361,7 @@ else:
 
     
 
-
+"""
     elif current_role == "student":
         st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
     
@@ -464,3 +464,4 @@ else:
                         st.warning("Your rank will be shown here after your answers are graded.")
     else:
         st.error("Could not find your student record.")
+"""

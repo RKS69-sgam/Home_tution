@@ -360,7 +360,7 @@ else:
         st.plotly_chart(fig, use_container_width=True)
 
             
-elif current_role == "student":
+    elif current_role == "student":
         st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
         pending_tab, revision_tab, leaderboard_tab = st.tabs(["Pending Homework", "Revision Zone", "Class Leaderboard"])
         

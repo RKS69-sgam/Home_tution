@@ -100,7 +100,7 @@ if not st.session_state.logged_in:
                 name = st.text_input("Full Name")
                 gmail = st.text_input("Gmail ID").lower().strip()
                 cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
-                pwd = st.text_input("Password", type="password")
+                pwd = st.text_input("Create Pin", type="password")
                 plan = st.selectbox("Choose Subscription Plan", list(SUBSCRIPTION_PLANS.keys()))
                 st.info(f"Please pay {plan.split(' ')[0]} to the UPI ID below.")
                 st.code(f"UPI: {UPI_ID}", language="text")
@@ -127,7 +127,7 @@ if not st.session_state.logged_in:
             with st.form("teacher_registration_form", clear_on_submit=True):
                 name = st.text_input("Full Name")
                 gmail = st.text_input("Gmail ID").lower().strip()
-                pwd = st.text_input("Password", type="password")
+                pwd = st.text_input("Pin", type="password")
                 if st.form_submit_button("Register Teacher"):
                     if not all([name, gmail, pwd]):
                         st.warning("Please fill in all details.")
@@ -144,7 +144,7 @@ if not st.session_state.logged_in:
     else: # Login Logic
         with st.form(f"{role}_login_form"):
             login_gmail = st.text_input("Gmail ID").lower().strip()
-            login_pwd = st.text_input("Password", type="password")
+            login_pwd = st.text_input("Pin", type="password")
             if st.form_submit_button("Login"):
                 sheet_to_check = TEACHER_SHEET if role in ["Admin", "Principal", "Teacher"] else STUDENT_SHEET
                 name_col = "Teacher Name" if role in ["Admin", "Principal", "Teacher"] else "Student Name"

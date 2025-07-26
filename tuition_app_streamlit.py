@@ -161,5 +161,4 @@ if not st.session_state.logged_in:
                         if not df_teachers.empty and gmail in df_teachers["Gmail ID"].values:
                             st.error("This Gmail is already registered as a teacher.")
                         else:
-                            new_row = {
-                                new_row = {"Sr. No.": len(df_teachers) + 1, "Teacher Name": name, "Gmail ID": gmail, "Password": make_hashes(pwd), "Confirmed": "No", "Instructions": "", "Role": "Teacher", "Security Question": security_q, "Security Answer": security_a}
+                            new_row = {"Sr. No.": len(df_teachers) + 1, "Teacher Name": name, "Gmail ID": gmail, "Password": make_hashes(pwd), "Confirmed": "No", "Instructions": "", "Role": "Teacher", "Security Question": security_q, "Security Answer": security_a}

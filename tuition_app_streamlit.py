@@ -192,6 +192,7 @@ if not st.session_state.logged_in:
             login_gmail = st.text_input("Username (Your Gmail ID)").lower().strip()
             login_pwd = st.text_input("PIN (Your Password)", type="password")
             if st.form_submit_button("Login"):
+                load_data.clear()
                 user_data = find_user(login_gmail)
                 if user_data is not None and check_hashes(login_pwd, user_data.get("Password")):
                     role = user_data.get("Role", "").lower()

@@ -58,24 +58,17 @@ def save_data(df, sheet):
 
 def find_user(gmail):
     df_students = load_data(STUDENT_SHEET)
-    if not df_students.empty:
+    if not df_students.empty and 'Gmail ID' in df_students.columns:
         user_in_students = df_students[df_students['Gmail ID'] == gmail]
         if not user_in_students.empty:
             return user_in_students.iloc[0]
+
     df_teachers = load_data(TEACHER_SHEET)
-    if not df_teachers.empty:
+    if not df_teachers.empty and 'Gmail ID' in df_teachers.columns:
         user_in_teachers = df_teachers[df_teachers['Gmail ID'] == gmail]
         if not user_in_teachers.empty:
             return user_in_teachers.iloc[0]
     return None
-
-def get_image_as_base64(path):
-    try:
-        with open(path, "rb") as f:
-            data = f.read()
-        return f"data:image/jpeg;base64,{base64.b64encode(data).decode()}"
-    except FileNotFoundError:
-        return None
 
 # === SESSION STATE ===
 if "logged_in" not in st.session_state:
@@ -83,14 +76,29 @@ if "logged_in" not in st.session_state:
     st.session_state.user_name = ""
     st.session_state.user_role = ""
     st.session_state.user_gmail = ""
-    st.session_state.page_state = "login"
 
-# --- Hide sidebar page navigation when not logged in ---
-if not st.session_state.logged_in:
-    st.markdown("<style> [data-testid='stSidebarNav'] {display: none;} </style>", unsafe_allow_html=True)
+# --- Main App Logic ---
 
-# === PAGE DEFINITIONS ===
-def show_login_page():
+# If user is already logged in, redirect them immediately
+if st.session_state.logged_in:
+    role = st.session_state.user_role
+    if role == 'admin':
+        st.switch_page("pages/Admin_Dashboard.py")
+    elif role == 'principal':
+        st.switch_page("pages/Principal_Dashboard.py")
+    elif role == 'teacher':
+        st.switch_page("pages/Teacher_Dashboard.py")
+    elif role == 'student':
+        st.switch_page("pages/Student_Dashboard.py")
+
+# --- LOGIN / REGISTRATION PAGE UI ---
+st.sidebar.title("Login / New Registration")
+# (Your logo code can be placed here)
+st.markdown("---")
+
+option = st.sidebar.radio("Select an option:", ["Login", "New Registration", "Forgot Password"])
+
+if option == "Login":
     st.header("Login to Your Dashboard")
     with st.form("unified_login_form"):
         login_gmail = st.text_input("Username (Your Gmail ID)").lower().strip()
@@ -121,17 +129,7 @@ def show_login_page():
             else:
                 st.error("Incorrect PIN or Gmail.")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("New User? Register Here", use_container_width=True):
-            st.session_state.page_state = "register"
-            st.rerun()
-    with col2:
-        if st.button("Forgot Password?", use_container_width=True):
-            st.session_state.page_state = "forgot_password"
-            st.rerun()
-
-def show_registration_page():
+elif option == "New Registration":
     st.header("✍️ New Registration")
     registration_type = st.radio("Register as:", ["Student", "Teacher"])
     
@@ -181,12 +179,8 @@ def show_registration_page():
                         df_teachers = pd.concat([df_teachers, df_new], ignore_index=True)
                         save_data(df_teachers, TEACHER_SHEET)
                         st.success("Teacher registered! Please wait for admin confirmation.")
-    
-    if st.button("← Back to Login"):
-        st.session_state.page_state = "login"
-        st.rerun()
 
-def show_forgot_password_page():
+elif option == "Forgot Password":
     st.header("🔑 Reset Your Password")
     with st.form("forgot_password_form"):
         gmail_to_reset = st.text_input("Enter your registered Gmail ID").lower().strip()
@@ -210,18 +204,10 @@ def show_forgot_password_page():
             else:
                 user_role = user_data.get("Role", "student").lower()
                 sheet_to_update = STUDENT_SHEET if user_role == "student" else TEACHER_SHEET
+                df_to_update = load_data(sheet_to_update)
                 cell = sheet_to_update.find(gmail_to_reset)
                 if cell:
-                    df_to_update = load_data(sheet_to_update)
                     password_col = df_to_update.columns.get_loc("Password") + 1
                     sheet_to_update.update_cell(cell.row, password_col, make_hashes(new_password))
                     load_data.clear()
                     st.success("Password updated! Please log in.")
-                    st.session_state.page_state = "login"
-                    st.rerun()
-    
-    if st.button("← Back to Login"):
-        st.session_state.page_state = "login"
-        st.rerun()
-
-# ===

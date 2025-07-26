@@ -38,6 +38,7 @@ def load_data(_sheet):
     if not all_values:
         return pd.DataFrame()
     df = pd.DataFrame(all_values[1:], columns=all_values[0])
+    df.columns = df.columns.str.strip()  # 🚨 Remove extra spaces in column headers
     df['Row ID'] = range(2, len(df) + 2)
     return df
 
@@ -117,25 +118,30 @@ with grade_tab:
     selected_class = st.selectbox("Select Class", ["6th", "7th", "8th", "9th", "10th"], key="grading_class")
     selected_subject = st.selectbox("Select Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance"], key="grading_subject")
     today = datetime.today().strftime(DATE_FORMAT)
-    answers_to_grade = df_answers[
-        (df_answers['Subject'] == selected_subject) &
-        (df_answers['Date'] == today) &
-        (df_answers['Marks'].isna())
-    ]
-    if answers_to_grade.empty:
-        st.info("No ungraded answers found for selected filters.")
+
+    # Check for 'Subject' column
+    if "Subject" not in df_answers.columns:
+        st.error("⚠️ 'Subject' column not found in the answer sheet.")
     else:
-        for i, row in answers_to_grade.iterrows():
-            st.markdown(f"**Student:** {row.get('Student Gmail')} | **Question:** {row.get('Question')}")
-            st.info(f"**Answer:** {row.get('Answer')}")
-            with st.form(f"grading_form_{i}"):
-                marks = st.selectbox("Grade", list(GRADE_MAP.keys()), key=f"grade_select_{i}")
-                remark = st.text_area("Remarks (optional)", key=f"remark_input_{i}")
-                if st.form_submit_button("Submit Grade"):
-                    MASTER_ANSWER_SHEET.update(f"F{row['Row ID']}", str(GRADE_MAP[marks]))  # Marks column (F)
-                    MASTER_ANSWER_SHEET.update(f"G{row['Row ID']}", remark)  # Remarks column (G)
-                    st.success("Grade submitted!")
-                    st.rerun()
+        answers_to_grade = df_answers[
+            (df_answers['Subject'] == selected_subject) &
+            (df_answers['Date'] == today) &
+            (df_answers['Marks'].isna())
+        ]
+        if answers_to_grade.empty:
+            st.info("No ungraded answers found for selected filters.")
+        else:
+            for i, row in answers_to_grade.iterrows():
+                st.markdown(f"**Student:** {row.get('Student Gmail')} | **Question:** {row.get('Question')}")
+                st.info(f"**Answer:** {row.get('Answer')}")
+                with st.form(f"grading_form_{i}"):
+                    marks = st.selectbox("Grade", list(GRADE_MAP.keys()), key=f"grade_select_{i}")
+                    remark = st.text_area("Remarks (optional)", key=f"remark_input_{i}")
+                    if st.form_submit_button("Submit Grade"):
+                        MASTER_ANSWER_SHEET.update(f"F{row['Row ID']}", str(GRADE_MAP[marks]))  # Marks column (F)
+                        MASTER_ANSWER_SHEET.update(f"G{row['Row ID']}", remark)  # Remarks column (G)
+                        st.success("Grade submitted!")
+                        st.rerun()
 
 with report_tab:
     st.subheader("My Uploaded Questions")

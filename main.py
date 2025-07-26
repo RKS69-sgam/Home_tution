@@ -92,10 +92,9 @@ if not st.session_state.logged_in:
     with col2:
         try:
             st.image("Excellent_logo.jpg", use_container_width=True)
-            print ("All copyright PRK Online Home Tuition app")
         except FileNotFoundError:
             st.error("Excellent_logo.jpg not found.")
-            
+            print ("Copyright @ PRK Online Homework Systems. All Rights Reserved. This application")
     st.markdown("---")
     
     option = st.sidebar.radio("Select an option:", ["Login", "New Registration", "Forgot Password"])

@@ -70,14 +70,6 @@ def find_user(gmail):
             return user_in_teachers.iloc[0]
     return None
 
-def get_image_as_base64(path):
-    try:
-        with open(path, "rb") as f:
-            data = f.read()
-        return f"data:image/jpeg;base64,{base64.b64encode(data).decode()}"
-    except FileNotFoundError:
-        return None
-
 # === SESSION STATE ===
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -94,7 +86,6 @@ if not st.session_state.logged_in:
 if not st.session_state.logged_in:
     st.sidebar.title("Login / New Registration")
     
-    # --- HEADER WITH LOGOS ---
     st.markdown(f"""<div style="text-align: center;"><h2>Excellent Public School High-tech Homework System 📈</h2></div>""", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
@@ -107,7 +98,7 @@ if not st.session_state.logged_in:
 
     if option == "New Registration":
         st.session_state.page_state = "register"
-    elif option == "Login" and st.session_state.page_state != "forgot_password":
+    elif option == "Login":
         st.session_state.page_state = "login"
 
     if st.session_state.page_state == "register":
@@ -134,13 +125,7 @@ if not st.session_state.logged_in:
                         if not df.empty and gmail in df["Gmail ID"].values:
                             st.error("This Gmail is already registered.")
                         else:
-                            new_row = {
-                                "Sr. No.": len(df) + 1, "Student Name": name, "Gmail ID": gmail,
-                                "Class": cls, "Password": make_hashes(pwd),
-                                "Subscription Date": "", "Subscribed Till": "",
-                                "Subscription Plan": plan, "Payment Confirmed": "No", "Role": "Student",
-                                "Security Question": security_q, "Security Answer": security_a
-                            }
+                            new_row = {"Sr. No.": len(df) + 1, "Student Name": name, "Gmail ID": gmail, "Class": cls, "Password": make_hashes(pwd), "Subscription Date": "", "Subscribed Till": "", "Subscription Plan": plan, "Payment Confirmed": "No", "Role": "Student", "Security Question": security_q, "Security Answer": security_a}
                             df_new = pd.DataFrame([new_row])
                             df = pd.concat([df, df_new], ignore_index=True)
                             save_data(df, STUDENT_SHEET)
@@ -155,10 +140,94 @@ if not st.session_state.logged_in:
                 security_a = st.text_input("Your Security Answer").lower().strip()
                 if st.form_submit_button("Register Teacher"):
                     if not all([name, gmail, pwd, security_q, security_a]):
-                        st.warning("Please fill in all details.")
+                        st.warning("Please fill in all details, including security question.")
                     else:
                         df_teachers = load_data(TEACHER_SHEET)
                         if not df_teachers.empty and gmail in df_teachers["Gmail ID"].values:
                             st.error("This Gmail is already registered as a teacher.")
                         else:
                             new_row = {"Sr. No.": len(df_teachers) + 1, "Teacher Name": name, "Gmail ID": gmail, "Password": make_hashes(pwd), "Confirmed": "No", "Instructions": "", "Role": "Teacher", "Security Question": security_q, "Security Answer": security_a}
+                            df_new = pd.DataFrame([new_row])
+                            df_teachers = pd.concat([df_teachers, df_new], ignore_index=True)
+                            save_data(df_teachers, TEACHER_SHEET)
+                            st.success("Teacher registered! Please wait for admin confirmation.")
+
+    elif st.session_state.page_state == "forgot_password":
+        st.header("🔑 Reset Your Password")
+        with st.form("forgot_password_form"):
+            gmail_to_reset = st.text_input("Enter your registered Gmail ID").lower().strip()
+            user_data = find_user(gmail_to_reset)
+            if user_data is not None:
+                st.info(f"Security Question: **{user_data.get('Security Question')}**")
+            
+            security_answer = st.text_input("Your Security Answer").lower().strip()
+            new_password = st.text_input("Enter new password", type="password")
+            confirm_password = st.text_input("Confirm new password", type="password")
+            
+            if st.form_submit_button("Reset Password"):
+                if not all([gmail_to_reset, security_answer, new_password, confirm_password]):
+                    st.warning("Please fill all fields.")
+                elif new_password != confirm_password:
+                    st.error("Passwords do not match.")
+                elif user_data is None:
+                    st.error("This Gmail ID is not registered.")
+                elif security_answer != user_data.get("Security Answer"):
+                    st.error("Incorrect security answer.")
+                else:
+                    user_role = user_data.get("Role", "student").lower()
+                    sheet_to_update = STUDENT_SHEET if user_role == "student" else TEACHER_SHEET
+                    cell = sheet_to_update.find(gmail_to_reset)
+                    if cell:
+                        df_to_update = load_data(sheet_to_update)
+                        password_col = df_to_update.columns.get_loc("Password") + 1
+                        sheet_to_update.update_cell(cell.row, password_col, make_hashes(new_password))
+                        load_data.clear()
+                        st.success("Password updated! Please log in.")
+                        st.session_state.page_state = "login"
+                        st.rerun()
+
+    else: # Login Page
+        st.header("Login to Your Dashboard")
+        with st.form("unified_login_form"):
+            login_gmail = st.text_input("Username (Your Gmail ID)").lower().strip()
+            login_pwd = st.text_input("PIN (Your Password)", type="password")
+            if st.form_submit_button("Login"):
+                user_data = find_user(login_gmail)
+                if user_data is not None and check_hashes(login_pwd, user_data.get("Password")):
+                    role = user_data.get("Role", "").lower()
+                    can_login = False
+                    if role == "student":
+                        if user_data.get("Payment Confirmed") == "Yes" and datetime.today().date() <= pd.to_datetime(user_data.get("Subscribed Till")).date():
+                            can_login = True
+                        else:
+                            st.error("Subscription expired or not confirmed.")
+                    elif role in ["teacher", "admin", "principal"]:
+                        if user_data.get("Confirmed") == "Yes":
+                            can_login = True
+                        else:
+                            st.error("Registration is pending admin confirmation.")
+                    
+                    if can_login:
+                        st.session_state.logged_in = True
+                        st.session_state.user_name = user_data.get("Student Name") or user_data.get("Teacher Name")
+                        st.session_state.user_role = role
+                        st.session_state.user_gmail = login_gmail
+                        st.rerun()
+                else:
+                    st.error("Incorrect PIN or Gmail.")
+
+        if st.button("Forgot Password?"):
+            st.session_state.page_state = "forgot_password"
+            st.rerun()
+
+# If user is logged in, switch to the correct page
+else:
+    role = st.session_state.user_role
+    if role == 'admin':
+        st.switch_page("pages/Admin_Dashboard.py")
+    elif role == 'principal':
+        st.switch_page("pages/Principal_Dashboard.py")
+    elif role == 'teacher':
+        st.switch_page("pages/Teacher_Dashboard.py")
+    elif role == 'student':
+        st.switch_page("pages/Student_Dashboard.py")

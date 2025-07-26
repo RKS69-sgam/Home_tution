@@ -1,14 +1,22 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime, timedelta
 import gspread
-import base64
 import json
-from datetime import date
+import base64
+import plotly.express as px
+
 from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
+# === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="Teacher Dashboard")
+DATE_FORMAT = "%Y-%m-%d"
+GRADE_MAP = {"Needs Improvement": 1, "Average": 2, "Good": 3, "Very Good": 4, "Outstanding": 5}
+GRADE_MAP_REVERSE = {v: k for k, v in GRADE_MAP.items()}
 
-# === GOOGLE SHEET AUTH ===
+# === AUTHENTICATION & GOOGLE SHEETS SETUP ===
 try:
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     decoded_creds = base64.b64decode(st.secrets["google_service"]["base64_credentials"])
@@ -16,94 +24,130 @@ try:
     credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
     client = gspread.authorize(credentials)
 
-    STUDENT_SHEET = client.open_by_key("18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA").sheet1
-    HOMEWORK_SHEET = client.open_by_key("1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI").sheet1
-    ANSWER_SHEET = client.open_by_key("16poJSlKbTiezSG119QapoCVcjmAOicsJlyaeFpCKGd8").sheet1
+    ALL_USERS_SHEET = client.open_by_key("18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA").sheet1
+    HOMEWORK_QUESTIONS_SHEET = client.open_by_key("1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI").sheet1
+    MASTER_ANSWER_SHEET = client.open_by_key("16poJSlKbTiezSG119QapoCVcjmAOicsJlyaeFpCKGd8").sheet1
 except Exception as e:
     st.error(f"Error connecting to Google APIs or Sheets: {e}")
     st.stop()
 
-# === LOAD DATA ===
-def load_df(sheet):
-    values = sheet.get_all_values()
-    if not values:
+# === UTILITY FUNCTIONS ===
+@st.cache_data(ttl=60)
+def load_data(_sheet):
+    all_values = _sheet.get_all_values()
+    if not all_values:
         return pd.DataFrame()
-    df = pd.DataFrame(values[1:], columns=values[0])
-    df.columns = df.columns.str.strip()
+    df = pd.DataFrame(all_values[1:], columns=all_values[0])
+    df['Row ID'] = range(2, len(df) + 2)
     return df
 
-df_students = load_df(STUDENT_SHEET)
-df_homework = load_df(HOMEWORK_SHEET)
-df_answers = load_df(ANSWER_SHEET)
-
-# === TEACHER LOGIN CHECK ===
+# === SECURITY GATEKEEPER ===
 if not st.session_state.get("logged_in") or st.session_state.get("user_role") != "teacher":
-    st.error("You must be logged in as a Teacher.")
+    st.error("You must be logged in as a Teacher to view this page.")
+    st.page_link("main.py", label="Go to Login Page")
     st.stop()
 
+# === SIDEBAR LOGOUT ===
+st.sidebar.success(f"Welcome, {st.session_state.user_name}")
+if st.sidebar.button("Logout"):
+    st.session_state.clear()
+    st.switch_page("main.py")
+
+# === TEACHER DASHBOARD UI ===
 st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
 
-# === TABS ===
-tabs = st.tabs(["Create Homework", "Grade Answers", "My Reports"])
+df_users = load_data(ALL_USERS_SHEET)
+df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
+df_answers = load_data(MASTER_ANSWER_SHEET)
 
-# === CREATE HOMEWORK ===
-with tabs[0]:
+teacher_info = df_users[(df_users['Role'] == 'Teacher') & (df_users['User Name'] == st.session_state.user_name)]
+if not teacher_info.empty and teacher_info.iloc[0].get("Instructions"):
+    st.warning(f"**Instruction from Principal:** {teacher_info.iloc[0].get('Instructions')}")
+
+create_tab, grade_tab, report_tab = st.tabs(["Create Homework", "Grade Answers", "My Reports"])
+
+with create_tab:
     st.subheader("Create a New Homework Assignment")
-    ctx = {}
-    ctx['subject'] = st.selectbox("Subject", options=["Hindi", "English", "Maths", "Science", "SST"])
-    ctx['class'] = st.selectbox("Class", options=["6th", "7th", "8th", "9th"])
-    ctx['date'] = st.date_input("Date", value=date.today())
-    ctx['num_questions'] = st.number_input("Number of Questions", min_value=1, max_value=10, step=1)
+    if 'context_set' not in st.session_state:
+        st.session_state.context_set = False
+    if not st.session_state.context_set:
+        with st.form("context_form"):
+            subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance"])
+            class_selected = st.selectbox("Class", ["6th", "7th", "8th", "9th", "10th"])
+            date_selected = st.date_input("Date", datetime.now().date())
+            submitted = st.form_submit_button("Set Context")
+            if submitted:
+                st.session_state.context = {
+                    "subject": subject,
+                    "class": class_selected,
+                    "date": date_selected,
+                    "uploaded_by": st.session_state.user_name
+                }
+                st.session_state.questions_list = []
+                st.session_state.context_set = True
+                st.success("Context set! Now add your questions.")
+                st.rerun()
 
-    st.markdown("### ✍️ Enter Questions")
-    if "questions_list" not in st.session_state:
-        st.session_state.questions_list = [""] * ctx['num_questions']
+    if st.session_state.context_set:
+        st.markdown("#### Add Homework Questions")
+        new_question = st.text_input("Enter Question:")
+        if st.button("Add Question"):
+            if new_question.strip():
+                st.session_state.questions_list.append(new_question.strip())
+                st.success("Question added!")
+                st.rerun()
+        if st.session_state.questions_list:
+            st.markdown("##### Questions Added:")
+            for q in st.session_state.questions_list:
+                st.write(f"- {q}")
+            if st.button("Submit Homework"):
+                ctx = st.session_state.context
+                rows_to_add = [[ctx['class'], ctx['date'].strftime(DATE_FORMAT), ctx['uploaded_by'], ctx['subject'], q]
+                               for q in st.session_state.questions_list]
+                try:
+                    HOMEWORK_QUESTIONS_SHEET.append_rows(rows_to_add, value_input_option="USER_ENTERED")
+                    st.success("Homework successfully added!")
+                except Exception as e:
+                    st.error(f"Failed to upload: {e}")
+                st.session_state.context_set = False
+                st.rerun()
 
-    for i in range(ctx['num_questions']):
-        st.session_state.questions_list[i] = st.text_input(f"Question {i+1}", value=st.session_state.questions_list[i])
+with grade_tab:
+    st.subheader("Grade Student Answers")
+    selected_class = st.selectbox("Select Class", ["6th", "7th", "8th", "9th", "10th"], key="grading_class")
+    selected_subject = st.selectbox("Select Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance"], key="grading_subject")
+    today = datetime.today().strftime(DATE_FORMAT)
+    answers_to_grade = df_answers[
+        (df_answers['Subject'] == selected_subject) &
+        (df_answers['Date'] == today) &
+        (df_answers['Marks'].isna())
+    ]
+    if answers_to_grade.empty:
+        st.info("No ungraded answers found for selected filters.")
+    else:
+        for i, row in answers_to_grade.iterrows():
+            st.markdown(f"**Student:** {row.get('Student Gmail')} | **Question:** {row.get('Question')}")
+            st.info(f"**Answer:** {row.get('Answer')}")
+            with st.form(f"grading_form_{i}"):
+                marks = st.selectbox("Grade", list(GRADE_MAP.keys()), key=f"grade_select_{i}")
+                remark = st.text_area("Remarks (optional)", key=f"remark_input_{i}")
+                if st.form_submit_button("Submit Grade"):
+                    MASTER_ANSWER_SHEET.update(f"F{row['Row ID']}", str(GRADE_MAP[marks]))  # Marks column (F)
+                    MASTER_ANSWER_SHEET.update(f"G{row['Row ID']}", remark)  # Remarks column (G)
+                    st.success("Grade submitted!")
+                    st.rerun()
 
-    if st.button("✅ Submit Homework"):
-        if all(q.strip() for q in st.session_state.questions_list):
-            rows_to_add = [
-                [ctx['class'], ctx['date'].strftime("%Y-%m-%d"), st.session_state.user_name, ctx['subject'], q_text]
-                for q_text in st.session_state.questions_list
-            ]
-            HOMEWORK_SHEET.append_rows(rows_to_add)
-            st.success("Homework uploaded successfully!")
-        else:
-            st.warning("Please fill all questions before submitting.")
-
-# === GRADE ANSWERS ===
-with tabs[1]:
-    st.subheader("Review and Grade Student Answers")
-    student_list = df_answers['Student Gmail'].unique().tolist() if 'Student Gmail' in df_answers.columns else []
-
-    selected_student = st.selectbox("Select Student", options=student_list)
-    student_records = df_answers[df_answers['Student Gmail'] == selected_student]
-
-    if not student_records.empty:
-        for idx, row in student_records.iterrows():
-            st.markdown(f"**Date:** {row['Date']} | **Subject:** {row['Subject']}")
-            st.markdown(f"**Question:** {row['Question']}")
-            st.info(f"**Student Answer:** {row['Answer']}")
-            marks = st.slider("Marks (out of 5)", 0, 5, key=f"marks_{idx}")
-            remark = st.text_input("Remarks", key=f"remark_{idx}")
-            if st.button("Submit Grade", key=f"grade_{idx}"):
-                row_id = idx + 2
-                ANSWER_SHEET.update_cell(row_id, df_answers.columns.get_loc("Marks") + 1, marks)
-                ANSWER_SHEET.update_cell(row_id, df_answers.columns.get_loc("Remarks") + 1, remark)
-                st.success("Grade saved.")
-
-# === MY REPORTS ===
-with tabs[2]:
-    st.subheader("Your Homework Contributions")
-    
+with report_tab:
+    st.subheader("My Uploaded Questions")
     if "Uploaded By" in df_homework.columns:
         my_questions = df_homework[df_homework['Uploaded By'] == st.session_state.user_name]['Question'].tolist()
     else:
         st.warning("⚠️ 'Uploaded By' column not found in homework sheet.")
         my_questions = []
 
-    st.write(f"📚 You have contributed {len(my_questions)} questions.")
-    for q in my_questions:
-        st.markdown(f"- {q}")
+    if my_questions:
+        st.markdown("##### You have uploaded the following questions:")
+        for q in my_questions:
+            st.write(f"- {q}")
+    else:
+        st.info("No homework uploaded yet.")

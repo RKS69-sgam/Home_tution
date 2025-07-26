@@ -102,24 +102,28 @@ with grade_tab:
     st.subheader("Grade Student Answers")
     df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
     df_all_answers = load_data(MASTER_ANSWER_SHEET)
+    
     my_questions = df_homework[df_homework['Uploaded By'] == st.session_state.user_name]['Question'].tolist()
     answers_to_my_questions = df_all_answers[df_all_answers['Question'].isin(my_questions)].copy()
     answers_to_my_questions['Marks'] = pd.to_numeric(answers_to_my_questions['Marks'], errors='coerce')
     ungraded_answers = answers_to_my_questions[answers_to_my_questions['Marks'].isna()]
+
     if ungraded_answers.empty:
         st.success("🎉 All answers for your questions have been graded!")
     else:
         students_to_grade_gmail = ungraded_answers['Student Gmail'].unique().tolist()
         df_students = load_data(STUDENT_SHEET)
         gradable_students = df_students[df_students['Gmail ID'].isin(students_to_grade_gmail)]
+        
         if gradable_students.empty:
-            st.info("No confirmed students have pending answers for your questions.")
+            st.info("No pending answers from confirmed students.")
         else:
             selected_student_name = st.selectbox("Select Student with Pending Answers", gradable_students['Student Name'].tolist())
             if selected_student_name:
                 student_gmail = gradable_students[gradable_students['Student Name'] == selected_student_name].iloc[0]['Gmail ID']
                 student_answers_df = ungraded_answers[ungraded_answers['Student Gmail'] == student_gmail]
                 st.markdown(f"#### Grading answers for: **{selected_student_name}**")
+
                 for index, row in student_answers_df.sort_values(by='Date', ascending=False).iterrows():
                     st.write(f"**Question:** {row.get('Question')}")
                     st.info(f"**Answer:** {row.get('Answer')}")
@@ -128,11 +132,11 @@ with grade_tab:
                         remarks = st.text_area("Remarks/Feedback", key=f"remarks_{index}")
                         if st.form_submit_button("Save Grade"):
                             row_id = row.get('Row ID')
-                            marks_col = df_all_answers.columns.get_loc('Marks') + 1
-                            remarks_col = df_all_answers.columns.get_loc('Remarks') + 1
+                            marks_col = list(df_all_answers.columns).index('Marks') + 1
+                            remarks_col = list(df_all_answers.columns).index('Remarks') + 1
                             MASTER_ANSWER_SHEET.update_cell(row_id, marks_col, GRADE_MAP[grade])
                             MASTER_ANSWER_SHEET.update_cell(row_id, remarks_col, remarks)
-                            st.success(f"Grade and remarks saved!")
+                            st.success("Grade and remarks saved!")
                             st.rerun()
                     st.markdown("---")
 
@@ -146,4 +150,4 @@ with report_tab:
         df_merged = pd.merge(df_answers_report, df_students_report, left_on='Student Gmail', right_on='Gmail ID')
         leaderboard = df_merged.groupby(['Class', 'Student Name'])['Marks'].mean().reset_index()
         top_students = leaderboard.groupby('Class').apply(lambda x: x.nlargest(3, 'Marks')).reset_index(drop=True)
-        st.dataframe(top_students) 
+        st.dataframe(top_students)

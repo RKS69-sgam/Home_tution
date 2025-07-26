@@ -29,8 +29,8 @@ try:
     credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
     client = gspread.authorize(credentials)
     
-    STUDENT_SHEET = client.open_by_key("10rC5yXLzeCzxOLaSbNc3tmHLiTS4RmO1G_PSpxRpSno").sheet1
-    TEACHER_SHEET = client.open_by_key("1BRyQ5-Hv5Qr8ZnDzkj1awoxLjbLh3ubsWzpXskFL4h8").sheet1
+    ALL_USERS_SHEET = client.open_by_key("18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA").sheet1
+    
 except Exception as e:
     st.error(f"Error connecting to Google APIs or Sheets: {e}")
     st.stop()
@@ -57,18 +57,11 @@ def save_data(df, sheet):
     load_data.clear()
 
 def find_user(gmail):
-    # This robust function checks both sheets reliably.
-    df_students = load_data(STUDENT_SHEET)
-    if not df_students.empty and 'Gmail ID' in df_students.columns:
-        user_in_students = df_students[df_students['Gmail ID'] == gmail]
-        if not user_in_students.empty:
-            return user_in_students.iloc[0]
-
-    df_teachers = load_data(TEACHER_SHEET)
-    if not df_teachers.empty and 'Gmail ID' in df_teachers.columns:
-        user_in_teachers = df_teachers[df_teachers['Gmail ID'] == gmail]
-        if not user_in_teachers.empty:
-            return user_in_teachers.iloc[0]
+    df_users = load_data(ALL_USERS_SHEET)
+    if not df_users.empty and 'Gmail ID' in df_users.columns:
+        user_data = df_users[df_users['Gmail ID'] == gmail]
+        if not user_data.empty:
+            return user_data.iloc[0]
     return None
 
 # === SESSION STATE ===
@@ -100,11 +93,78 @@ if not st.session_state.logged_in:
 
     if st.session_state.page_state == "register":
         st.header("✍️ New Registration")
-        # (Your registration logic here)
+        registration_type = st.radio("Register as:", ["Student", "Teacher"])
         
+        with st.form("registration_form", clear_on_submit=True):
+            name = st.text_input("Full Name")
+            gmail = st.text_input("Gmail ID").lower().strip()
+            pwd = st.text_input("Password", type="password")
+            security_q = st.selectbox("Choose a Security Question", SECURITY_QUESTIONS)
+            security_a = st.text_input("Your Security Answer").lower().strip()
+            
+            if registration_type == "Student":
+                cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
+                plan = st.selectbox("Choose Subscription Plan", list(SUBSCRIPTION_PLANS.keys()))
+                st.info(f"Please pay {plan.split(' ')[0]} to the UPI ID below.")
+                st.code(f"UPI: {UPI_ID}", language="text")
+            
+            if st.form_submit_button(f"Register as {registration_type}"):
+                if (registration_type == "Student" and not all([name, gmail, cls, pwd, plan, security_q, security_a])) or \
+                   (registration_type == "Teacher" and not all([name, gmail, pwd, security_q, security_a])):
+                    st.warning("Please fill in ALL details.")
+                else:
+                    df = load_data(ALL_USERS_SHEET)
+                    if not df.empty and gmail in df["Gmail ID"].values:
+                        st.error("This Gmail is already registered.")
+                    else:
+                        new_row_data = {
+                            "User Name": name, "Gmail ID": gmail, "Password": make_hashes(pwd),
+                            "Security Question": security_q, "Security Answer": security_a
+                        }
+                        if registration_type == "Student":
+                            new_row_data.update({
+                                "Role": "Student", "Class": cls, "Subscription Plan": plan, 
+                                "Payment Confirmed": "No", "Subscription Date": "", "Subscribed Till": ""
+                            })
+                        else: # Teacher
+                            new_row_data.update({"Role": "Teacher", "Confirmed": "No", "Instructions": ""})
+
+                        df_new = pd.DataFrame([new_row_data])
+                        df = pd.concat([df, df_new], ignore_index=True)
+                        save_data(df, ALL_USERS_SHEET)
+                        st.success(f"{registration_type} registered! Please wait for admin confirmation.")
+
     elif st.session_state.page_state == "forgot_password":
         st.header("🔑 Reset Your Password")
-        # (Your forgot password logic here)
+        with st.form("forgot_password_form"):
+            gmail_to_reset = st.text_input("Enter your registered Gmail ID").lower().strip()
+            user_data = find_user(gmail_to_reset)
+            if user_data is not None:
+                st.info(f"Security Question: **{user_data.get('Security Question')}**")
+            
+            security_answer = st.text_input("Your Security Answer").lower().strip()
+            new_password = st.text_input("Enter new password", type="password")
+            confirm_password = st.text_input("Confirm new password", type="password")
+            
+            if st.form_submit_button("Reset Password"):
+                if not all([gmail_to_reset, security_answer, new_password, confirm_password]):
+                    st.warning("Please fill all fields.")
+                elif new_password != confirm_password:
+                    st.error("Passwords do not match.")
+                elif user_data is None:
+                    st.error("This Gmail ID is not registered.")
+                elif security_answer != user_data.get("Security Answer"):
+                    st.error("Incorrect security answer.")
+                else:
+                    cell = ALL_USERS_SHEET.find(gmail_to_reset)
+                    if cell:
+                        df_users = load_data(ALL_USERS_SHEET)
+                        password_col = df_users.columns.get_loc("Password") + 1
+                        ALL_USERS_SHEET.update_cell(cell.row, password_col, make_hashes(new_password))
+                        load_data.clear()
+                        st.success("Password updated! Please log in.")
+                        st.session_state.page_state = "login"
+                        st.rerun()
 
     else: # Login Page
         st.header("Login to Your Dashboard")
@@ -130,7 +190,7 @@ if not st.session_state.logged_in:
                     
                     if can_login:
                         st.session_state.logged_in = True
-                        st.session_state.user_name = user_data.get("Student Name") or user_data.get("Teacher Name")
+                        st.session_state.user_name = user_data.get("User Name")
                         st.session_state.user_role = role
                         st.session_state.user_gmail = login_gmail
                         st.rerun()

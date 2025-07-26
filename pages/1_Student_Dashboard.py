@@ -37,6 +37,7 @@ def load_data(_sheet):
     if not all_values:
         return pd.DataFrame()
     df = pd.DataFrame(all_values[1:], columns=all_values[0])
+    df.columns = df.columns.str.strip()  # Clean column names
     df['Row ID'] = range(2, len(df) + 2)
     return df
 
@@ -55,7 +56,7 @@ if st.sidebar.button("Logout"):
 # === STUDENT DASHBOARD UI ===
 st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
-# Load all necessary data once
+# Load all necessary data
 df_all_users = load_data(ALL_USERS_SHEET)
 df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
 df_all_answers = load_data(MASTER_ANSWER_SHEET)
@@ -70,15 +71,24 @@ if not user_info_row.empty:
 
     # Filter dataframes for the current student
     homework_for_class = df_homework[df_homework.get("Class") == student_class]
-    student_answers = df_all_answers[df_all_answers.get('Student Gmail') == st.session_state.user_gmail].copy()
+
+    if "Student Gmail" not in df_all_answers.columns:
+        st.error("❌ 'Student Gmail' column not found in the answer sheet.")
+        st.write("Available columns:", df_all_answers.columns.tolist())
+        st.stop()
+
+    student_answers = df_all_answers[df_all_answers["Student Gmail"] == st.session_state.user_gmail].copy()
 
     pending_tab, revision_tab, leaderboard_tab = st.tabs(["Pending Homework", "Revision Zone", "Class Leaderboard"])
-    
+
     with pending_tab:
         st.subheader("Pending Questions")
         pending_questions_list = []
         for index, hw_row in homework_for_class.iterrows():
-            answer_row = student_answers[(student_answers['Question'] == hw_row.get('Question')) & (student_answers['Date'] == hw_row.get('Date'))]
+            answer_row = student_answers[
+                (student_answers['Question'] == hw_row.get('Question')) &
+                (student_answers['Date'] == hw_row.get('Date'))
+            ]
             is_answered = not answer_row.empty
             has_remarks = False
             if is_answered and answer_row.iloc[0].get('Remarks', '').strip():
@@ -92,12 +102,19 @@ if not user_info_row.empty:
             for i, row in df_pending.iterrows():
                 st.markdown(f"**Assignment Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
                 st.write(f"**Question:** {row.get('Question')}")
-                matching_answer = student_answers[(student_answers['Question'] == row.get('Question')) & (student_answers['Date'] == row.get('Date'))]
+                matching_answer = student_answers[
+                    (student_answers['Question'] == row.get('Question')) &
+                    (student_answers['Date'] == row.get('Date'))
+                ]
                 if not matching_answer.empty and matching_answer.iloc[0].get('Remarks'):
-                     st.warning(f"**Teacher's Remark:** {matching_answer.iloc[0].get('Remarks')}")
-                     st.markdown("Please correct your answer and resubmit.")
+                    st.warning(f"**Teacher's Remark:** {matching_answer.iloc[0].get('Remarks')}")
+                    st.markdown("Please correct your answer and resubmit.")
                 with st.form(key=f"pending_form_{i}"):
-                    answer_text = st.text_area("Your Answer:", key=f"pending_text_{i}", value=matching_answer.iloc[0].get('Answer', '') if not matching_answer.empty else "")
+                    answer_text = st.text_area(
+                        "Your Answer:",
+                        key=f"pending_text_{i}",
+                        value=matching_answer.iloc[0].get('Answer', '') if not matching_answer.empty else ""
+                    )
                     if st.form_submit_button("Submit Answer"):
                         if answer_text:
                             # (Logic to update or append the answer would go here)
@@ -125,7 +142,7 @@ if not user_info_row.empty:
                 if remarks:
                     st.warning(f"**Teacher's Remark:** {remarks}")
                 st.markdown("---")
-    
+
     with leaderboard_tab:
         st.subheader(f"Class Leaderboard ({student_class})")
         df_students_class = df_all_users[df_all_users['Class'] == student_class]
@@ -140,7 +157,13 @@ if not user_info_row.empty:
                 st.info("The leaderboard will appear once answers have been graded for your class.")
             else:
                 leaderboard_df = graded_class_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
-                leaderboard_df = pd.merge(leaderboard_df, df_students_class[['User Name', 'Gmail ID']], left_on='Student Gmail', right_on='Gmail ID', how='left')
+                leaderboard_df = pd.merge(
+                    leaderboard_df,
+                    df_students_class[['User Name', 'Gmail ID']],
+                    left_on='Student Gmail',
+                    right_on='Gmail ID',
+                    how='left'
+                )
                 leaderboard_df['Rank'] = leaderboard_df['Marks'].rank(method='dense', ascending=False).astype(int)
                 leaderboard_df = leaderboard_df.sort_values(by='Rank')
                 leaderboard_df['Marks'] = leaderboard_df['Marks'].round(2)

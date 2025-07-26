@@ -64,8 +64,15 @@ def find_user(gmail):
     user_in_teachers = df_teachers[df_teachers['Gmail ID'] == gmail]
     if not user_in_teachers.empty:
         return user_in_teachers.iloc[0]
-
     return None
+
+def get_image_as_base64(path):
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        return f"data:image/jpeg;base64,{base64.b64encode(data).decode()}"
+    except FileNotFoundError:
+        return None
 
 # === SESSION STATE ===
 if "logged_in" not in st.session_state:
@@ -81,7 +88,15 @@ st.markdown("<style> [data-testid='stSidebarNav'] {display: none;} </style>", un
 # === LOGIN / REGISTRATION PAGE ===
 if not st.session_state.logged_in:
     st.sidebar.title("Login / New Registration")
-    # (Your logo code can be placed here)
+    
+    # --- HEADER WITH LOGOS ---
+    prk_logo_b64 = get_image_as_base64("PRK_logo.jpg")
+    excellent_logo_b64 = get_image_as_base64("Excellent_logo.jpg")
+    if prk_logo_b64 and excellent_logo_b64:
+        st.markdown(f"""<div style="text-align: center;"><h2>Excellent Public School High-tech Homework System 📈</h2></div>""", unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
+        with col1: st.image("PRK_logo.jpg")
+        with col2: st.image("Excellent_logo.jpg")
     st.markdown("---")
     
     option = st.sidebar.radio("Select an option:", ["Login", "New Registration"])
@@ -94,9 +109,9 @@ if not st.session_state.logged_in:
     if st.session_state.page_state == "register":
         st.header("✍️ New Registration")
         registration_type = st.radio("Register as:", ["Student", "Teacher"])
-        
         if registration_type == "Student":
             with st.form("student_registration_form", clear_on_submit=True):
+                # Student registration form fields...
                 name = st.text_input("Full Name")
                 gmail = st.text_input("Gmail ID").lower().strip()
                 cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
@@ -106,7 +121,6 @@ if not st.session_state.logged_in:
                 security_a = st.text_input("Your Security Answer").lower().strip()
                 st.info(f"Please pay {plan.split(' ')[0]} to the UPI ID below.")
                 st.code(f"UPI: {UPI_ID}", language="text")
-
                 if st.form_submit_button("Register (After Payment)"):
                     if not all([name, gmail, cls, pwd, plan, security_q, security_a]):
                         st.warning("Please fill in ALL details, including security question.")
@@ -115,21 +129,15 @@ if not st.session_state.logged_in:
                         if not df.empty and gmail in df["Gmail ID"].values:
                             st.error("This Gmail is already registered.")
                         else:
-                            new_row = {
-                                "Sr. No.": len(df) + 1, "Student Name": name, "Gmail ID": gmail,
-                                "Class": cls, "Password": make_hashes(pwd),
-                                "Subscription Date": "", "Subscribed Till": "",
-                                "Subscription Plan": plan, "Payment Confirmed": "No", "Role": "Student",
-                                "Security Question": security_q, "Security Answer": security_a
-                            }
+                            new_row = {"Sr. No.": len(df) + 1, "Student Name": name, "Gmail ID": gmail, "Class": cls, "Password": make_hashes(pwd), "Subscription Date": "", "Subscribed Till": "", "Subscription Plan": plan, "Payment Confirmed": "No", "Role": "Student", "Security Question": security_q, "Security Answer": security_a}
                             df_new = pd.DataFrame([new_row])
                             df = pd.concat([df, df_new], ignore_index=True)
                             save_data(df, STUDENT_SHEET)
-                            load_data.clear() # <-- FIX: Clear cache after updating data
+                            load_data.clear()
                             st.success("Registration successful! Waiting for admin confirmation.")
-        
         elif registration_type == "Teacher":
             with st.form("teacher_registration_form", clear_on_submit=True):
+                # Teacher registration form fields...
                 name = st.text_input("Full Name")
                 gmail = st.text_input("Gmail ID").lower().strip()
                 pwd = st.text_input("Password", type="password")
@@ -137,21 +145,17 @@ if not st.session_state.logged_in:
                 security_a = st.text_input("Your Security Answer").lower().strip()
                 if st.form_submit_button("Register Teacher"):
                     if not all([name, gmail, pwd, security_q, security_a]):
-                        st.warning("Please fill in all details, including security question.")
+                        st.warning("Please fill in all details.")
                     else:
                         df_teachers = load_data(TEACHER_SHEET)
                         if not df_teachers.empty and gmail in df_teachers["Gmail ID"].values:
                             st.error("This Gmail is already registered as a teacher.")
                         else:
-                            new_row = {
-                                "Sr. No.": len(df_teachers) + 1, "Teacher Name": name, "Gmail ID": gmail, 
-                                "Password": make_hashes(pwd), "Confirmed": "No", "Instructions": "", "Role": "Teacher",
-                                "Security Question": security_q, "Security Answer": security_a
-                            }
+                            new_row = {"Sr. No.": len(df_teachers) + 1, "Teacher Name": name, "Gmail ID": gmail, "Password": make_hashes(pwd), "Confirmed": "No", "Instructions": "", "Role": "Teacher", "Security Question": security_q, "Security Answer": security_a}
                             df_new = pd.DataFrame([new_row])
                             df_teachers = pd.concat([df_teachers, df_new], ignore_index=True)
                             save_data(df_teachers, TEACHER_SHEET)
-                            load_data.clear() # <-- FIX: Clear cache after updating data
+                            load_data.clear()
                             st.success("Teacher registered! Please wait for admin confirmation.")
 
     elif st.session_state.page_state == "forgot_password":
@@ -161,11 +165,9 @@ if not st.session_state.logged_in:
             user_data = find_user(gmail_to_reset)
             if user_data is not None:
                 st.info(f"Security Question: **{user_data.get('Security Question')}**")
-            
             security_answer = st.text_input("Your Security Answer").lower().strip()
             new_password = st.text_input("Enter new password", type="password")
             confirm_password = st.text_input("Confirm new password", type="password")
-            
             if st.form_submit_button("Reset Password"):
                 if not all([gmail_to_reset, security_answer, new_password, confirm_password]):
                     st.warning("Please fill all fields.")
@@ -182,7 +184,7 @@ if not st.session_state.logged_in:
                     if cell:
                         password_col = list(load_data(sheet_to_update).columns).index("Password") + 1
                         sheet_to_update.update_cell(cell.row, password_col, make_hashes(new_password))
-                        load_data.clear() # <-- FIX: Clear cache after updating data
+                        load_data.clear()
                         st.success("Password updated! Please log in.")
                         st.session_state.page_state = "login"
                         st.rerun()
@@ -207,7 +209,6 @@ if not st.session_state.logged_in:
                             can_login = True
                         else:
                             st.error("Registration is pending admin confirmation.")
-                    
                     if can_login:
                         st.session_state.logged_in = True
                         st.session_state.user_name = user_data.get("Student Name") or user_data.get("Teacher Name")
@@ -216,7 +217,6 @@ if not st.session_state.logged_in:
                         st.rerun()
                 else:
                     st.error("Incorrect PIN or Gmail.")
-
         if st.button("Forgot Password?"):
             st.session_state.page_state = "forgot_password"
             st.rerun()
@@ -232,14 +232,3 @@ else:
         st.switch_page("pages/Teacher_Dashboard.py")
     elif role == 'student':
         st.switch_page("pages/Student_Dashboard.py")
-
-# Header logo
-st.sidebar.title("Login / New Registration")
-prk_logo_b64 = get_image_as_base64("PRK_logo.jpg")
-excellent_logo_b64 = get_image_as_base64("Excellent_logo.jpg")
-if prk_logo_b64 and excellent_logo_b64:
-    st.markdown(f"""<div style="text-align: center;"><h2>Excellent Public School High-tech Homework System 📈</h2></div>""", unsafe_allow_html=True)
-    col1, col2 = st.columns(2)
-    with col1: st.image("PRK_logo.jpg")
-    with col2: st.image("Excellent_logo.jpg")
-st.markdown("---")

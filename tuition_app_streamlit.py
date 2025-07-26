@@ -71,83 +71,73 @@ def find_user(gmail):
     return None
 
 # === SESSION STATE ===
-if "page_state" not in st.session_state:
-    st.session_state.page_state = "login"
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user_name = ""
     st.session_state.user_role = ""
     st.session_state.user_gmail = ""
+    st.session_state.page_state = "login"
 
-# --- Hide sidebar page navigation ---
-st.markdown("<style> [data-testid='stSidebarNav'] {display: none;} </style>", unsafe_allow_html=True)
+# --- Hide sidebar page navigation when not logged in ---
+if not st.session_state.logged_in:
+    st.markdown("<style> [data-testid='stSidebarNav'] {display: none;} </style>", unsafe_allow_html=True)
 
-# === PAGE DEFINITIONS ===
-def show_login_page():
+# === LOGIN / REGISTRATION PAGE ===
+if not st.session_state.logged_in:
     # (Your logo code can be placed here)
-    st.header("Login to Your Dashboard")
-    with st.form("unified_login_form"):
-        login_gmail = st.text_input("Username (Your Gmail ID)").lower().strip()
-        login_pwd = st.text_input("PIN (Your Password)", type="password")
-        if st.form_submit_button("Login"):
-            user_data = find_user(login_gmail)
-            if user_data is not None and check_hashes(login_pwd, user_data.get("Password")):
-                role = user_data.get("Role", "").lower()
-                can_login = False
-                if role == "student":
-                    if user_data.get("Payment Confirmed") == "Yes" and datetime.today().date() <= pd.to_datetime(user_data.get("Subscribed Till")).date():
-                        can_login = True
-                    else:
-                        st.error("Subscription expired or not confirmed.")
-                elif role in ["teacher", "admin", "principal"]:
-                    if user_data.get("Confirmed") == "Yes":
-                        can_login = True
-                    else:
-                        st.error("Registration is pending admin confirmation.")
-                
-                if can_login:
-                    st.session_state.logged_in = True
-                    st.session_state.user_name = user_data.get("Student Name") or user_data.get("Teacher Name")
-                    st.session_state.user_role = role
-                    st.session_state.user_gmail = login_gmail
-                    st.rerun()
-            else:
-                st.error("Incorrect PIN or Gmail.")
+    st.markdown("---")
+    
+    option = st.sidebar.radio("Select an option:", ["Login", "New Registration"])
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("New User? Register Here", use_container_width=True):
-            st.session_state.page_state = "register"
-            st.rerun()
-    with col2:
-        if st.button("Forgot Password?", use_container_width=True):
+    if option == "New Registration":
+        st.session_state.page_state = "register"
+    elif option == "Login" and st.session_state.page_state != "forgot_password":
+        st.session_state.page_state = "login"
+
+    if st.session_state.page_state == "register":
+        st.header("✍️ New Registration")
+        # (Your full registration logic here)
+        
+    elif st.session_state.page_state == "forgot_password":
+        st.header("🔑 Reset Your Password")
+        # (Your full forgot password logic here)
+
+    else: # Login Page
+        st.header("Login to Your Dashboard")
+        with st.form("unified_login_form"):
+            login_gmail = st.text_input("Username (Your Gmail ID)").lower().strip()
+            login_pwd = st.text_input("PIN (Your Password)", type="password")
+            if st.form_submit_button("Login"):
+                user_data = find_user(login_gmail)
+                if user_data is not None and check_hashes(login_pwd, user_data.get("Password")):
+                    role = user_data.get("Role", "").lower()
+                    can_login = False
+                    if role == "student":
+                        if user_data.get("Payment Confirmed") == "Yes" and datetime.today().date() <= pd.to_datetime(user_data.get("Subscribed Till")).date():
+                            can_login = True
+                        else:
+                            st.error("Subscription expired or not confirmed.")
+                    elif role in ["teacher", "admin", "principal"]:
+                        if user_data.get("Confirmed") == "Yes":
+                            can_login = True
+                        else:
+                            st.error("Registration is pending admin confirmation.")
+                    
+                    if can_login:
+                        st.session_state.logged_in = True
+                        st.session_state.user_name = user_data.get("Student Name") or user_data.get("Teacher Name")
+                        st.session_state.user_role = role
+                        st.session_state.user_gmail = login_gmail
+                        st.rerun()
+                else:
+                    st.error("Incorrect PIN or Gmail.")
+
+        if st.button("Forgot Password?"):
             st.session_state.page_state = "forgot_password"
             st.rerun()
 
-def show_registration_page():
-    st.header("✍️ New Registration")
-    # (Your full registration logic here)
-    if st.button("← Back to Login"):
-        st.session_state.page_state = "login"
-        st.rerun()
-
-def show_forgot_password_page():
-    st.header("🔑 Reset Your Password")
-    # (Your full forgot password logic here)
-    if st.button("← Back to Login"):
-        st.session_state.page_state = "login"
-        st.rerun()
-
-# === MAIN APP ROUTING ===
-if not st.session_state.logged_in:
-    if st.session_state.page_state == "register":
-        show_registration_page()
-    elif st.session_state.page_state == "forgot_password":
-        show_forgot_password_page()
-    else:
-        show_login_page()
+# If user is logged in, switch to the correct page
 else:
-    # If user is logged in, switch to the correct dashboard page
     role = st.session_state.user_role
     if role == 'admin':
         st.switch_page("pages/Admin_Dashboard.py")

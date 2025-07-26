@@ -1,126 +1,108 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 import gspread
 import json
 import base64
 from google.oauth2.service_account import Credentials
+from datetime import date
 
-# === PAGE CONFIG ===
+# === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="Teacher Dashboard")
-DATE_FORMAT = "%Y-%m-%d"
-GRADE_MAP = {"Needs Improvement": 1, "Average": 2, "Good": 3, "Very Good": 4, "Outstanding": 5}
-GRADE_MAP_REVERSE = {v: k for k, v in GRADE_MAP.items()}
 
-# === GOOGLE AUTH ===
-try:
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    decoded_creds = base64.b64decode(st.secrets["google_service"]["base64_credentials"])
-    credentials_dict = json.loads(decoded_creds)
-    credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
-    client = gspread.authorize(credentials)
+# === GOOGLE SHEET AUTHENTICATION ===
+scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+decoded_creds = base64.b64decode(st.secrets["google_service"]["base64_credentials"])
+credentials_dict = json.loads(decoded_creds)
+credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
+client = gspread.authorize(credentials)
 
-    # ✅ Correctly assigned Google Sheets
-    ALL_USERS_SHEET = client.open_by_key("18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA").sheet1
-    HOMEWORK_QUESTIONS_SHEET = client.open_by_key("1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI").sheet1
-    MASTER_ANSWER_SHEET = client.open_by_key("16poJSlKbTiezSG119QapoCVcjmAOicsJlyaeFpCKGd8").sheet1
-except Exception as e:
-    st.error(f"Google API error: {e}")
-    st.stop()
+# === GOOGLE SHEET REFERENCES ===
+ALL_USERS_SHEET = client.open_by_key("18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA").sheet1
+HOMEWORK_QUESTIONS_SHEET = client.open_by_key("1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI").sheet1
+MASTER_ANSWER_SHEET = client.open_by_key("16poJSlKbTiezSG119QapoCVcjmAOicsJlyaeFpCKGd8").sheet1  # ✅ Correct sheet
 
-# === LOAD DATA ===
+# === UTILITY ===
 @st.cache_data(ttl=60)
-def load_data(_sheet):
-    values = _sheet.get_all_values()
-    if not values:
+def load_data(sheet):
+    data = sheet.get_all_values()
+    if not data:
         return pd.DataFrame()
-    df = pd.DataFrame(values[1:], columns=values[0])
+    df = pd.DataFrame(data[1:], columns=data[0])
     df.columns = df.columns.str.strip()
-    df['Row ID'] = range(2, len(df) + 2)
     return df
 
-# === SECURITY CHECK ===
+# === AUTH CHECK ===
 if not st.session_state.get("logged_in") or st.session_state.get("user_role") != "teacher":
-    st.error("You must be logged in as a Teacher.")
+    st.error("Only teachers can access this page.")
     st.stop()
 
-st.sidebar.success(f"Welcome, {st.session_state.user_name}")
+# === SIDEBAR ===
+st.sidebar.success(f"Welcome {st.session_state.user_name}")
 if st.sidebar.button("Logout"):
     st.session_state.clear()
     st.switch_page("main.py")
 
-# === HEADER ===
+# === DASHBOARD HEADER ===
 st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
+st.markdown("##")
 
-# === Load all sheets ===
+option = st.radio("Choose an action", ["Create Homework", "Grade Answers", "My Reports"])
+
+# === LOAD SHEETS ===
 df_users = load_data(ALL_USERS_SHEET)
 df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
-df_answers = load_data(MASTER_ANSWER_SHEET)
+df_answers = load_data(MASTER_ANSWER_SHEET)  # ✅ Correct loading
 
-# ✅ Debug block with Subject column check
+# === DEBUG CHECK ===
 st.write("📋 Columns found in Master Answer Sheet:", df_answers.columns.tolist())
 if "Subject" not in df_answers.columns:
     st.warning("⚠️ 'Subject' column not found in the answer sheet.")
     st.stop()
 
-# === Tabs ===
-tab1, tab2, tab3 = st.tabs(["Create Homework", "Grade Answers", "My Reports"])
-
-with tab1:
-    st.subheader("Create Homework")
-    subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST"])
-    class_name = st.selectbox("Class", ["6th", "7th", "8th", "9th"])
-    date_selected = st.date_input("Date", datetime.today())
-    questions = []
-
-    num_qs = st.number_input("Number of Questions", min_value=1, max_value=10, value=1)
-    for i in range(num_qs):
-        q = st.text_input(f"Question {i+1}", key=f"q_{i}")
-        questions.append(q)
+# === MAIN OPTIONS ===
+if option == "Create Homework":
+    st.subheader("Create a New Homework Assignment")
+    subject = st.selectbox("Subject", ["Hindi", "English", "Maths", "Science", "Sanskrit"])
+    class_name = st.selectbox("Class", sorted(df_users['Class'].unique()))
+    today_date = st.date_input("Date", value=date.today())
+    question_text = st.text_area("Enter the Homework Question")
 
     if st.button("Submit Homework"):
-        rows = [[class_name, date_selected.strftime(DATE_FORMAT), st.session_state.user_name, subject, q] for q in questions if q.strip()]
-        if rows:
-            HOMEWORK_QUESTIONS_SHEET.append_rows(rows)
-            st.success("Homework uploaded.")
+        if question_text.strip():
+            row = [str(today_date), class_name, subject, question_text.strip(), st.session_state.user_name]
+            HOMEWORK_QUESTIONS_SHEET.append_row(row)
+            st.success("✅ Homework uploaded successfully!")
         else:
-            st.warning("Enter at least one valid question.")
+            st.warning("Question cannot be empty.")
 
-with tab2:
-    st.subheader("Grade Student Answers")
-    selected_class = st.selectbox("Select Class", df_users['Class'].unique())
-    selected_subject = st.selectbox("Select Subject", ["Hindi", "English", "Math", "Science", "SST"])
-    today = datetime.today().strftime(DATE_FORMAT)
+elif option == "Grade Answers":
+    st.subheader("Grade Answers")
+    selected_class = st.selectbox("Select Class", sorted(df_users['Class'].unique()))
+    selected_subject = st.selectbox("Select Subject", df_answers['Subject'].dropna().unique())
 
-    to_grade = df_answers[
-        (df_answers['Subject'] == selected_subject) &
-        (df_answers['Date'] == today) &
-        (df_answers['Marks'] == "")
+    filtered = df_answers[
+        (df_answers['Class'] == selected_class) &
+        (df_answers['Subject'] == selected_subject)
     ]
 
-    if to_grade.empty:
-        st.info("No ungraded answers.")
+    if filtered.empty:
+        st.info("No answers to grade.")
     else:
-        for i, row in to_grade.iterrows():
-            st.markdown(f"**Student:** {row['Student Gmail']} | **Question:** {row['Question']}")
-            st.info(f"**Answer:** {row['Answer']}")
+        for i, row in filtered.iterrows():
+            st.markdown(f"**Student:** {row.get('Student Gmail')} | **Date:** {row.get('Date')}")
+            st.markdown(f"**Question:** {row.get('Question')}")
+            st.markdown(f"**Answer:** {row.get('Answer')}")
             with st.form(f"grade_form_{i}"):
-                grade = st.selectbox("Grade", list(GRADE_MAP.keys()), key=f"grade_{i}")
-                remark = st.text_area("Remarks", key=f"remark_{i}")
+                marks = st.slider("Marks (0–5)", 0, 5, int(row.get("Marks") or 0))
+                remarks = st.text_area("Remarks", row.get("Remarks", ""))
                 if st.form_submit_button("Submit Grade"):
-                    MASTER_ANSWER_SHEET.update(f"F{row['Row ID']}", GRADE_MAP[grade])
-                    MASTER_ANSWER_SHEET.update(f"G{row['Row ID']}", remark)
-                    st.success("Graded.")
+                    MASTER_ANSWER_SHEET.update_cell(i + 2, df_answers.columns.get_loc("Marks") + 1, str(marks))
+                    MASTER_ANSWER_SHEET.update_cell(i + 2, df_answers.columns.get_loc("Remarks") + 1, remarks)
+                    st.success("Graded successfully.")
                     st.rerun()
+            st.markdown("---")
 
-with tab3:
-    st.subheader("My Reports")
-    if "Uploaded By" in df_homework.columns:
-        my_qs = df_homework[df_homework["Uploaded By"] == st.session_state.user_name]['Question'].tolist()
-    else:
-        st.warning("⚠️ 'Uploaded By' column missing.")
-        my_qs = []
-
-    st.write(f"You've uploaded {len(my_qs)} questions.")
-    for q in my_qs:
-        st.markdown(f"- {q}")
+elif option == "My Reports":
+    st.subheader("Homework You Uploaded")
+    my_questions = df_homework[df_homework['Uploaded By'] == st.session_state.user_name]
+    st.dataframe(my_questions[['Date', 'Class', 'Subject', 'Question']])

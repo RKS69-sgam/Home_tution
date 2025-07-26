@@ -183,10 +183,6 @@ if not st.session_state.logged_in:
                         st.rerun()
     
     else: # Login Page
-        # (Your login page code here)
-        pass
-
-    else: # Login Page
         st.header("Login to Your Dashboard")
         with st.form("unified_login_form"):
             login_gmail = st.text_input("Username (Your Gmail ID)").lower().strip()

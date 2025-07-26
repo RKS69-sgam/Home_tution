@@ -70,7 +70,7 @@ if not user_info_row.empty:
 
     # Filter dataframes for the current student
     homework_for_class = df_homework[df_homework.get("Class") == student_class]
-    student_answers = df_all_answers[df_all_answers.get('Student Gmail') == st.session_state.user_gmail].copy()
+    student_answers = df_all_answers[df_all_answers.get("Student Gmail") == st.session_state.user_gmail].copy()
 
     pending_tab, revision_tab, leaderboard_tab = st.tabs(["Pending Homework", "Revision Zone", "Class Leaderboard"])
     

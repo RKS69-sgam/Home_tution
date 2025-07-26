@@ -1,17 +1,25 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime, timedelta
 import gspread
 import json
 import base64
-import plotly.express as px
+import hashlib
 
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 # === CONFIGURATION ===
-st.set_page_config(layout="wide", page_title="Principal Dashboard")
+st.set_page_config(layout="wide", page_title="PRK Home Tuition - Login")
 DATE_FORMAT = "%Y-%m-%d"
+SUBSCRIPTION_PLANS = {
+    "₹100 for 30 days (Normal)": 30,
+    "₹550 for 6 months (Advance)": 182,
+    "₹1000 for 1 year (Advance)": 365
+}
+UPI_ID = "9685840429@pnb"
+SECURITY_QUESTIONS = ["What is your mother's maiden name?", "What was the name of your first pet?", "What city were you born in?"]
 
 # === AUTHENTICATION & GOOGLE SHEETS SETUP ===
 try:
@@ -20,98 +28,121 @@ try:
     credentials_dict = json.loads(decoded_creds)
     credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
     client = gspread.authorize(credentials)
-
+    
     STUDENT_SHEET = client.open_by_key("10rC5yXLzeCzxOLaSbNc3tmHLiTS4RmO1G_PSpxRpSno").sheet1
     TEACHER_SHEET = client.open_by_key("1BRyQ5-Hv5Qr8ZnDzkj1awoxLjbLh3ubsWzpXskFL4h8").sheet1
-    MASTER_ANSWER_SHEET = client.open_by_key("16poJSlKbTiezSG119QapoCVcjmAOicsJlyaeFpCKGd8").sheet1
 except Exception as e:
     st.error(f"Error connecting to Google APIs or Sheets: {e}")
     st.stop()
 
 # === UTILITY FUNCTIONS ===
+def make_hashes(password):
+    return hashlib.sha256(str.encode(password)).hexdigest()
+
+def check_hashes(password, hashed_text):
+    return make_hashes(password) == hashed_text if hashed_text else False
+
 @st.cache_data(ttl=60)
 def load_data(_sheet):
     all_values = _sheet.get_all_values()
     if not all_values:
         return pd.DataFrame()
-    df = pd.DataFrame(all_values[1:], columns=all_values[0])
-    df['Row ID'] = range(2, len(df) + 2)
-    return df
+    return pd.DataFrame(all_values[1:], columns=all_values[0])
 
-# === SECURITY GATEKEEPER ===
-if not st.session_state.get("logged_in") or st.session_state.get("user_role") != "principal":
-    st.error("You must be logged in as a Principal to view this page.")
-    st.page_link("main.py", label="Go to Login Page")
-    st.stop()
+def save_data(df, sheet):
+    df_str = df.fillna("").astype(str)
+    sheet.clear()
+    sheet.update([df_str.columns.values.tolist()] + df_str.values.tolist())
 
-# === SIDEBAR LOGOUT ===
-st.sidebar.success(f"Welcome, {st.session_state.user_name}")
-if st.sidebar.button("Logout"):
-    st.session_state.clear()
-    st.switch_page("main.py")
+def find_user(gmail):
+    df_students = load_data(STUDENT_SHEET)
+    if not df_students.empty:
+        user_in_students = df_students[df_students['Gmail ID'] == gmail]
+        if not user_in_students.empty:
+            return user_in_students.iloc[0]
 
-# === PRINCIPAL DASHBOARD UI ===
-st.header("🏛️ Principal Dashboard")
-
-tab1, tab2 = st.tabs(["Send Instructions to Teachers", "View Reports"])
-
-with tab1:
-    st.subheader("Send Instruction to a Teacher")
     df_teachers = load_data(TEACHER_SHEET)
-    
-    if df_teachers.empty:
-        st.warning("No teachers found in the database.")
-    else:
-        with st.form("instruction_form"):
-            teacher_list = df_teachers['Teacher Name'].tolist()
-            selected_teacher = st.selectbox("Select Teacher", teacher_list)
-            instruction_text = st.text_area("Instruction:")
-            
-            if st.form_submit_button("Send Instruction"):
-                if selected_teacher and instruction_text:
-                    # Find the row of the selected teacher
-                    teacher_row = df_teachers[df_teachers['Teacher Name'] == selected_teacher]
-                    if not teacher_row.empty:
-                        row_id = teacher_row.iloc[0]['Row ID']
-                        # Find the column number for 'Instructions'
-                        instruction_col = df_teachers.columns.get_loc('Instructions') + 1
-                        
-                        TEACHER_SHEET.update_cell(row_id, instruction_col, instruction_text)
-                        st.success(f"Instruction sent to {selected_teacher}.")
-                        load_data.clear() # Clear cache to reflect changes
-                    else:
-                        st.error("Could not find the selected teacher to update.")
-                else:
-                    st.warning("Please select a teacher and write an instruction.")
+    if not df_teachers.empty:
+        user_in_teachers = df_teachers[df_teachers['Gmail ID'] == gmail]
+        if not user_in_teachers.empty:
+            return user_in_teachers.iloc[0]
+    return None
 
-with tab2:
-    st.subheader("Class-wise Top 3 Students Report")
+# === SESSION STATE ===
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.user_name = ""
+    st.session_state.user_role = ""
+    st.session_state.user_gmail = ""
+    st.session_state.page_state = "login"
+
+# --- Hide sidebar page navigation ---
+st.markdown("<style> [data-testid='stSidebarNav'] {display: none;} </style>", unsafe_allow_html=True)
+
+# === LOGIN / REGISTRATION PAGE ===
+if not st.session_state.logged_in:
+    st.sidebar.title("Login / New Registration")
+    # (Your logo code can be placed here)
+    st.markdown("---")
     
-    df_answers_report = load_data(MASTER_ANSWER_SHEET)
-    df_students_report = load_data(STUDENT_SHEET)
-    
-    if df_answers_report.empty or df_students_report.empty:
-        st.info("Leaderboard will be generated once students submit answers and they are graded.")
-    else:
-        df_answers_report['Marks'] = pd.to_numeric(df_answers_report['Marks'], errors='coerce')
-        df_answers_report.dropna(subset=['Marks'], inplace=True)
+    option = st.sidebar.radio("Select an option:", ["Login", "New Registration"])
+
+    if option == "New Registration":
+        st.session_state.page_state = "register"
+    elif option == "Login" and st.session_state.page_state != "forgot_password":
+        st.session_state.page_state = "login"
+
+    if st.session_state.page_state == "register":
+        st.header("✍️ New Registration")
+        # (Your full registration logic here)
         
-        if df_answers_report.empty:
-            st.info("The leaderboard is available after answers have been graded.")
-        else:
-            df_merged = pd.merge(df_answers_report, df_students_report, left_on='Student Gmail', right_on='Gmail ID')
-            
-            leaderboard_df = df_merged.groupby(['Class', 'Student Name'])['Marks'].mean().reset_index()
-            
-            top_students_df = leaderboard_df.groupby('Class').apply(
-                lambda x: x.nlargest(3, 'Marks')
-            ).reset_index(drop=True)
-            
-            top_students_df['Marks'] = top_students_df['Marks'].round(2)
-            
-            st.dataframe(top_students_df)
-            
-            fig = px.bar(top_students_df, x='Student Name', y='Marks', color='Class',
-                         title='Top 3 Students by Average Marks per Class',
-                         labels={'Marks': 'Average Marks', 'Student Name': 'Student'})
-            st.plotly_chart(fig, use_container_width=True) 
+    elif st.session_state.page_state == "forgot_password":
+        st.header("🔑 Reset Your Password")
+        # (Your full forgot password logic here)
+
+    else: # Login Page
+        st.header("Login to Your Dashboard")
+        with st.form("unified_login_form"):
+            login_gmail = st.text_input("Username (Your Gmail ID)").lower().strip()
+            login_pwd = st.text_input("PIN (Your Password)", type="password")
+            if st.form_submit_button("Login"):
+                user_data = find_user(login_gmail)
+                if user_data is not None and check_hashes(login_pwd, user_data.get("Password")):
+                    role = user_data.get("Role", "").lower()
+                    can_login = False
+                    if role == "student":
+                        if user_data.get("Payment Confirmed") == "Yes" and datetime.today().date() <= pd.to_datetime(user_data.get("Subscribed Till")).date():
+                            can_login = True
+                        else:
+                            st.error("Subscription expired or not confirmed.")
+                    elif role in ["teacher", "admin", "principal"]:
+                        if user_data.get("Confirmed") == "Yes":
+                            can_login = True
+                        else:
+                            st.error("Registration is pending admin confirmation.")
+                    
+                    if can_login:
+                        st.session_state.logged_in = True
+                        st.session_state.user_name = user_data.get("Student Name") or user_data.get("Teacher Name")
+                        st.session_state.user_role = role
+                        st.session_state.user_gmail = login_gmail
+                        st.success("Login Successful! Redirecting...")
+                        st.rerun()
+                else:
+                    st.error("Incorrect PIN or Gmail.")
+
+        if st.button("Forgot Password?"):
+            st.session_state.page_state = "forgot_password"
+            st.rerun()
+
+# If user is logged in, switch to the correct page
+else:
+    role = st.session_state.user_role
+    if role == 'admin':
+        st.switch_page("pages/Admin_Dashboard.py")
+    elif role == 'principal':
+        st.switch_page("pages/Principal_Dashboard.py")
+    elif role == 'teacher':
+        st.switch_page("pages/Teacher_Dashboard.py")
+    elif role == 'student':
+        st.switch_page("pages/Student_Dashboard.py")

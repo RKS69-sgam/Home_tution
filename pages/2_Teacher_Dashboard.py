@@ -20,7 +20,7 @@ try:
     credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
     client = gspread.authorize(credentials)
 
-    # ✅ Sheet assignment
+    # ✅ Correctly assigned Google Sheets
     ALL_USERS_SHEET = client.open_by_key("18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA").sheet1
     HOMEWORK_QUESTIONS_SHEET = client.open_by_key("1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI").sheet1
     MASTER_ANSWER_SHEET = client.open_by_key("16poJSlKbTiezSG119QapoCVcjmAOicsJlyaeFpCKGd8").sheet1

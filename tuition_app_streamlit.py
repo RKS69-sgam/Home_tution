@@ -222,10 +222,10 @@ else:
 
     role = st.session_state.user_role
     if role == 'admin':
-        st.switch_page("pages/Admin_Dashboard.py")
+        st.switch_page("pages/3_Admin_Dashboard.py")
     elif role == 'principal':
-        st.switch_page("pages/Principal_Dashboard.py")
+        st.switch_page("pages/4_Principal_Dashboard.py")
     elif role == 'teacher':
-        st.switch_page("pages/Teacher_Dashboard.py")
+        st.switch_page("pages/2_Teacher_Dashboard.py")
     elif role == 'student':
-        st.switch_page("pages/Student_Dashboard.py")
+        st.switch_page("pages/1_Student_Dashboard.py")

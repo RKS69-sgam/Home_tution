@@ -16,7 +16,7 @@ DATE_FORMAT = "%Y-%m-%d"
 SUBSCRIPTION_PLANS = {
     "₹550 for 6 months (With Advance Classes)": 182,
     "₹1000 for 1 year (With Advance Classes)": 365,
-    "₹100 for 30 days (Subject Homework Only)": 30
+    "₹100 for 30 days (Subjects Homework Only)": 30
 }
 UPI_ID = "9685840429@pnb"
 SECURITY_QUESTIONS = ["What is your mother's maiden name?", "What was the name of your first pet?", "What city were you born in?"]

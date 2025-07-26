@@ -192,9 +192,32 @@ if not st.session_state.logged_in:
             login_gmail = st.text_input("Username (Your Gmail ID)").lower().strip()
             login_pwd = st.text_input("PIN (Your Password)", type="password")
             if st.form_submit_button("Login"):
-                load_data.clear()
+                
+                load_data.clear() # Clear cache to get fresh data
+
+                # --- DEBUGGING CODE START ---
+                st.warning("--- ADMIN LOGIN DEBUG INFO ---")
+                df_teachers_debug = load_data(TEACHER_SHEET)
+                st.write("Data loaded from TEACHER_SHEET:")
+                st.dataframe(df_teachers_debug)
+
+                admin_data = df_teachers_debug[df_teachers_debug['Gmail ID'] == login_gmail]
+                
+                if not admin_data.empty:
+                    st.write("Admin record found:")
+                    st.json(admin_data.iloc[0].to_dict())
+                    
+                    is_password_correct = check_hashes(login_pwd, admin_data.iloc[0].get("Password"))
+                    st.write(f"Password check result: `{is_password_correct}`")
+                else:
+                    st.error("Admin record NOT found for this Gmail in TEACHER_SHEET.")
+                st.warning("--- END DEBUG INFO ---")
+                # --- DEBUGGING CODE END ---
+
+                # Original login logic continues below...
                 user_data = find_user(login_gmail)
                 if user_data is not None and check_hashes(login_pwd, user_data.get("Password")):
+                    # ... (rest of the login logic)
                     role = user_data.get("Role", "").lower()
                     can_login = False
                     if role == "student":

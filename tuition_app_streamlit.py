@@ -78,8 +78,24 @@ if not st.session_state.logged_in:
 
 # === LOGIN / REGISTRATION PAGE ===
 if not st.session_state.logged_in:
+    # === HEADER ===
     st.sidebar.title("Login / New Registration")
-    # (Your logo code can be placed here)
+
+    st.markdown(f"""<div style="text-align: center;"><h2>Excellent Public School High-tech Homework System 📈</h2></div>""", unsafe_allow_html=True)
+
+    # Use columns to display logos side-by-side
+    col1, col2 = st.columns(2)
+    with col1:
+        try:
+            st.image("PRK_logo.jpg", use_container_width=True)
+        except FileNotFoundError:
+            st.error("PRK_logo.jpg not found.")
+    with col2:
+        try:
+            st.image("Excellent_logo.jpg", use_container_width=True)
+        except FileNotFoundError:
+            st.error("Excellent_logo.jpg not found.")
+            
     st.markdown("---")
     
     option = st.sidebar.radio("Select an option:", ["Login", "New Registration", "Forgot Password"])

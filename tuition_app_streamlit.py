@@ -125,6 +125,7 @@ if not st.session_state.logged_in:
                             df_new = pd.DataFrame([new_row])
                             df = pd.concat([df, df_new], ignore_index=True)
                             save_data(df, STUDENT_SHEET)
+                            load_data.clear() # <-- FIX: Clear cache after updating data
                             st.success("Registration successful! Waiting for admin confirmation.")
         
         elif registration_type == "Teacher":
@@ -150,6 +151,7 @@ if not st.session_state.logged_in:
                             df_new = pd.DataFrame([new_row])
                             df_teachers = pd.concat([df_teachers, df_new], ignore_index=True)
                             save_data(df_teachers, TEACHER_SHEET)
+                            load_data.clear() # <-- FIX: Clear cache after updating data
                             st.success("Teacher registered! Please wait for admin confirmation.")
 
     elif st.session_state.page_state == "forgot_password":
@@ -180,6 +182,7 @@ if not st.session_state.logged_in:
                     if cell:
                         password_col = list(load_data(sheet_to_update).columns).index("Password") + 1
                         sheet_to_update.update_cell(cell.row, password_col, make_hashes(new_password))
+                        load_data.clear() # <-- FIX: Clear cache after updating data
                         st.success("Password updated! Please log in.")
                         st.session_state.page_state = "login"
                         st.rerun()

@@ -71,7 +71,7 @@ if "logged_in" not in st.session_state:
     st.session_state.user_role = ""
     st.session_state.user_gmail = ""
     st.session_state.page_state = "login"
-    st.print ("Copyright @ PRK Online Homework Systems. All Rights Reserved. This application")
+    
 
 # --- Hide sidebar page navigation when not logged in ---
 if not st.session_state.logged_in:
@@ -83,6 +83,7 @@ if not st.session_state.logged_in:
     st.sidebar.title("Login / New Registration")
 
     st.markdown(f"""<div style="text-align: center;"><h2>EPS High-tech Homework System 📈</h2></div>""", unsafe_allow_html=True)
+    # print ("Copyright @ PRK Online Homework Systems. All Rights Reserved. This application")
     # Use columns to display logos side-by-side
     col1, col2 = st.columns(2)
     with col1:

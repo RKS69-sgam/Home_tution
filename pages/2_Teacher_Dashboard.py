@@ -182,7 +182,7 @@ with report_tab:
             st.plotly_chart(fig, use_container_width=True)
             
     st.markdown("---")
-""
+" " "
     st.subheader("📊 Class-wise Top 3 Students")
     df_students_report = df_users[df_users['Role'] == 'Student']
 
@@ -211,4 +211,4 @@ with report_tab:
             )
             fig_leaderboard.update_traces(textposition='outside')
             st.plotly_chart(fig_leaderboard, use_container_width=True)
-""
+" " "

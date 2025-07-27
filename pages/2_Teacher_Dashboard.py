@@ -114,8 +114,8 @@ with create_tab:
 
 with grade_tab:
     st.subheader("Grade Student Answers")
-    if 'Question' not in df_all_answers.columns:
-        st.error("The 'Question' column is missing from MASTER_ANSWER_SHEET. Please fix the headers.")
+    if 'Student Gmail' not in df_all_answers.columns:
+        st.error("The 'Student Gmail' column is missing from MASTER_ANSWER_SHEET. Please fix the headers.")
     else:
         my_questions = df_homework[df_homework['Uploaded By'] == st.session_state.user_name]['Question'].tolist()
         df_my_answers = df_all_answers[df_all_answers['Question'].isin(my_questions)].copy()

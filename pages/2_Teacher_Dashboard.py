@@ -117,84 +117,104 @@ with create_tab:
 
 with grade_tab:
     st.subheader("Grade Student Answers")
-    
-    df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
-    df_all_answers = load_data(MASTER_ANSWER_SHEET)
-
-    # --- FIX: Check for required columns right after loading ---
-    required_answer_cols = ['Question', 'Student Gmail', 'Marks', 'Remarks']
-    if not all(col in df_all_answers.columns for col in required_answer_cols):
-        st.error("Your MASTER_ANSWER_SHEET is missing one of the required columns: 'Question', 'Student Gmail', 'Marks', or 'Remarks'. Please fix the headers.")
+    if 'Question' not in df_all_answers.columns:
+        st.error("The 'Question' column is missing from MASTER_ANSWER_SHEET.")
     else:
         my_questions = df_homework[df_homework['Uploaded By'] == st.session_state.user_name]['Question'].tolist()
-        answers_to_my_questions = df_all_answers[df_all_answers['Question'].isin(my_questions)].copy()
-        answers_to_my_questions['Marks'] = pd.to_numeric(answers_to_my_questions['Marks'], errors='coerce')
-        ungraded_answers = answers_to_my_questions[answers_to_my_questions['Marks'].isna()]
+        df_my_answers = df_all_answers[df_all_answers['Question'].isin(my_questions)].copy()
 
-        if ungraded_answers.empty:
-            st.success("🎉 All answers for your questions have been graded!")
+        if df_my_answers.empty:
+            st.info("No answers submitted for your questions yet.")
         else:
-            students_to_grade_gmail = ungraded_answers['Student Gmail'].unique().tolist()
-            df_users = load_data(ALL_USERS_SHEET)
-            df_students = df_users[df_users['Role'] == 'Student']
-            gradable_students = df_students[df_students['Gmail ID'].isin(students_to_grade_gmail)]
-            
-            if gradable_students.empty:
-                st.info("No confirmed students have pending answers for your questions.")
+            df_my_answers['Marks'] = pd.to_numeric(df_my_answers['Marks'], errors='coerce')
+            ungraded = df_my_answers[df_my_answers['Marks'].isna()]
+            if ungraded.empty:
+                st.success("🎉 All answers for your questions have been graded!")
             else:
-                selected_student_name = st.selectbox("Select Student with Pending Answers", gradable_students['User Name'].tolist())
-                if selected_student_name:
-                    student_gmail = gradable_students[gradable_students['User Name'] == selected_student_name].iloc[0]['Gmail ID']
-                    student_answers_df = ungraded_answers[ungraded_answers['Student Gmail'] == student_gmail]
-                    
-                    # (Rest of your grading logic and forms go here)
-                    for index, row in student_answers_df.sort_values(by='Date', ascending=False).iterrows():
-                        # ... form to grade ...
-                        pass
-
+                student_gmails = ungraded['Student Gmail'].unique().tolist()
+                df_students = df_users[df_users['Role'] == 'Student']
+                gradable_students = df_students[df_students['Gmail ID'].isin(student_gmails)]
+                if gradable_students.empty:
+                    st.info("No confirmed students have pending answers.")
+                else:
+                    selected_student = st.selectbox("Select Student", gradable_students['User Name'].tolist())
+                    if selected_student:
+                        selected_gmail = gradable_students[gradable_students['User Name'] == selected_student].iloc[0]['Gmail ID']
+                        student_answers = df_my_answers[df_my_answers['Student Gmail'] == selected_gmail]
+                        for i, row in student_answers[student_answers['Marks'].isna()].iterrows():
+                            st.markdown(f"**Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
+                            st.write(f"**Question:** {row.get('Question')}")
+                            st.info(f"**Answer:** {row.get('Answer')}")
+                            with st.form(f"grade_form_{i}"):
+                                grade = st.selectbox("Grade", list(GRADE_MAP.keys()), key=f"grade_{i}")
+                                remarks = st.text_area("Remarks", key=f"remarks_{i}")
+                                if st.form_submit_button("Save Grade"):
+                                    sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+                                    row_id_to_update = row.get('Row ID')
+                                    marks_col = df_all_answers.columns.get_loc("Marks") + 1
+                                    remarks_col = df_all_answers.columns.get_loc("Remarks") + 1
+                                    sheet.update_cell(row_id_to_update, marks_col, GRADE_MAP[grade])
+                                    sheet.update_cell(row_id_to_update, remarks_col, remarks)
+                                    st.success("Saved!")
+                                    st.rerun()
 
 with report_tab:
     st.subheader("My Reports")
-
-    # Report 1: Your Homework Creation Summary (No changes here)
+    
+    # Report 1: Homework Creation
     st.markdown("#### Homework Creation Report")
     teacher_homework = df_homework[df_homework['Uploaded By'] == st.session_state.user_name]
     if teacher_homework.empty:
-        st.info("You have not created any homework assignments yet.")
+        st.info("No homework created yet.")
     else:
-        # (Your date filter and creation report chart code remains here)
-        pass
-
-    st.markdown("---")
-
-    # Report 2: Top 3 Students for YOUR assignments
-    st.subheader("📊 Top 3 Students (Based on Your Assignments)")
-    
-    # Get the list of questions created by the logged-in teacher
-    my_questions_list = teacher_homework['Question'].tolist()
-    
-    # Filter all answers to get only those for the teacher's questions
-    answers_to_my_questions = df_all_answers[df_all_answers['Question'].isin(my_questions_list)].copy()
-
-    if answers_to_my_questions.empty:
-        st.info("No answers have been submitted for your homework questions yet.")
-    else:
-        df_students_report = df_users[df_users['Role'] == 'Student']
+        col1, col2 = st.columns(2)
+        with col1:
+            start_date = st.date_input("Start Date", datetime.today() - timedelta(days=7))
+        with col2:
+            end_date = st.date_input("End Date", datetime.today())
         
-        answers_to_my_questions['Marks'] = pd.to_numeric(answers_to_my_questions['Marks'], errors='coerce')
-        graded_answers = answers_to_my_questions.dropna(subset=['Marks'])
+        teacher_homework['Date_dt'] = pd.to_datetime(teacher_homework['Date'], errors='coerce').dt.date
+        filtered = teacher_homework[
+            (teacher_homework['Date_dt'] >= start_date) &
+            (teacher_homework['Date_dt'] <= end_date)
+        ]
+        if filtered.empty:
+            st.warning("No homework found in selected range.")
+        else:
+            summary = filtered.groupby(['Class', 'Subject']).size().reset_index(name='Total')
+            st.dataframe(summary)
+            fig = px.bar(summary, x='Class', y='Total', color='Subject', title='Homework Summary')
+            st.plotly_chart(fig, use_container_width=True)
+            
+    st.markdown("---")
+    
+    # Report 2: Top 3 Students
+    st.subheader("📊 Class-wise Top 3 Students")
+    df_students_report = df_users[df_users['Role'] == 'Student']
 
+    if df_all_answers.empty or df_students_report.empty:
+        st.info("Leaderboard will be generated once students submit and get graded.")
+    else:
+        df_all_answers['Marks'] = pd.to_numeric(df_all_answers['Marks'], errors='coerce')
+        graded_answers = df_all_answers.dropna(subset=['Marks'])
         if graded_answers.empty:
-            st.info("The leaderboard will be available after you have graded some answers.")
+            st.info("The leaderboard is available after answers have been graded.")
         else:
             df_merged = pd.merge(graded_answers, df_students_report, left_on='Student Gmail', right_on='Gmail ID')
-            
             leaderboard_df = df_merged.groupby(['Class', 'User Name'])['Marks'].mean().reset_index()
-            
-            top_students_df = leaderboard_df.groupby('Class').apply(
-                lambda x: x.nlargest(3, 'Marks')
-            ).reset_index(drop=True)
-            
+            top_students_df = leaderboard_df.groupby('Class').apply(lambda x: x.nlargest(3, 'Marks')).reset_index(drop=True)
             top_students_df['Marks'] = top_students_df['Marks'].round(2)
-            
+            st.markdown("#### Top Performers Summary")
             st.dataframe(top_students_df)
+            
+            fig_leaderboard = px.bar(
+                top_students_df, 
+                x='User Name', 
+                y='Marks', 
+                color='User Name', # This makes it multicolored
+                title='Top 3 Students by Average Marks per Class',
+                labels={'Marks': 'Average Marks', 'User Name': 'Student'},
+                text='Marks'
+            )
+            fig_leaderboard.update_traces(textposition='outside')
+            st.plotly_chart(fig_leaderboard, use_container_width=True)

@@ -30,12 +30,13 @@ except Exception as e:
     st.stop()
 
 # === UTILITY FUNCTIONS ===
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=60)
 def load_data(_sheet):
     all_values = _sheet.get_all_values()
     if not all_values:
         return pd.DataFrame()
     df = pd.DataFrame(all_values[1:], columns=all_values[0])
+    df.columns = df.columns.str.strip()
     df['Row ID'] = range(2, len(df) + 2)
     return df
 
@@ -61,11 +62,23 @@ if st.sidebar.button("Logout"):
 # === ADMIN DASHBOARD UI ===
 st.header("👑 Admin Panel")
 
+# Load all user data
+df_users = load_data(ALL_USERS_SHEET)
+
+# Display user counts
+total_students = len(df_users[df_users['Role'] == 'Student'])
+total_teachers = len(df_users[df_users['Role'] == 'Teacher'])
+
+col1, col2 = st.columns(2)
+col1.metric("Total Registered Students", total_students)
+col2.metric("Total Registered Teachers", total_teachers)
+
+st.markdown("---")
+
 tab1, tab2 = st.tabs(["Student Management", "Teacher Management"])
 
 with tab1:
     st.subheader("Manage Student Registrations")
-    df_users = load_data(ALL_USERS_SHEET)
     df_students = df_users[df_users['Role'] == 'Student']
     
     st.markdown("#### Pending Payment Confirmations")
@@ -97,8 +110,7 @@ with tab1:
 
 with tab2:
     st.subheader("Manage Teacher Registrations")
-    df_users = load_data(ALL_USERS_SHEET)
-    df_teachers = df_users[df_users['Role'] == 'Teacher']
+    df_teachers = df_users[df_users['Role'].isin(['Teacher', 'Principal', 'Admin'])]
 
     st.markdown("#### Pending Teacher Confirmations")
     unconfirmed_teachers = df_teachers[df_teachers.get("Confirmed") != "Yes"]

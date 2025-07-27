@@ -7,11 +7,14 @@ import base64
 import plotly.express as px
 
 from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="Teacher Dashboard")
 DATE_FORMAT = "%Y-%m-%d"
 GRADE_MAP = {"Needs Improvement": 1, "Average": 2, "Good": 3, "Very Good": 4, "Outstanding": 5}
+GRADE_MAP_REVERSE = {v: k for k, v in GRADE_MAP.items()}
 
 # === AUTHENTICATION & GOOGLE SHEETS SETUP ===
 try:
@@ -111,11 +114,11 @@ with create_tab:
         if st.session_state.context_set and st.button("Create Another Homework (Reset)"):
             del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
             st.rerun()
-'''
+
 with grade_tab:
     st.subheader("Grade Student Answers")
     if 'Question' not in df_all_answers.columns:
-        st.error("The 'Question' column is missing from MASTER_ANSWER_SHEET. Please fix the headers.")
+        st.error("The 'Question' column is missing from MASTER_ANSWER_SHEET.")
     else:
         my_questions = df_homework[df_homework['Uploaded By'] == st.session_state.user_name]['Question'].tolist()
         df_my_answers = df_all_answers[df_all_answers['Question'].isin(my_questions)].copy()
@@ -137,16 +140,16 @@ with grade_tab:
                     selected_student = st.selectbox("Select Student", gradable_students['User Name'].tolist())
                     if selected_student:
                         selected_gmail = gradable_students[gradable_students['User Name'] == selected_student].iloc[0]['Gmail ID']
-                        student_answers = df_my_answers[df_my_answers['Student Gmail'] == selected_gmail]
-                        for i, row in student_answers[student_answers['Marks'].isna()].iterrows():
-                            st.markdown(f"**Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
+                        student_answers = ungraded[ungraded['Student Gmail'] == selected_gmail]
+                        st.markdown(f"#### Grading answers for: **{selected_student}**")
+                        for i, row in student_answers.sort_values(by='Date', ascending=False).iterrows():
                             st.write(f"**Question:** {row.get('Question')}")
                             st.info(f"**Answer:** {row.get('Answer')}")
                             with st.form(f"grade_form_{i}"):
                                 grade = st.selectbox("Grade", list(GRADE_MAP.keys()), key=f"grade_{i}")
                                 remarks = st.text_area("Remarks", key=f"remarks_{i}")
                                 if st.form_submit_button("Save Grade"):
-                                    sheet = client.open_by_key("16poJSlKbTiezSG119QapoCVcjmAOicsJlyaeFpCKGd8").sheet1
+                                    sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
                                     row_id_to_update = row.get('Row ID')
                                     marks_col = df_all_answers.columns.get_loc("Marks") + 1
                                     remarks_col = df_all_answers.columns.get_loc("Remarks") + 1
@@ -182,10 +185,9 @@ with report_tab:
             st.plotly_chart(fig, use_container_width=True)
             
     st.markdown("---")
-
+    
     st.subheader("📊 Class-wise Top 3 Students")
     df_students_report = df_users[df_users['Role'] == 'Student']
-
     if df_all_answers.empty or df_students_report.empty:
         st.info("Leaderboard will be generated once students submit and get graded.")
     else:
@@ -211,4 +213,3 @@ with report_tab:
             )
             fig_leaderboard.update_traces(textposition='outside')
             st.plotly_chart(fig_leaderboard, use_container_width=True)
-'''

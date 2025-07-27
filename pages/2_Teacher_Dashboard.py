@@ -47,7 +47,7 @@ if not st.session_state.get("logged_in") or st.session_state.get("user_role") !=
 st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
 
 # --- DEBUGGING CODE START ---
-st.warning("RUNNING DEBUG TEST FOR HOMEWORK_QUESTIONS_SHEET")
+    st.warning("RUNNING DEBUG TEST FOR HOMEWORK_QUESTIONS_SHEET")
     
     try:
         df_homework_debug = load_data(HOMEWORK_QUESTIONS_SHEET)

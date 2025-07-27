@@ -62,7 +62,7 @@ st.warning("RUNNING DEBUG TEST FOR HOMEWORK_QUESTIONS_SHEET")
         st.error("An error occurred while reading the sheet:")
         st.exception(e)
 
-st.stop()
+    st.stop()
     # --- DEBUGGING CODE END ---
 
 # === LOAD DATA ===

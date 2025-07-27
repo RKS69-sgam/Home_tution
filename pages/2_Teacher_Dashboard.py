@@ -116,7 +116,6 @@ with create_tab:
             st.rerun()
 
 with grade_tab:
-with grade_tab:
     st.subheader("Grade Student Answers")
     
     df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)

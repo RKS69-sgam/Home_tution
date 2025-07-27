@@ -10,7 +10,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 # === CONFIGURATION ===
-st.set-page_config(layout="wide", page_title="Principal Dashboard")
+st.set_page_config(layout="wide", page_title="Principal Dashboard")
 
 # === AUTHENTICATION & GOOGLE SHEETS SETUP ===
 try:
@@ -33,6 +33,7 @@ def load_data(_sheet):
     if not all_values:
         return pd.DataFrame()
     df = pd.DataFrame(all_values[1:], columns=all_values[0])
+    df.columns = df.columns.str.strip()
     df['Row ID'] = range(2, len(df) + 2)
     return df
 
@@ -70,12 +71,12 @@ with tab1:
                 if selected_teacher and instruction_text:
                     teacher_row = df_teachers[df_teachers['User Name'] == selected_teacher]
                     if not teacher_row.empty:
-                        row_id = teacher_row.iloc[0]['Row ID']
+                        row_id = int(teacher_row.iloc[0]['Row ID'])
                         instruction_col = df_users.columns.get_loc('Instructions') + 1
                         
                         ALL_USERS_SHEET.update_cell(row_id, instruction_col, instruction_text)
                         st.success(f"Instruction sent to {selected_teacher}.")
-                        load_data.clear()
+                        load_data.clear() # Clear cache to reflect changes
                     else:
                         st.error("Could not find the selected teacher to update.")
                 else:

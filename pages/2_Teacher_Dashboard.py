@@ -157,6 +157,54 @@ with grade_tab:
                         st.markdown("---")
 
 with report_tab:
+    st.subheader("📊 Class-wise Top 3 Students")
+
+# Load the necessary data
+df_all_answers = load_data(MASTER_ANSWER_SHEET)
+df_users = load_data(ALL_USERS_SHEET)
+df_students_report = df_users[df_users['Role'] == 'Student']
+
+if df_all_answers.empty or df_students_report.empty:
+    st.info("The leaderboard will appear once students have submitted and been graded on their answers.")
+else:
+    # Ensure 'Marks' column is numeric and remove ungraded answers
+    df_all_answers['Marks'] = pd.to_numeric(df_all_answers['Marks'], errors='coerce')
+    graded_answers = df_all_answers.dropna(subset=['Marks'])
+
+    if graded_answers.empty:
+        st.info("The leaderboard is available after answers have been graded.")
+    else:
+        # Merge with student info to get Class and Name
+        df_merged = pd.merge(graded_answers, df_students_report, left_on='Student Gmail', right_on='Gmail ID')
+        
+        # Calculate average marks for each student
+        leaderboard_df = df_merged.groupby(['Class', 'User Name'])['Marks'].mean().reset_index()
+        
+        # Find the top 3 students in each class
+        top_students_df = leaderboard_df.groupby('Class').apply(
+            lambda x: x.nlargest(3, 'Marks')
+        ).reset_index(drop=True)
+        
+        # Round marks for cleaner display
+        top_students_df['Marks'] = top_students_df['Marks'].round(2)
+        
+        st.markdown("#### Top Performers Summary")
+        st.dataframe(top_students_df)
+        
+        # Create the Plotly bar chart
+        fig = px.bar(
+            top_students_df, 
+            x='User Name', 
+            y='Marks', 
+            color='Class',
+            title='Top 3 Students by Average Marks per Class',
+            labels={'Marks': 'Average Marks', 'User Name': 'Student'},
+            text='Marks' # Display the mark value on the bar
+        )
+        fig.update_traces(textposition='outside')
+        st.plotly_chart(fig, use_container_width=True)
+
+
     st.subheader("My Reports")
     teacher_homework = df_homework[df_homework['Uploaded By'] == st.session_state.user_name]
     if teacher_homework.empty:

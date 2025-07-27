@@ -117,6 +117,25 @@ with create_tab:
 
 with grade_tab:
     st.subheader("Grade Student Answers")
+
+    # --- DEBUGGING CODE START ---
+    st.warning("RUNNING DEBUG TEST FOR MASTER_ANSWER_SHEET")
+    
+    try:
+        df_answers_debug = load_data(MASTER_ANSWER_SHEET)
+        
+        st.write("Columns found in MASTER_ANSWER_SHEET:")
+        st.write(list(df_answers_debug.columns))
+        
+        st.write("First 5 rows of data:")
+        st.dataframe(df_answers_debug.head())
+        
+    except Exception as e:
+        st.error("An error occurred while reading the sheet for debugging:")
+        st.exception(e)
+
+    st.stop()
+    # --- DEBUGGING CODE END ---
     if 'Question' not in df_all_answers.columns:
         st.error("The 'Question' column is missing from MASTER_ANSWER_SHEET.")
     else:

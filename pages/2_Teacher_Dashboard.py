@@ -57,23 +57,7 @@ if st.sidebar.button("Logout"):
 # === TEACHER DASHBOARD UI ===
 st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
 
-# --- DEBUGGING CODE START ---
-# This block will run first to show you what the app is reading.
-st.warning("RUNNING DEBUG TEST FOR HOMEWORK_QUESTIONS_SHEET")
-try:
-    df_homework_debug = load_data(HOMEWORK_QUESTIONS_SHEET)
-    
-    st.write("Columns found in HOMEWORK_QUESTIONS_SHEET:")
-    st.write(list(df_homework_debug.columns))
-    
-    st.write("First 5 rows of data:")
-    st.dataframe(df_homework_debug.head())
-    
-except Exception as e:
-    st.error("An error occurred while reading the sheet for debugging:")
-    st.exception(e)
-st.stop()
-# --- DEBUGGING CODE END ---
+
 # Load all necessary data once
 df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
 df_all_answers = load_data(MASTER_ANSWER_SHEET)

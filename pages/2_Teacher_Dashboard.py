@@ -46,6 +46,25 @@ if not st.session_state.get("logged_in") or st.session_state.get("user_role") !=
 # === HEADER ===
 st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
 
+# --- DEBUGGING CODE START ---
+st.warning("RUNNING DEBUG TEST FOR HOMEWORK_QUESTIONS_SHEET")
+    
+    try:
+        df_homework_debug = load_data(HOMEWORK_QUESTIONS_SHEET)
+        
+        st.write("Columns found in HOMEWORK_QUESTIONS_SHEET:")
+        st.write(list(df_homework_debug.columns))
+        
+        st.write("First 5 rows of data:")
+        st.dataframe(df_homework_debug.head())
+        
+    except Exception as e:
+        st.error("An error occurred while reading the sheet:")
+        st.exception(e)
+
+st.stop()
+    # --- DEBUGGING CODE END ---
+
 # === LOAD DATA ===
 df_homework = load_data_by_key(HOMEWORK_QUESTIONS_SHEET_ID)
 df_answers = load_data_by_key(MASTER_ANSWER_SHEET_ID)

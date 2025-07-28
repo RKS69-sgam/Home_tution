@@ -62,6 +62,18 @@ if st.sidebar.button("Logout"):
 # === ADMIN DASHBOARD UI ===
 st.header("👑 Admin Panel")
 
+# --- Display Public Announcement ---
+try:
+    announcements_df = load_data(ANNOUNCEMENTS_SHEET_ID)
+    if not announcements_df.empty:
+        latest_announcement = announcements_df['Message'].iloc[0]
+        if latest_announcement:
+            st.info(f"📢 **Announcement from Principal:** {latest_announcement}")
+except Exception:
+    # Fail silently if announcements can't be loaded for any reason
+    pass
+# --------------------------------
+
 # Load all user data
 df_users = load_data(ALL_USERS_SHEET)
 

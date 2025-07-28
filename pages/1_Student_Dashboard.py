@@ -31,7 +31,7 @@ except Exception as e:
     st.stop()
 
 # === UTILITY FUNCTIONS ===
-@st.cache_data(ttl=60)
+#@st.cache_data(ttl=60)
 def load_data(_sheet):
     all_values = _sheet.get_all_values()
     if not all_values:

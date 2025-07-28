@@ -62,24 +62,24 @@ df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
 df_all_answers = load_data(MASTER_ANSWER_SHEET)
 
 # --- DEBUGGING CODE START ---
-st.warning("RUNNING DEBUG TEST TO CHECK SHEET HEADERS")
+#st.warning("RUNNING DEBUG TEST TO CHECK SHEET HEADERS")
 
-try:
-    st.subheader("Columns found in MASTER_ANSWER_SHEET:")
-    st.write(list(load_data(MASTER_ANSWER_SHEET).columns))
+#try:
+   # st.subheader("Columns found in MASTER_ANSWER_SHEET:")
+   # st.write(list(load_data(MASTER_ANSWER_SHEET).columns))
     
-    st.subheader("Columns found in ALL_USERS_SHEET:")
-    st.write(list(load_data(ALL_USERS_SHEET).columns))
+   # st.subheader("Columns found in ALL_USERS_SHEET:")
+   # st.write(list(load_data(ALL_USERS_SHEET).columns))
     
-    st.subheader("Columns found in HOMEWORK_QUESTIONS_SHEET:")
-    st.write(list(load_data(HOMEWORK_QUESTIONS_SHEET).columns))
+   # st.subheader("Columns found in HOMEWORK_QUESTIONS_SHEET:")
+   # st.write(list(load_data(HOMEWORK_QUESTIONS_SHEET).columns))
     
 
-except Exception as e:
-    st.error("An error occurred while reading the sheets for debugging:")
-    st.exception(e)
+#except Exception as e:
+   # st.error("An error occurred while reading the sheets for debugging:")
+   # st.exception(e)
 
-st.stop() # This stops the app to show the debug info
+#st.stop() # This stops the app to show the debug info
     # --- DEBUGGING CODE END ---
 
 user_info_row = df_all_users[df_all_users["Gmail ID"] == st.session_state.user_gmail]

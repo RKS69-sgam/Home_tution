@@ -12,6 +12,11 @@ from googleapiclient.errors import HttpError
 
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="PRK Home Tuition - Login")
+page_title="AUnder Maintenance"
+st.title("App Under Maintenance")
+st.info("We are currently performing an update. The app will be back online shortly. Thank you for your patience.")
+st.stop()
+
 DATE_FORMAT = "%Y-%m-%d"
 SUBSCRIPTION_PLANS = {
     "₹550 for 6 months (With Advance Classes)": 182,

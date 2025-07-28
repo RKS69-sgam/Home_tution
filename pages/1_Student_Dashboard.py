@@ -7,6 +7,8 @@ import base64
 import plotly.express as px
 
 from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="Student Dashboard")
@@ -31,9 +33,6 @@ except Exception as e:
 # === UTILITY FUNCTIONS ===
 @st.cache_data(ttl=60)
 def load_data(_sheet):
-    """
-    Loads all data from a Google Sheet and correctly assigns the first row as the header.
-    """
     all_values = _sheet.get_all_values()
     if not all_values:
         return pd.DataFrame()
@@ -97,7 +96,31 @@ if not user_info_row.empty:
                 for i, row in df_pending.iterrows():
                     st.markdown(f"**Assignment Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
                     st.write(f"**Question:** {row.get('Question')}")
-                    # (Form logic for answering goes here)
+                    matching_answer = student_answers[(student_answers['Question'] == row.get('Question')) & (student_answers['Date'] == row.get('Date'))]
+                    if not matching_answer.empty and matching_answer.iloc[0].get('Remarks'):
+                         st.warning(f"**Teacher's Remark:** {matching_answer.iloc[0].get('Remarks')}")
+                         st.markdown("Please correct your answer and resubmit.")
+                    with st.form(key=f"pending_form_{i}"):
+                        answer_text = st.text_area("Your Answer:", key=f"pending_text_{i}", value=matching_answer.iloc[0].get('Answer', '') if not matching_answer.empty else "")
+                        if st.form_submit_button("Submit Answer"):
+                            if answer_text:
+                                if not matching_answer.empty:
+                                    row_id_to_update = int(matching_answer.iloc[0].get('Row ID'))
+                                    ans_col = df_all_answers.columns.get_loc('Answer') + 1
+                                    marks_col = df_all_answers.columns.get_loc('Marks') + 1
+                                    remarks_col = df_all_answers.columns.get_loc('Remarks') + 1
+                                    MASTER_ANSWER_SHEET.update_cell(row_id_to_update, ans_col, answer_text)
+                                    MASTER_ANSWER_SHEET.update_cell(row_id_to_update, marks_col, "")
+                                    MASTER_ANSWER_SHEET.update_cell(row_id_to_update, remarks_col, "")
+                                    st.success("Corrected answer submitted for re-grading!")
+                                else:
+                                    new_row_data = [st.session_state.user_gmail, row.get('Date'), row.get('Subject'), row.get('Question'), answer_text, "", ""]
+                                    MASTER_ANSWER_SHEET.append_row(new_row_data, value_input_option='USER_ENTERED')
+                                    st.success("Answer saved!")
+                                st.rerun()
+                            else:
+                                st.warning("Answer cannot be empty.")
+                    st.markdown("---")
         else:
             st.error("Homework sheet is missing the 'Question' column.")
 
@@ -111,7 +134,15 @@ if not user_info_row.empty:
             else:
                 for i, row in graded_answers.sort_values(by='Date', ascending=False).iterrows():
                     st.markdown(f"**Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
-                    # (Display logic for graded answers goes here)
+                    st.write(f"**Question:** {row.get('Question')}")
+                    st.info(f"**Your Answer:** {row.get('Answer')}")
+                    grade_value = int(row.get('Marks_Numeric'))
+                    grade_text = GRADE_MAP_REVERSE.get(grade_value, "N/A")
+                    st.success(f"**Grade:** {grade_text} ({grade_value}/5)")
+                    remarks = row.get('Remarks', '').strip()
+                    if remarks:
+                        st.warning(f"**Teacher's Remark:** {remarks}")
+                    st.markdown("---")
         else:
             st.error("Answer sheet is missing the 'Marks' column.")
     
@@ -121,14 +152,27 @@ if not user_info_row.empty:
         class_gmail_list = df_students_class['Gmail ID'].tolist()
         class_answers = df_all_answers[df_all_answers['Student Gmail'].isin(class_gmail_list)].copy()
         if class_answers.empty or 'Marks' not in class_answers.columns:
-            st.info("Leaderboard will appear once answers have been graded for your class.")
+            st.info("The leaderboard will appear once answers have been graded for your class.")
         else:
             class_answers['Marks'] = pd.to_numeric(class_answers['Marks'], errors='coerce')
             graded_class_answers = class_answers.dropna(subset=['Marks'])
             if graded_class_answers.empty:
-                st.info("Leaderboard will appear once answers have been graded for your class.")
+                st.info("The leaderboard will appear once answers have been graded for your class.")
             else:
-                # (Leaderboard calculation and display logic here)
-                pass
+                leaderboard_df = graded_class_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
+                leaderboard_df = pd.merge(leaderboard_df, df_students_class[['User Name', 'Gmail ID']], left_on='Student Gmail', right_on='Gmail ID', how='left')
+                leaderboard_df['Rank'] = leaderboard_df['Marks'].rank(method='dense', ascending=False).astype(int)
+                leaderboard_df = leaderboard_df.sort_values(by='Rank')
+                leaderboard_df['Marks'] = leaderboard_df['Marks'].round(2)
+                st.markdown("##### 🏆 Top 3 Performers")
+                st.dataframe(leaderboard_df.head(3)[['Rank', 'User Name', 'Marks']])
+                st.markdown("---")
+                my_rank_row = leaderboard_df[leaderboard_df['Student Gmail'] == st.session_state.user_gmail]
+                if not my_rank_row.empty:
+                    my_rank = my_rank_row.iloc[0]['Rank']
+                    my_avg_marks = my_rank_row.iloc[0]['Marks']
+                    st.success(f"**Your Current Rank:** {my_rank} (with an average score of **{my_avg_marks}**)")
+                else:
+                    st.warning("Your rank will be shown here after your answers are graded.")
 else:
     st.error("Could not find your student record.")

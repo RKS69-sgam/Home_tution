@@ -17,18 +17,24 @@ GRADE_MAP_REVERSE = {1: "Needs Improvement", 2: "Average", 3: "Good", 4: "Very G
 
 # === AUTHENTICATION & GOOGLE SHEETS SETUP ===
 try:
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    decoded_creds = base64.b64decode(st.secrets["google_service"]["base64_credentials"])
-    credentials_dict = json.loads(decoded_creds)
-    credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
-    client = gspread.authorize(credentials)
+    client = connect_to_gsheets() # Call the new cached function
 
+    # Define your Sheet IDs
     ALL_USERS_SHEET_ID = "18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA"
     HOMEWORK_QUESTIONS_SHEET_ID = "1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI"
     MASTER_ANSWER_SHEET_ID = "1lW2Eattf9kyhllV_NzMMq9tznibkhNJ4Ma-wLV5rpW0"
+    ANNOUNCEMENTS_SHEET_ID = "1zEAhoWC9_3UK09H4cFk6lRd6i5ChF3EknVc76L7zquQ"
+
+    # Open the sheets using the connected client
+    ALL_USERS_SHEET = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
+    HOMEWORK_QUESTIONS_SHEET = client.open_by_key(HOMEWORK_QUESTIONS_SHEET_ID).sheet1
+    MASTER_ANSWER_SHEET = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+    ANNOUNCEMENTS_SHEET = client.open_by_key(ANNOUNCEMENTS_SHEET_ID).sheet1
+
 except Exception as e:
     st.error(f"Error connecting to Google APIs or Sheets: {e}")
     st.stop()
+
 
 # === UTILITY FUNCTIONS ===
 @st.cache_data(ttl=60)

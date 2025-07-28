@@ -71,8 +71,8 @@ try:
     st.subheader("Columns found in ALL_USERS_SHEET:")
     st.write(list(load_data(ALL_USERS_SHEET).columns))
     
-    st.subheader("Columns found in Master_Questions_SHEET:")
-    st.write(list(load_data(MASTER_QUESTIONS_SHEET).columns))
+    st.subheader("Columns found in HOMEWORK_QUESTIONS_SHEET:")
+    st.write(list(load_data(HOMEWORK_QUESTIONS_SHEET).columns))
     
 
 except Exception as e:

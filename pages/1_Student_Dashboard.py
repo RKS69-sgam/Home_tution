@@ -71,6 +71,25 @@ if not user_info_row.empty:
 
     # Filter dataframes for the current student
     homework_for_class = df_homework[df_homework.get("Class") == student_class]
+    # --- DEBUGGING CODE START ---
+    st.warning("RUNNING DEBUG TEST TO CHECK SHEET HEADERS")
+
+    try:
+        st.subheader("Columns found in MASTER_ANSWER_SHEET:")
+        st.write(list(load_data(MASTER_ANSWER_SHEET).columns))
+    
+        st.subheader("Columns found in ALL_USERS_SHEET:")
+        st.write(list(load_data(ALL_USERS_SHEET).columns))
+
+    except Exception as e:
+        st.error("An error occurred while reading the sheets for debugging:")
+        st.exception(e)
+
+    st.stop() # This stops the app to show the debug info
+    # --- DEBUGGING CODE END ---
+
+
+    
     student_answers = df_all_answers[df_all_answers.get('Student Gmail') == st.session_state.user_gmail].copy()
 
     pending_tab, revision_tab, leaderboard_tab = st.tabs(["Pending Homework", "Revision Zone", "Class Leaderboard"])

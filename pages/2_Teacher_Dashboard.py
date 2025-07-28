@@ -24,6 +24,7 @@ try:
     credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
     client = gspread.authorize(credentials)
 
+    # --- FIX: Assign the correct, unique key to each sheet ---
     ALL_USERS_SHEET = client.open_by_key("18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA").sheet1
     HOMEWORK_QUESTIONS_SHEET = client.open_by_key("1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI").sheet1
     MASTER_ANSWER_SHEET = client.open_by_key("16poJSlKbTiezSG119QapoCVcjmAOicsJlyaeFpCKGd8").sheet1
@@ -149,10 +150,10 @@ with grade_tab:
                                 grade = st.selectbox("Grade", list(GRADE_MAP.keys()), key=f"grade_{i}")
                                 remarks = st.text_area("Remarks", key=f"remarks_{i}")
                                 if st.form_submit_button("Save Grade"):
-                                    sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
-                                    row_id_to_update = row.get('Row ID')
-                                    marks_col = df_all_answers.columns.get_loc("Marks") + 1
-                                    remarks_col = df_all_answers.columns.get_loc("Remarks") + 1
+                                    sheet = client.open_by_key("16poJSlKbTiezSG119QapoCVcjmAOicsJlyaeFpCKGd8").sheet1
+                                    row_id_to_update = int(row.get('Row ID'))
+                                    marks_col = list(df_all_answers.columns).index("Marks") + 1
+                                    remarks_col = list(df_all_answers.columns).index("Remarks") + 1
                                     sheet.update_cell(row_id_to_update, marks_col, GRADE_MAP[grade])
                                     sheet.update_cell(row_id_to_update, remarks_col, remarks)
                                     st.success("Saved!")

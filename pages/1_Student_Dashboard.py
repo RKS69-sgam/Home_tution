@@ -70,6 +70,10 @@ try:
     
     st.subheader("Columns found in ALL_USERS_SHEET:")
     st.write(list(load_data(ALL_USERS_SHEET).columns))
+    
+    st.subheader("Columns found in Master_Question_SHEET:")
+    st.write(list(load_data(Master_Question_SHEET).columns))
+    
 
 except Exception as e:
     st.error("An error occurred while reading the sheets for debugging:")

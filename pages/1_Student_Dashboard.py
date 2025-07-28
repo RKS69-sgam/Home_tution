@@ -23,23 +23,30 @@ try:
     credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
     client = gspread.authorize(credentials)
 
-    ALL_USERS_SHEET = client.open_by_key("18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA").sheet1
-    HOMEWORK_QUESTIONS_SHEET = client.open_by_key("1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI").sheet1
-    MASTER_ANSWER_SHEET = client.open_by_key("1lW2Eattf9kyhllV_NzMMq9tznibkhNJ4Ma-wLV5rpW0").sheet1
+    ALL_USERS_SHEET_ID = "18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA"
+    HOMEWORK_QUESTIONS_SHEET_ID = "1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI"
+    MASTER_ANSWER_SHEET_ID = "1lW2Eattf9kyhllV_NzMMq9tznibkhNJ4Ma-wLV5rpW0"
 except Exception as e:
     st.error(f"Error connecting to Google APIs or Sheets: {e}")
     st.stop()
 
 # === UTILITY FUNCTIONS ===
-#@st.cache_data(ttl=60)
-def load_data(_sheet):
-    all_values = _sheet.get_all_values()
-    if not all_values:
+@st.cache_data(ttl=60)
+def load_data(sheet_id):
+    """
+    Opens a sheet by its ID and loads the data. This works correctly with Streamlit's cache.
+    """
+    try:
+        sheet = client.open_by_key(sheet_id).sheet1
+        all_values = sheet.get_all_values()
+        if not all_values: return pd.DataFrame()
+        df = pd.DataFrame(all_values[1:], columns=all_values[0])
+        df.columns = df.columns.str.strip()
+        df['Row ID'] = range(2, len(df) + 2)
+        return df
+    except Exception as e:
+        st.error(f"Failed to load data for sheet ID {sheet_id}: {e}")
         return pd.DataFrame()
-    df = pd.DataFrame(all_values[1:], columns=all_values[0])
-    df.columns = df.columns.str.strip()
-    df['Row ID'] = range(2, len(df) + 2)
-    return df
 
 # === SECURITY GATEKEEPER ===
 if not st.session_state.get("logged_in") or st.session_state.get("user_role") != "student":
@@ -57,30 +64,9 @@ if st.sidebar.button("Logout"):
 st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
 # Load all necessary data once
-df_all_users = load_data(ALL_USERS_SHEET)
-df_homework = load_data(HOMEWORK_QUESTIONS_SHEET)
-df_all_answers = load_data(MASTER_ANSWER_SHEET)
-
-# --- DEBUGGING CODE START ---
-#st.warning("RUNNING DEBUG TEST TO CHECK SHEET HEADERS")
-
-#try:
-   # st.subheader("Columns found in MASTER_ANSWER_SHEET:")
-   # st.write(list(load_data(MASTER_ANSWER_SHEET).columns))
-    
-   # st.subheader("Columns found in ALL_USERS_SHEET:")
-   # st.write(list(load_data(ALL_USERS_SHEET).columns))
-    
-   # st.subheader("Columns found in HOMEWORK_QUESTIONS_SHEET:")
-   # st.write(list(load_data(HOMEWORK_QUESTIONS_SHEET).columns))
-    
-
-#except Exception as e:
-   # st.error("An error occurred while reading the sheets for debugging:")
-   # st.exception(e)
-
-#st.stop() # This stops the app to show the debug info
-    # --- DEBUGGING CODE END ---
+df_all_users = load_data(ALL_USERS_SHEET_ID)
+df_homework = load_data(HOMEWORK_QUESTIONS_SHEET_ID)
+df_all_answers = load_data(MASTER_ANSWER_SHEET_ID)
 
 user_info_row = df_all_users[df_all_users["Gmail ID"] == st.session_state.user_gmail]
 
@@ -92,10 +78,35 @@ if not user_info_row.empty:
 
     # Filter dataframes for the current student
     homework_for_class = df_homework[df_homework.get("Class") == student_class]
-    
-
-    
     student_answers = df_all_answers[df_all_answers.get('Student Gmail') == st.session_state.user_gmail].copy()
+
+    # --- FEATURE: Subject-wise Growth Chart ---
+    st.header("Your Performance Chart")
+    if not student_answers.empty and 'Marks' in student_answers.columns:
+        student_answers['Marks_Numeric'] = pd.to_numeric(student_answers['Marks'], errors='coerce')
+        graded_answers_chart = student_answers.dropna(subset=['Marks_Numeric'])
+        
+        if not graded_answers_chart.empty:
+            marks_by_subject = graded_answers_chart.groupby('Subject')['Marks_Numeric'].mean().reset_index()
+            marks_by_subject['Marks_Numeric'] = marks_by_subject['Marks_Numeric'].round(2)
+            
+            fig = px.bar(
+                marks_by_subject, 
+                x='Subject', 
+                y='Marks_Numeric', 
+                title='Your Average Marks by Subject', 
+                color='Subject', # This makes it multi-colored
+                text='Marks_Numeric',
+                labels={'Marks_Numeric': 'Average Marks'}
+            )
+            fig.update_traces(textposition='outside')
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Your growth chart will appear here once your answers are graded.")
+    else:
+        st.info("Your growth chart will appear here once you submit answers.")
+
+    st.markdown("---")
 
     pending_tab, revision_tab, leaderboard_tab = st.tabs(["Pending Homework", "Revision Zone", "Class Leaderboard"])
     
@@ -104,9 +115,7 @@ if not user_info_row.empty:
         pending_questions_list = []
         if 'Question' in homework_for_class.columns:
             for index, hw_row in homework_for_class.iterrows():
-                question_text = hw_row.get('Question')
-                assignment_date = hw_row.get('Date')
-                answer_row = student_answers[(student_answers.get('Question') == question_text) & (student_answers.get('Date') == assignment_date)]
+                answer_row = student_answers[(student_answers.get('Question') == hw_row.get('Question')) & (student_answers.get('Date') == hw_row.get('Date'))]
                 is_answered = not answer_row.empty
                 has_remarks = False
                 if is_answered and answer_row.iloc[0].get('Remarks', '').strip():
@@ -133,13 +142,15 @@ if not user_info_row.empty:
                                     ans_col = df_all_answers.columns.get_loc('Answer') + 1
                                     marks_col = df_all_answers.columns.get_loc('Marks') + 1
                                     remarks_col = df_all_answers.columns.get_loc('Remarks') + 1
-                                    MASTER_ANSWER_SHEET.update_cell(row_id_to_update, ans_col, answer_text)
-                                    MASTER_ANSWER_SHEET.update_cell(row_id_to_update, marks_col, "")
-                                    MASTER_ANSWER_SHEET.update_cell(row_id_to_update, remarks_col, "")
+                                    sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+                                    sheet.update_cell(row_id_to_update, ans_col, answer_text)
+                                    sheet.update_cell(row_id_to_update, marks_col, "")
+                                    sheet.update_cell(row_id_to_update, remarks_col, "")
                                     st.success("Corrected answer submitted for re-grading!")
                                 else:
+                                    sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
                                     new_row_data = [st.session_state.user_gmail, row.get('Date'), row.get('Subject'), row.get('Question'), answer_text, "", ""]
-                                    MASTER_ANSWER_SHEET.append_row(new_row_data, value_input_option='USER_ENTERED')
+                                    sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
                                     st.success("Answer saved!")
                                 st.rerun()
                             else:

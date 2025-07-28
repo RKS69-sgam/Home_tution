@@ -23,7 +23,7 @@ try:
 
     ALL_USERS_SHEET = client.open_by_key("18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA").sheet1
     HOMEWORK_QUESTIONS_SHEET = client.open_by_key("1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI").sheet1
-    MASTER_ANSWER_SHEET = client.open_by_key("16poJSlKbTiezSG119QapoCVcjmAOicsJlyaeFpCKGd8").sheet1
+    MASTER_ANSWER_SHEET = client.open_by_key("1lW2Eattf9kyhllV_NzMMq9tznibkhNJ4Ma-wLV5rpW0").sheet1
 except Exception as e:
     st.error(f"Error connecting to Google APIs or Sheets: {e}")
     st.stop()

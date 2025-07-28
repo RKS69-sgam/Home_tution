@@ -24,7 +24,6 @@ try:
     credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
     client = gspread.authorize(credentials)
 
-    # --- FIX: Assign the correct, unique key to each sheet ---
     ALL_USERS_SHEET = client.open_by_key("18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA").sheet1
     HOMEWORK_QUESTIONS_SHEET = client.open_by_key("1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI").sheet1
     MASTER_ANSWER_SHEET = client.open_by_key("1lW2Eattf9kyhllV_NzMMq9tznibkhNJ4Ma-wLV5rpW0").sheet1
@@ -121,13 +120,13 @@ with grade_tab:
     if 'Question' not in df_all_answers.columns:
         st.error("The 'Question' column is missing from MASTER_ANSWER_SHEET.")
     else:
-        my_questions = df_homework[df_homework['Uploaded By'] == st.session_state.user_name]['Question'].tolist()
+        my_questions = df_homework[df_homework.get('Uploaded By') == st.session_state.user_name]['Question'].tolist()
         df_my_answers = df_all_answers[df_all_answers['Question'].isin(my_questions)].copy()
 
         if df_my_answers.empty:
             st.info("No answers submitted for your questions yet.")
         else:
-            df_my_answers['Marks'] = pd.to_numeric(df_my_answers['Marks'], errors='coerce')
+            df_my_answers['Marks'] = pd.to_numeric(df_my_answers.get('Marks'), errors='coerce')
             ungraded = df_my_answers[df_my_answers['Marks'].isna()]
             if ungraded.empty:
                 st.success("🎉 All answers for your questions have been graded!")
@@ -150,7 +149,7 @@ with grade_tab:
                                 grade = st.selectbox("Grade", list(GRADE_MAP.keys()), key=f"grade_{i}")
                                 remarks = st.text_area("Remarks", key=f"remarks_{i}")
                                 if st.form_submit_button("Save Grade"):
-                                    sheet = client.open_by_key("16poJSlKbTiezSG119QapoCVcjmAOicsJlyaeFpCKGd8").sheet1
+                                    sheet = client.open_by_key("1lW2Eattf9kyhllV_NzMMq9tznibkhNJ4Ma-wLV5rpW0").sheet1
                                     row_id_to_update = int(row.get('Row ID'))
                                     marks_col = list(df_all_answers.columns).index("Marks") + 1
                                     remarks_col = list(df_all_answers.columns).index("Remarks") + 1
@@ -192,6 +191,7 @@ with report_tab:
     if df_all_answers.empty or df_students_report.empty:
         st.info("Leaderboard will be generated once students submit and get graded.")
     else:
+        df_all_answers['Marks'] = pd.to_numeric(df_all_answers.get('Marks'), errors='coerce')
         graded_answers = df_all_answers.dropna(subset=['Marks'])
         if graded_answers.empty:
             st.info("The leaderboard is available after answers have been graded.")

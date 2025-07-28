@@ -69,6 +69,18 @@ if st.sidebar.button("Logout"):
 # === STUDENT DASHBOARD UI ===
 st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
+# --- Display Public Announcement ---
+try:
+    announcements_df = load_data(ANNOUNCEMENTS_SHEET_ID)
+    if not announcements_df.empty:
+        latest_announcement = announcements_df['Message'].iloc[0]
+        if latest_announcement:
+            st.info(f"📢 **Announcement from Principal:** {latest_announcement}")
+except Exception:
+    # Fail silently if announcements can't be loaded for any reason
+    pass
+# --------------------------------
+
 # Load all necessary data once
 df_all_users = load_data(ALL_USERS_SHEET_ID)
 df_homework = load_data(HOMEWORK_QUESTIONS_SHEET_ID)

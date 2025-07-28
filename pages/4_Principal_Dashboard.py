@@ -12,31 +12,23 @@ st.set_page_config(layout="wide", page_title="Principal Dashboard")
 
 # === AUTHENTICATION & GOOGLE SHEETS SETUP ===
 try:
-    client = connect_to_gsheets() # Call the new cached function
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    decoded_creds = base64.b64decode(st.secrets["google_service"]["base64_credentials"])
+    credentials_dict = json.loads(decoded_creds)
+    credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
+    client = gspread.authorize(credentials)
 
-    # Define your Sheet IDs
     ALL_USERS_SHEET_ID = "18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA"
-    HOMEWORK_QUESTIONS_SHEET_ID = "1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI"
     MASTER_ANSWER_SHEET_ID = "1lW2Eattf9kyhllV_NzMMq9tznibkhNJ4Ma-wLV5rpW0"
     ANNOUNCEMENTS_SHEET_ID = "1zEAhoWC9_3UK09H4cFk6lRd6i5ChF3EknVc76L7zquQ"
-
-    # Open the sheets using the connected client
-    ALL_USERS_SHEET = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
-    HOMEWORK_QUESTIONS_SHEET = client.open_by_key(HOMEWORK_QUESTIONS_SHEET_ID).sheet1
-    MASTER_ANSWER_SHEET = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
-    ANNOUNCEMENTS_SHEET = client.open_by_key(ANNOUNCEMENTS_SHEET_ID).sheet1
 
 except Exception as e:
     st.error(f"Error connecting to Google APIs or Sheets: {e}")
     st.stop()
 
-
 # === UTILITY FUNCTIONS ===
 @st.cache_data(ttl=60)
 def load_data(sheet_id):
-    """
-    Opens a sheet by its ID and loads the data. This works correctly with Streamlit's cache.
-    """
     try:
         sheet = client.open_by_key(sheet_id).sheet1
         all_values = sheet.get_all_values()
@@ -64,93 +56,70 @@ if st.sidebar.button("Logout"):
 # === PRINCIPAL DASHBOARD UI ===
 st.header("🏛️ Principal Dashboard")
 
-# Load all necessary data once
+# Load data once
 df_users = load_data(ALL_USERS_SHEET_ID)
 df_answers = load_data(MASTER_ANSWER_SHEET_ID)
-df_homework = load_data(HOMEWORK_QUESTIONS_SHEET_ID)
 
-report_tab, individual_tab, instruction_tab = st.tabs(["Performance Reports", "Individual Growth Charts", "Send Instructions"])
+tab1, tab2 = st.tabs(["Send Messages", "View Reports"])
 
-with report_tab:
-    st.subheader("Performance Reports")
-    col1, col2 = st.columns(2)
+with tab1:
+    st.subheader("Send a Message")
     
-    with col1:
-        st.markdown("#### 🏆 Top 3 Teachers (by Points)")
-        df_teachers = df_users[df_users['Role'] == 'Teacher'].copy()
-        df_teachers['Salary Points'] = pd.to_numeric(df_teachers.get('Salary Points', 0), errors='coerce').fillna(0)
-        top_teachers = df_teachers.nlargest(3, 'Salary Points')
-        st.dataframe(top_teachers[['User Name', 'Salary Points']])
-
-    with col2:
-        st.markdown("#### 🥇 Class-wise Top 3 Students")
-        df_students = df_users[df_users['Role'] == 'Student']
-        if not df_answers.empty:
-            df_answers['Marks'] = pd.to_numeric(df_answers['Marks'], errors='coerce')
-            graded_answers = df_answers.dropna(subset=['Marks'])
-            if not graded_answers.empty:
-                df_merged = pd.merge(graded_answers, df_students, left_on='Student Gmail', right_on='Gmail ID')
-                leaderboard_df = df_merged.groupby(['Class', 'User Name'])['Marks'].mean().reset_index()
-                top_students_df = leaderboard_df.groupby('Class').apply(lambda x: x.nlargest(3, 'Marks')).reset_index(drop=True)
-                top_students_df['Marks'] = top_students_df['Marks'].round(2)
-                st.dataframe(top_students_df[['Class', 'User Name', 'Marks']])
-            else:
-                st.info("No graded student answers yet.")
-        else:
-            st.info("No student answers submitted yet.")
-
-with individual_tab:
-    st.subheader("Individual Growth Charts")
-    report_type = st.selectbox("Select report type", ["Student", "Teacher"])
-
-    if report_type == "Student":
-        df_students = df_users[df_users['Role'] == 'Student']
-        student_name = st.selectbox("Select Student", df_students['User Name'].tolist())
-        if student_name:
-            student_gmail = df_students[df_students['User Name'] == student_name].iloc[0]['Gmail ID']
-            student_answers = df_answers[df_answers['Student Gmail'] == student_gmail].copy()
-            if not student_answers.empty:
-                student_answers['Marks'] = pd.to_numeric(student_answers['Marks'], errors='coerce')
-                graded_answers = student_answers.dropna(subset=['Marks'])
-                if not graded_answers.empty:
-                    fig = px.bar(graded_answers, x='Subject', y='Marks', color='Subject', title=f"Subject-wise Performance for {student_name}")
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info(f"{student_name} has no graded answers yet.")
-            else:
-                st.info(f"{student_name} has not submitted any answers yet.")
-
-    elif report_type == "Teacher":
-        df_teachers = df_users[df_users['Role'] == 'Teacher']
-        teacher_name = st.selectbox("Select Teacher", df_teachers['User Name'].tolist())
-        if teacher_name:
-            teacher_homework = df_homework[df_homework['Uploaded By'] == teacher_name]
-            if not teacher_homework.empty:
-                questions_by_subject = teacher_homework.groupby('Subject').size().reset_index(name='Question Count')
-                fig = px.bar(questions_by_subject, x='Subject', y='Question Count', color='Subject', title=f"Homework Created by {teacher_name}")
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info(f"{teacher_name} has not created any homework yet.")
-
-with instruction_tab:
-    st.subheader("Send Instruction to a Teacher")
-    df_teachers = df_users[df_users['Role'].isin(['Teacher', 'Admin', 'Principal'])]
-    if df_teachers.empty:
-        st.warning("No teachers found.")
-    else:
+    message_type = st.radio("Select message type:", ["Private Instruction", "Public Announcement"])
+    
+    if message_type == "Private Instruction":
         with st.form("instruction_form"):
-            teacher_list = df_teachers['User Name'].tolist()
-            selected_teacher = st.selectbox("Select Teacher", teacher_list)
+            user_list = df_users['User Name'].tolist()
+            selected_user = st.selectbox("Select a User (Teacher or Student)", user_list)
             instruction_text = st.text_area("Instruction:")
+            
             if st.form_submit_button("Send Instruction"):
-                if selected_teacher and instruction_text:
-                    teacher_row = df_teachers[df_teachers['User Name'] == selected_teacher]
-                    if not teacher_row.empty:
-                        row_id = int(teacher_row.iloc[0]['Row ID'])
+                if selected_user and instruction_text:
+                    user_row = df_users[df_users['User Name'] == selected_user]
+                    if not user_row.empty:
+                        row_id = int(user_row.iloc[0]['Row ID'])
                         instruction_col = df_users.columns.get_loc('Instructions') + 1
                         sheet = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
                         sheet.update_cell(row_id, instruction_col, instruction_text)
-                        st.success(f"Instruction sent to {selected_teacher}.")
+                        st.success(f"Instruction sent to {selected_user}.")
                         load_data.clear()
                 else:
-                    st.warning("Please select a teacher and write an instruction.")
+                    st.warning("Please select a user and write an instruction.")
+
+    elif message_type == "Public Announcement":
+        with st.form("announcement_form"):
+            announcement_text = st.text_area("Enter Public Announcement:")
+            if st.form_submit_button("Broadcast Announcement"):
+                if announcement_text:
+                    announcement_sheet_obj = client.open_by_key(ANNOUNCEMENTS_SHEET_ID).sheet1
+                    announcement_sheet_obj.insert_row([announcement_text], 2)
+                    st.success("Public announcement sent to all dashboards!")
+                    load_data.clear()
+                else:
+                    st.warning("Announcement text cannot be empty.")
+
+with tab2:
+    st.subheader("Class-wise Top 3 Students Report")
+    
+    df_students_report = df_users[df_users['Role'] == 'Student']
+    
+    if df_answers.empty or df_students_report.empty:
+        st.info("Leaderboard will be generated once students submit and get graded.")
+    else:
+        df_answers['Marks'] = pd.to_numeric(df_answers.get('Marks'), errors='coerce')
+        df_answers.dropna(subset=['Marks'], inplace=True)
+        
+        if df_answers.empty:
+            st.info("The leaderboard is available after answers have been graded.")
+        else:
+            df_merged = pd.merge(df_answers, df_students_report, left_on='Student Gmail', right_on='Gmail ID')
+            leaderboard_df = df_merged.groupby(['Class', 'User Name'])['Marks'].mean().reset_index()
+            top_students_df = leaderboard_df.groupby('Class').apply(lambda x: x.nlargest(3, 'Marks')).reset_index(drop=True)
+            top_students_df['Marks'] = top_students_df['Marks'].round(2)
+            
+            st.dataframe(top_students_df)
+            
+            fig = px.bar(top_students_df, x='User Name', y='Marks', color='Class',
+                         title='Top 3 Students by Average Marks per Class',
+                         labels={'Marks': 'Average Marks', 'User Name': 'Student'})
+            st.plotly_chart(fig, use_container_width=True)

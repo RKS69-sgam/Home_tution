@@ -14,8 +14,8 @@ from googleapiclient.errors import HttpError
 st.set_page_config(layout="wide", page_title="PRK Home Tuition - Login")
 DATE_FORMAT = "%Y-%m-%d"
 SUBSCRIPTION_PLANS = {
-    "₹550 for 6 months (With Advance Classes)": 182,
-    "₹1000 for 1 year (With Advance Classes)": 365,
+    "₹550 for 6 months (Advance)": 182,
+    "₹1000 for 1 year (Advance)": 365,
     "₹100 for 30 days (Subjects Homework Only)": 30
 }
 UPI_ID = "9685840429@pnb"
@@ -101,44 +101,60 @@ if not st.session_state.logged_in:
         st.header("✍️ New Registration")
         registration_type = st.radio("Register as:", ["Student", "Teacher"])
         
-        with st.form("registration_form", clear_on_submit=True):
-            name = st.text_input("Full Name")
-            gmail = st.text_input("Gmail ID").lower().strip()
-            pwd = st.text_input("Password", type="password")
-            security_q = st.selectbox("Choose a Security Question", SECURITY_QUESTIONS)
-            security_a = st.text_input("Your Security Answer").lower().strip()
+        if registration_type == "Student":
+            st.subheader("Student Registration")
             
-            if registration_type == "Student":
+            # The plan selector is now outside the form to allow dynamic updates
+            plan = st.selectbox("Choose Subscription Plan", list(SUBSCRIPTION_PLANS.keys()), key="plan_selector")
+            
+            with st.form("student_registration_form"):
+                name = st.text_input("Full Name")
+                gmail = st.text_input("Gmail ID").lower().strip()
                 cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
-                plan = st.selectbox("Choose Subscription Plan", list(SUBSCRIPTION_PLANS.keys()))
+                pwd = st.text_input("Password", type="password")
+                security_q = st.selectbox("Choose a Security Question", SECURITY_QUESTIONS)
+                security_a = st.text_input("Your Security Answer").lower().strip()
+                
+                submitted = st.form_submit_button("Register (After Payment)")
+
+                if submitted:
+                    if not all([name, gmail, cls, pwd, plan, security_q, security_a]):
+                        st.warning("Please fill in ALL details.")
+                    else:
+                        df = load_data(ALL_USERS_SHEET)
+                        if not df.empty and gmail in df["Gmail ID"].values:
+                            st.error("This Gmail is already registered.")
+                        else:
+                            new_row = {"User Name": name, "Gmail ID": gmail, "Class": cls, "Password": make_hashes(pwd), "Subscription Plan": plan, "Security Question": security_q, "Security Answer": security_a, "Role": "Student", "Payment Confirmed": "No", "Subscription Date": "", "Subscribed Till": "", "Confirmed": "", "Instructions": "", "Salary Points": ""}
+                            df_new = pd.DataFrame([new_row])
+                            df = pd.concat([df, df_new], ignore_index=True)
+                            save_data(df, ALL_USERS_SHEET)
+                            st.success("Registration successful! Waiting for admin confirmation.")
+
+            if plan:
                 st.info(f"Please pay {plan.split(' ')[0]} to the UPI ID below.")
                 st.code(f"UPI: {UPI_ID}", language="text")
-            
-            if st.form_submit_button(f"Register as {registration_type}"):
-                if (registration_type == "Student" and not all([name, gmail, cls, pwd, plan, security_q, security_a])) or \
-                   (registration_type == "Teacher" and not all([name, gmail, pwd, security_q, security_a])):
-                    st.warning("Please fill in ALL details.")
-                else:
-                    df = load_data(ALL_USERS_SHEET)
-                    if not df.empty and gmail in df["Gmail ID"].values:
-                        st.error("This Gmail is already registered.")
-                    else:
-                        new_row_data = {
-                            "User Name": name, "Gmail ID": gmail, "Password": make_hashes(pwd),
-                            "Security Question": security_q, "Security Answer": security_a
-                        }
-                        if registration_type == "Student":
-                            new_row_data.update({
-                                "Role": "Student", "Class": cls, "Subscription Plan": plan, 
-                                "Payment Confirmed": "No", "Subscription Date": "", "Subscribed Till": ""
-                            })
-                        else: # Teacher
-                            new_row_data.update({"Role": "Teacher", "Confirmed": "No", "Instructions": ""})
 
-                        df_new = pd.DataFrame([new_row_data])
-                        df = pd.concat([df, df_new], ignore_index=True)
-                        save_data(df, ALL_USERS_SHEET)
-                        st.success(f"{registration_type} registered! Please wait for admin confirmation.")
+        elif registration_type == "Teacher":
+            with st.form("teacher_registration_form", clear_on_submit=True):
+                name = st.text_input("Full Name")
+                gmail = st.text_input("Gmail ID").lower().strip()
+                pwd = st.text_input("Password", type="password")
+                security_q = st.selectbox("Choose a Security Question", SECURITY_QUESTIONS)
+                security_a = st.text_input("Your Security Answer").lower().strip()
+                if st.form_submit_button("Register Teacher"):
+                    if not all([name, gmail, pwd, security_q, security_a]):
+                        st.warning("Please fill in all details.")
+                    else:
+                        df_teachers = load_data(ALL_USERS_SHEET)
+                        if not df_teachers.empty and gmail in df_teachers["Gmail ID"].values:
+                            st.error("This Gmail is already registered.")
+                        else:
+                            new_row = {"User Name": name, "Gmail ID": gmail, "Password": make_hashes(pwd), "Security Question": security_q, "Security Answer": security_a, "Role": "Teacher", "Confirmed": "No"}
+                            df_new = pd.DataFrame([new_row])
+                            df_teachers = pd.concat([df_teachers, df_new], ignore_index=True)
+                            save_data(df_teachers, ALL_USERS_SHEET)
+                            st.success("Teacher registered! Please wait for admin confirmation.")
 
     elif st.session_state.page_state == "forgot_password":
         st.header("🔑 Reset Your Password")
@@ -202,6 +218,9 @@ if not st.session_state.logged_in:
                         st.rerun()
                 else:
                     st.error("Incorrect PIN or Gmail.")
+        if st.button("Forgot Password?", use_container_width=True):
+            st.session_state.page_state = "forgot_password"
+            st.rerun()
 
 # If user is logged in, switch to the correct page
 else:

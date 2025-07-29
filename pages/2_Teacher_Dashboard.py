@@ -162,48 +162,68 @@ with create_tab:
 
 with grade_tab:
     st.subheader("Grade Student Answers")
-    if 'Question' not in df_all_answers.columns:
-        st.error("The 'Question' column is missing from MASTER_ANSWER_SHEET.")
+
+    # Filter for questions created by the logged-in teacher
+    my_questions = df_homework[df_homework.get('Uploaded By') == st.session_state.user_name]['Question'].tolist()
+    answers_to_my_questions = df_all_answers[df_all_answers['Question'].isin(my_questions)].copy()
+
+    if answers_to_my_questions.empty:
+        st.info("No answers have been submitted for your questions yet.")
     else:
-        my_questions = df_homework[df_homework.get('Uploaded By') == st.session_state.user_name]['Question'].tolist()
-        df_my_answers = df_all_answers[df_all_answers['Question'].isin(my_questions)].copy()
-        if df_my_answers.empty:
-            st.info("No answers submitted for your questions yet.")
+        # Find answers that have not been graded yet
+        answers_to_my_questions['Marks'] = pd.to_numeric(answers_to_my_questions.get('Marks'), errors='coerce')
+        ungraded_answers = answers_to_my_questions[answers_to_my_questions['Marks'].isna()]
+
+        if ungraded_answers.empty:
+            st.success("🎉 All answers for your questions have been graded!")
         else:
-            df_my_answers['Marks'] = pd.to_numeric(df_my_answers.get('Marks'), errors='coerce')
-            ungraded = df_my_answers[df_my_answers['Marks'].isna()]
-            if ungraded.empty:
-                st.success("🎉 All answers for your questions have been graded!")
+            # Filter the student dropdown to only show students with ungraded answers
+            students_to_grade_gmail = ungraded_answers['Student Gmail'].unique().tolist()
+            df_students = df_users[df_users['Role'] == 'Student']
+            gradable_students = df_students[df_students['Gmail ID'].isin(students_to_grade_gmail)]
+            
+            if gradable_students.empty:
+                st.info("No confirmed students have pending answers for your questions.")
             else:
-                student_gmails = ungraded['Student Gmail'].unique().tolist()
-                df_students = df_users[df_users['Role'] == 'Student']
-                gradable_students = df_students[df_students['Gmail ID'].isin(student_gmails)]
-                if gradable_students.empty:
-                    st.info("No confirmed students have pending answers.")
-                else:
-                    selected_student = st.selectbox("Select Student", gradable_students['User Name'].tolist())
-                    if selected_student:
-                        selected_gmail = gradable_students[gradable_students['User Name'] == selected_student].iloc[0]['Gmail ID']
-                        student_answers = ungraded[ungraded['Student Gmail'] == selected_gmail]
-                        st.markdown(f"#### Grading answers for: **{selected_student}**")
-                        for i, row in student_answers.sort_values(by='Date', ascending=False).iterrows():
-                            st.write(f"**Question:** {row.get('Question')}")
-                            st.info(f"**Answer:** {row.get('Answer')}")
-                            with st.form(f"grade_form_{i}"):
-                                grade = st.selectbox("Grade", list(GRADE_MAP.keys()), key=f"grade_{i}")
-                                remarks = st.text_area("Remarks", key=f"remarks_{i}")
-                                if st.form_submit_button("Save Grade"):
-                                    client = connect_to_gsheets()
-                                    sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
-                                    row_id_to_update = int(row.get('Row ID'))
-                                    marks_col = list(df_all_answers.columns).index("Marks") + 1
-                                    remarks_col = list(df_all_answers.columns).index("Remarks") + 1
-                                    sheet.update_cell(row_id_to_update, marks_col, GRADE_MAP[grade])
-                                    sheet.update_cell(row_id_to_update, remarks_col, remarks)
-                                    load_data.clear()
-                                    st.success("Saved!")
-                                    st.rerun()
-                            st.markdown("---")
+                selected_student_name = st.selectbox("Select a Student with Pending Answers", gradable_students['User Name'].tolist())
+                
+                if selected_student_name:
+                    student_gmail = gradable_students[gradable_students['User Name'] == selected_student_name].iloc[0]['Gmail ID']
+                    student_answers_df = ungraded_answers[ungraded_answers['Student Gmail'] == student_gmail]
+                    
+                    st.markdown(f"#### Grading answers for: **{selected_student_name}**")
+                    
+                    for index, row in student_answers_df.sort_values(by='Date', ascending=False).iterrows():
+                        st.write(f"**Question:** {row.get('Question')}")
+                        st.info(f"**Answer:** {row.get('Answer')}")
+                        
+                        with st.form(key=f"grade_form_{index}"):
+                            grade = st.selectbox("Grade", list(GRADE_MAP.keys()), key=f"grade_{index}")
+                            remarks = ""
+                            
+                            # Conditionally show the remarks box
+                            if grade in ["Needs Improvement", "Average"]:
+                                remarks = st.text_area("Remarks/Feedback (Required for this grade)", key=f"remarks_{index}")
+                            
+                            if st.form_submit_button("Save Grade"):
+                                if grade in ["Needs Improvement", "Average"] and not remarks.strip():
+                                    st.warning("Remarks are required for 'Needs Improvement' or 'Average' grades.")
+                                else:
+                                    with st.spinner("Saving..."):
+                                        row_id_to_update = int(row.get('Row ID'))
+                                        marks_col = list(df_all_answers.columns).index("Marks") + 1
+                                        remarks_col = list(df_all_answers.columns).index("Remarks") + 1
+                                        
+                                        client = connect_to_gsheets()
+                                        sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+                                        
+                                        sheet.update_cell(row_id_to_update, marks_col, GRADE_MAP[grade])
+                                        sheet.update_cell(row_id_to_update, remarks_col, remarks)
+                                        
+                                        load_data.clear()
+                                        st.success("Grade saved successfully!")
+                                        st.rerun()
+                        st.markdown("---")
 
 with report_tab:
     st.subheader("My Reports")

@@ -15,34 +15,27 @@ st.set_page_config(layout="wide", page_title="Student Dashboard")
 DATE_FORMAT = "%Y-%m-%d"
 GRADE_MAP_REVERSE = {1: "Needs Improvement", 2: "Average", 3: "Good", 4: "Very Good", 5: "Outstanding"}
 
-# === AUTHENTICATION & GOOGLE SHEETS SETUP ===
-try:
-    client = connect_to_gsheets() # Call the new cached function
-
-    # Define your Sheet IDs
-    ALL_USERS_SHEET_ID = "18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA"
-    HOMEWORK_QUESTIONS_SHEET_ID = "1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI"
-    MASTER_ANSWER_SHEET_ID = "1lW2Eattf9kyhllV_NzMMq9tznibkhNJ4Ma-wLV5rpW0"
-    ANNOUNCEMENTS_SHEET_ID = "1zEAhoWC9_3UK09H4cFk6lRd6i5ChF3EknVc76L7zquQ"
-
-    # Open the sheets using the connected client
-    ALL_USERS_SHEET = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
-    HOMEWORK_QUESTIONS_SHEET = client.open_by_key(HOMEWORK_QUESTIONS_SHEET_ID).sheet1
-    MASTER_ANSWER_SHEET = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
-    ANNOUNCEMENTS_SHEET = client.open_by_key(ANNOUNCEMENTS_SHEET_ID).sheet1
-
-except Exception as e:
-    st.error(f"Error connecting to Google APIs or Sheets: {e}")
-    st.stop()
-
-
 # === UTILITY FUNCTIONS ===
+@st.cache_resource
+def connect_to_gsheets():
+    """Establishes a connection to Google Sheets and caches it."""
+    try:
+        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        decoded_creds = base64.b64decode(st.secrets["google_service"]["base64_credentials"])
+        credentials_dict = json.loads(decoded_creds)
+        credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
+        client = gspread.authorize(credentials)
+        return client
+    except Exception as e:
+        st.error(f"Error connecting to Google APIs: {e}")
+        return None
+
 @st.cache_data(ttl=60)
 def load_data(sheet_id):
-    """
-    Opens a sheet by its ID and loads the data. This works correctly with Streamlit's cache.
-    """
+    """Opens a sheet by its ID and loads the data. This works correctly with Streamlit's cache."""
     try:
+        client = connect_to_gsheets()
+        if client is None: return pd.DataFrame()
         sheet = client.open_by_key(sheet_id).sheet1
         all_values = sheet.get_all_values()
         if not all_values: return pd.DataFrame()
@@ -53,6 +46,21 @@ def load_data(sheet_id):
     except Exception as e:
         st.error(f"Failed to load data for sheet ID {sheet_id}: {e}")
         return pd.DataFrame()
+
+# === AUTHENTICATION & GOOGLE SHEETS SETUP ===
+try:
+    client = connect_to_gsheets()
+    if client is None:
+        st.stop()
+        
+    ALL_USERS_SHEET_ID = "18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA"
+    HOMEWORK_QUESTIONS_SHEET_ID = "1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI"
+    MASTER_ANSWER_SHEET_ID = "1lW2Eattf9kyhllV_NzMMq9tznibkhNJ4Ma-wLV5rpW0"
+    ANNOUNCEMENTS_SHEET_ID = "1zEAhoWC9_3UK09H4cFk6lRd6i5ChF3EknVc76L7zquQ"
+except Exception as e:
+    st.error(f"Error connecting to Google APIs or Sheets: {e}")
+    st.stop()
+
 
 # === SECURITY GATEKEEPER ===
 if not st.session_state.get("logged_in") or st.session_state.get("user_role") != "student":
@@ -77,9 +85,7 @@ try:
         if latest_announcement:
             st.info(f"📢 **Announcement from Principal:** {latest_announcement}")
 except Exception:
-    # Fail silently if announcements can't be loaded for any reason
     pass
-# --------------------------------
 
 # Load all necessary data once
 df_all_users = load_data(ALL_USERS_SHEET_ID)
@@ -98,7 +104,7 @@ if not user_info_row.empty:
     homework_for_class = df_homework[df_homework.get("Class") == student_class]
     student_answers = df_all_answers[df_all_answers.get('Student Gmail') == st.session_state.user_gmail].copy()
 
-    # --- FEATURE: Subject-wise Growth Chart ---
+    # --- Subject-wise Growth Chart ---
     st.header("Your Performance Chart")
     if not student_answers.empty and 'Marks' in student_answers.columns:
         student_answers['Marks_Numeric'] = pd.to_numeric(student_answers['Marks'], errors='coerce')
@@ -109,13 +115,8 @@ if not user_info_row.empty:
             marks_by_subject['Marks_Numeric'] = marks_by_subject['Marks_Numeric'].round(2)
             
             fig = px.bar(
-                marks_by_subject, 
-                x='Subject', 
-                y='Marks_Numeric', 
-                title='Your Average Marks by Subject', 
-                color='Subject', # This makes it multi-colored
-                text='Marks_Numeric',
-                labels={'Marks_Numeric': 'Average Marks'}
+                marks_by_subject, x='Subject', y='Marks_Numeric', title='Your Average Marks by Subject', 
+                color='Subject', text='Marks_Numeric', labels={'Marks_Numeric': 'Average Marks'}
             )
             fig.update_traces(textposition='outside')
             st.plotly_chart(fig, use_container_width=True)

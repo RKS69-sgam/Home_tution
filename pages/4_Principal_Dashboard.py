@@ -69,33 +69,34 @@ with tab1:
     
     if message_type == "Private Instruction":
         with st.form("instruction_form"):
-            # Create a temporary copy to avoid warnings
-            df_temp = df_users.copy()
-            
-            # Create a new column that combines Name and Class for students
-            df_temp['display_name'] = df_temp.apply(
-            lambda row: f"{row['User Name']} ({row['Class']})" if row['Role'] == 'Student' else row['User Name'],
+          df_temp = df_users.copy()
+          df_temp['display_name'] = df_temp.apply(
+            lambda row: f"{row['User Name']} ({row['Class']})" if row['Role'] == 'Student' and row.get('Class') else row['User Name'],
             axis=1
-            )
+          )
+          user_list = df_temp['display_name'].tolist()
 
-            # Create the list from the new column
-            user_list = df_temp['display_name'].tolist()
-
-            selected_user = st.selectbox("Select a User (Teacher or Student)", user_list)
-            instruction_text = st.text_area("Instruction:")
-            
-            if st.form_submit_button("Send Instruction"):
-                if selected_user and instruction_text:
-                    user_row = df_users[df_users['User Name'] == selected_user]
-                    if not user_row.empty:
-                        row_id = int(user_row.iloc[0]['Row ID'])
-                        instruction_col = df_users.columns.get_loc('Instructions') + 1
-                        sheet = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
-                        sheet.update_cell(row_id, instruction_col, instruction_text)
-                        st.success(f"Instruction sent to {selected_user}.")
-                        load_data.clear()
-                else:
-                    st.warning("Please select a user and write an instruction.")
+          selected_display_name = st.selectbox("Select a User (Teacher or Student)", user_list)
+          instruction_text = st.text_area("Instruction:")
+        
+          if st.form_submit_button("Send Instruction"):
+              if selected_display_name and instruction_text:
+                 # --- FIX: Extract the real name before searching ---
+                 real_user_name = selected_display_name.split(' (')[0]
+                 user_row = df_users[df_users['User Name'] == real_user_name]
+                 # ----------------------------------------------------
+                
+                 if not user_row.empty:
+                    row_id = int(user_row.iloc[0]['Row ID'])
+                    instruction_col = df_users.columns.get_loc('Instructions') + 1
+                    sheet = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
+                    sheet.update_cell(row_id, instruction_col, instruction_text)
+                    st.success(f"Instruction sent to {real_user_name}.")
+                    load_data.clear()
+                 else:
+                    st.error("Selected user could not be found in the database.")
+            else:
+                st.warning("Please select a user and write an instruction.")
 
     elif message_type == "Public Announcement":
         with st.form("announcement_form"):

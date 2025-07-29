@@ -90,6 +90,17 @@ if not st.session_state.logged_in:
     
     option = st.sidebar.radio("Select an option:", ["Login", "New Registration", "Forgot Password"])
 
+    st.sidebar.markdown("---")
+    st.sidebar.markdown(
+    """
+    <div style='text-align: center; font-size: 12px;'>
+    © 2025 PRK Home Tuition.<br>All Rights Reserved.
+    </div>
+    """,
+    unsafe_allow_html=True
+    )
+
+
     if option == "New Registration":
         st.session_state.page_state = "register"
     elif option == "Login":

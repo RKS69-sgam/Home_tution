@@ -12,11 +12,6 @@ from googleapiclient.errors import HttpError
 
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="PRK Home Tuition - Login")
-#page_title="AUnder Maintenance"
-#st.title("App Under Maintenance")
-#st.info("We are currently performing an update. The app will be back online shortly. Thank you for your patience.")
-#st.stop()
-
 DATE_FORMAT = "%Y-%m-%d"
 SUBSCRIPTION_PLANS = {
     "₹550 for 6 months (With Advance Classes)": 182,
@@ -76,7 +71,6 @@ if "logged_in" not in st.session_state:
     st.session_state.user_role = ""
     st.session_state.user_gmail = ""
     st.session_state.page_state = "login"
-    
 
 # --- Hide sidebar page navigation when not logged in ---
 if not st.session_state.logged_in:
@@ -84,23 +78,14 @@ if not st.session_state.logged_in:
 
 # === LOGIN / REGISTRATION PAGE ===
 if not st.session_state.logged_in:
-    # === HEADER ===
     st.sidebar.title("Login / New Registration")
-
+    
     st.markdown(f"""<div style="text-align: center;"><h2>EPS High-tech Homework System 📈</h2></div>""", unsafe_allow_html=True)
-    # print ("Copyright @ PRK Online Homework Systems. All Rights Reserved. This application")
-    # Use columns to display logos side-by-side
     col1, col2 = st.columns(2)
     with col1:
-        try:
-            st.image("PRK_logo.jpg", use_container_width=True)
-        except FileNotFoundError:
-            st.error("PRK_logo.jpg not found.")
+        st.image("PRK_logo.jpg", use_container_width=True)
     with col2:
-        try:
-            st.image("Excellent_logo.jpg", use_container_width=True)
-        except FileNotFoundError:
-            st.error("Excellent_logo.jpg not found.")
+        st.image("Excellent_logo.jpg", use_container_width=True)
     st.markdown("---")
     
     option = st.sidebar.radio("Select an option:", ["Login", "New Registration", "Forgot Password"])
@@ -157,7 +142,7 @@ if not st.session_state.logged_in:
 
     elif st.session_state.page_state == "forgot_password":
         st.header("🔑 Reset Your Password")
-        with st.form("forgot_password_form"):
+        with st.form("forgot_password_form", clear_on_submit=True):
             gmail_to_reset = st.text_input("Enter your registered Gmail ID").lower().strip()
             user_data = find_user(gmail_to_reset)
             if user_data is not None:
@@ -179,8 +164,8 @@ if not st.session_state.logged_in:
                 else:
                     cell = ALL_USERS_SHEET.find(gmail_to_reset)
                     if cell:
-                        df_users = load_data(ALL_USERS_SHEET)
-                        password_col = df_users.columns.get_loc("Password") + 1
+                        header_row = ALL_USERS_SHEET.row_values(1)
+                        password_col = header_row.index("Password") + 1
                         ALL_USERS_SHEET.update_cell(cell.row, password_col, make_hashes(new_password))
                         load_data.clear()
                         st.success("Password updated! Please log in.")

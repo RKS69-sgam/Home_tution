@@ -123,3 +123,13 @@ with tab2:
                          title='Top 3 Students by Average Marks per Class',
                          labels={'Marks': 'Average Marks', 'User Name': 'Student'})
             st.plotly_chart(fig, use_container_width=True)
+
+st.sidebar.markdown("---")
+st.sidebar.markdown(
+"""
+<div style='text-align: center; font-size: 12px;'>
+© 2025 PRK Home Tuition.<br>All Rights Reserved.
+</div>
+""",
+unsafe_allow_html=True
+)

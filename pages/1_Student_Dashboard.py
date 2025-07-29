@@ -47,11 +47,20 @@ def load_data(sheet_id):
         st.error(f"Failed to load data for sheet ID {sheet_id}: {e}")
         return pd.DataFrame()
 
-# === SHEET IDs ===
-ALL_USERS_SHEET_ID = "18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA"
-HOMEWORK_QUESTIONS_SHEET_ID = "1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI"
-MASTER_ANSWER_SHEET_ID = "1lW2Eattf9kyhllV_NzMMq9tznibkhNJ4Ma-wLV5rpW0"
-ANNOUNCEMENTS_SHEET_ID = "1zEAhoWC9_3UK09H4cFk6lRd6i5ChF3EknVc76L7zquQ"
+# === AUTHENTICATION & GOOGLE SHEETS SETUP ===
+try:
+    client = connect_to_gsheets()
+    if client is None:
+        st.stop()
+        
+    ALL_USERS_SHEET_ID = "18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA"
+    HOMEWORK_QUESTIONS_SHEET_ID = "1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI"
+    MASTER_ANSWER_SHEET_ID = "1lW2Eattf9kyhllV_NzMMq9tznibkhNJ4Ma-wLV5rpW0"
+    ANNOUNCEMENTS_SHEET_ID = "1zEAhoWC9_3UK09H4cFk6lRd6i5ChF3EknVc76L7zquQ"
+except Exception as e:
+    st.error(f"Error connecting to Google APIs or Sheets: {e}")
+    st.stop()
+
 
 # === SECURITY GATEKEEPER ===
 if not st.session_state.get("logged_in") or st.session_state.get("user_role") != "student":
@@ -59,26 +68,43 @@ if not st.session_state.get("logged_in") or st.session_state.get("user_role") !=
     st.page_link("main.py", label="Go to Login Page")
     st.stop()
 
-# === SIDEBAR LOGOUT & COPYRIGHT ===
+# === SIDEBAR LOGOUT ===
 st.sidebar.success(f"Welcome, {st.session_state.user_name}")
 if st.sidebar.button("Logout"):
     st.session_state.clear()
     st.switch_page("main.py")
-st.sidebar.markdown("---")
-st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<br>All Rights Reserved.</div>", unsafe_allow_html=True)
 
 # === STUDENT DASHBOARD UI ===
 st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
-# Display Public Announcement
-try:
-    announcements_df = load_data(ANNOUNCEMENTS_SHEET_ID)
-    if not announcements_df.empty:
-        latest_announcement = announcements_df['Message'].iloc[0]
-        if latest_announcement:
-            st.info(f"📢 **Announcement from Principal:** {latest_announcement}")
-except Exception:
-    pass
+# In Teacher_Dashboard.py and Student_Dashboard.py, after st.header(...)
+
+# --- INSTRUCTION & REPLY SYSTEM ---
+df_users_live = load_data(ALL_USERS_SHEET_ID)
+user_info = df_users_live[df_users_live['Gmail ID'] == st.session_state.user_gmail].iloc[0]
+instruction = user_info.get('Instruction', '').strip()
+reply = user_info.get('Instruction_Reply', '').strip()
+status = user_info.get('Instruction_Status', '')
+
+if status == 'Sent' and instruction and not reply:
+    st.warning(f"**New Instruction from Principal:** {instruction}")
+    with st.form(key="reply_form"):
+        reply_text = st.text_area("Your Reply:")
+        if st.form_submit_button("Send Reply"):
+            if reply_text:
+                row_id = int(user_info.get('Row ID'))
+                reply_col = df_users.columns.get_loc('Instruction_Reply') + 1
+                status_col = df_users.columns.get_loc('Instruction_Status') + 1
+                sheet = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
+                sheet.update_cell(row_id, reply_col, reply_text)
+                sheet.update_cell(row_id, status_col, "Replied")
+                st.success("Your reply has been sent.")
+                load_data.clear()
+                st.rerun()
+            else:
+                st.warning("Reply cannot be empty.")
+# ------------------------------------
+
 
 # Load all necessary data once
 df_all_users = load_data(ALL_USERS_SHEET_ID)
@@ -149,23 +175,21 @@ if not user_info_row.empty:
                         answer_text = st.text_area("Your Answer:", key=f"pending_text_{i}", value=matching_answer.iloc[0].get('Answer', '') if not matching_answer.empty else "")
                         if st.form_submit_button("Submit Answer"):
                             if answer_text:
-                                with st.spinner("Saving your answer... Please wait."):
-                                    if not matching_answer.empty:
-                                        row_id_to_update = int(matching_answer.iloc[0].get('Row ID'))
-                                        ans_col = df_all_answers.columns.get_loc('Answer') + 1
-                                        marks_col = df_all_answers.columns.get_loc('Marks') + 1
-                                        remarks_col = df_all_answers.columns.get_loc('Remarks') + 1
-                                        sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
-                                        sheet.update_cell(row_id_to_update, ans_col, answer_text)
-                                        sheet.update_cell(row_id_to_update, marks_col, "")
-                                        sheet.update_cell(row_id_to_update, remarks_col, "")
-                                        st.success("Corrected answer submitted for re-grading!")
-                                    else:
-                                        sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
-                                        new_row_data = [st.session_state.user_gmail, row.get('Date'), row.get('Subject'), row.get('Question'), answer_text, "", ""]
-                                        sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
-                                        st.success("Answer saved!")
-                                load_data.clear()
+                                if not matching_answer.empty:
+                                    row_id_to_update = int(matching_answer.iloc[0].get('Row ID'))
+                                    ans_col = df_all_answers.columns.get_loc('Answer') + 1
+                                    marks_col = df_all_answers.columns.get_loc('Marks') + 1
+                                    remarks_col = df_all_answers.columns.get_loc('Remarks') + 1
+                                    sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+                                    sheet.update_cell(row_id_to_update, ans_col, answer_text)
+                                    sheet.update_cell(row_id_to_update, marks_col, "")
+                                    sheet.update_cell(row_id_to_update, remarks_col, "")
+                                    st.success("Corrected answer submitted for re-grading!")
+                                else:
+                                    sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+                                    new_row_data = [st.session_state.user_gmail, row.get('Date'), row.get('Subject'), row.get('Question'), answer_text, "", ""]
+                                    sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
+                                    st.success("Answer saved!")
                                 st.rerun()
                             else:
                                 st.warning("Answer cannot be empty.")
@@ -226,5 +250,12 @@ if not user_info_row.empty:
 else:
     st.error("Could not find your student record.")
 
-st.markdown("---")
-st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)
+st.sidebar.markdown("---")
+st.sidebar.markdown(
+    """
+    <div style='text-align: center; font-size: 12px;'>
+    © 2025 PRK Home Tuition.<br>All Rights Reserved.
+    </div>
+    """,
+    unsafe_allow_html=True
+)

@@ -60,7 +60,7 @@ st.header("🏛️ Principal Dashboard")
 df_users = load_data(ALL_USERS_SHEET_ID)
 df_answers = load_data(MASTER_ANSWER_SHEET_ID)
 
-tab1, tab2 = st.tabs(["Send Messages", "View Reports"])
+tab1, tab2 = st.tabs(["Send Messages", "Performance Reports"])
 
 with tab1:
     st.subheader("Send a Message")
@@ -104,41 +104,66 @@ with tab1:
                     else:
                         st.warning("Please select a user and write an instruction.")
 
-    elif message_type == "Public Announcement":
-        with st.form("announcement_form"):
-            announcement_text = st.text_area("Enter Public Announcement:")
-            if st.form_submit_button("Broadcast Announcement"):
-                if announcement_text:
-                    announcement_sheet_obj = client.open_by_key(ANNOUNCEMENTS_SHEET_ID).sheet1
-                    announcement_sheet_obj.insert_row([announcement_text], 2)
-                    st.success("Public announcement sent to all dashboards!")
-                    load_data.clear()
-                else:
-                    st.warning("Announcement text cannot be empty.")
-
+        elif message_type == "Public Announcement":
+            with st.form("announcement_form"):
+                announcement_text = st.text_area("Enter Public Announcement:")
+                if st.form_submit_button("Broadcast Announcement"):
+                    if announcement_text:
+                        announcement_sheet_obj = client.open_by_key(ANNOUNCEMENTS_SHEET_ID).sheet1
+                        announcement_sheet_obj.insert_row([announcement_text], 2)
+                        st.success("Public announcement sent to all dashboards!")
+                        load_data.clear()
+                    else:
+                        st.warning("Announcement text cannot be empty.")
 
 with tab2:
-    st.subheader("Class-wise Top 3 Students Report")
+    st.subheader("Performance Reports")
     
-    df_students_report = df_users[df_users['Role'] == 'Student']
-    
-    if df_answers.empty or df_students_report.empty:
-        st.info("Leaderboard will be generated once students submit and get graded.")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### 🏆 Top 3 Teachers (by Points)")
+        df_teachers = df_users[df_users['Role'].isin(['Teacher', 'Admin', 'Principal'])].copy()
+        df_teachers['Salary Points'] = pd.to_numeric(df_teachers.get('Salary Points', 0), errors='coerce').fillna(0)
+        top_teachers = df_teachers.nlargest(3, 'Salary Points')
+        st.dataframe(top_teachers[['User Name', 'Role', 'Salary Points']])
+
+    with col2:
+        st.markdown("#### 📉 Students Needing Improvement")
+        df_students = df_users[df_users['Role'] == 'Student']
+        if not df_answers.empty:
+            df_answers['Marks'] = pd.to_numeric(df_answers.get('Marks'), errors='coerce')
+            graded_answers = df_answers.dropna(subset=['Marks'])
+            if not graded_answers.empty:
+                student_performance = graded_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
+                merged_df = pd.merge(student_performance, df_students, left_on='Student Gmail', right_on='Gmail ID')
+                weakest_students = merged_df.nsmallest(5, 'Marks').round(2)
+                st.dataframe(weakest_students[['User Name', 'Class', 'Marks']])
+            else:
+                st.info("No graded answers available.")
+        else:
+            st.info("No student answers available yet.")
+
+    st.markdown("---")
+    st.subheader("Class-wise Student Performance")
+
+    if df_answers.empty or df_students.empty:
+        st.info("Leaderboard will be generated once students are graded.")
     else:
         df_answers['Marks'] = pd.to_numeric(df_answers.get('Marks'), errors='coerce')
-        df_answers.dropna(subset=['Marks'], inplace=True)
-        
-        if df_answers.empty:
+        graded_answers_all = df_answers.dropna(subset=['Marks'])
+        if graded_answers_all.empty:
             st.info("The leaderboard is available after answers have been graded.")
         else:
-            df_merged = pd.merge(df_answers, df_students_report, left_on='Student Gmail', right_on='Gmail ID')
-            leaderboard_df = df_merged.groupby(['Class', 'User Name'])['Marks'].mean().reset_index()
-            top_students_df = leaderboard_df.groupby('Class').apply(lambda x: x.nlargest(3, 'Marks')).reset_index(drop=True)
-            top_students_df['Marks'] = top_students_df['Marks'].round(2)
+            df_merged_all = pd.merge(graded_answers_all, df_students, left_on='Student Gmail', right_on='Gmail ID')
+            leaderboard_df_all = df_merged_all.groupby(['Class', 'User Name'])['Marks'].mean().reset_index()
+            top_students_df_all = leaderboard_df_all.groupby('Class').apply(lambda x: x.nlargest(3, 'Marks')).reset_index(drop=True)
+            top_students_df_all['Marks'] = top_students_df_all['Marks'].round(2)
             
-            st.dataframe(top_students_df)
+            st.markdown("#### 🥇 Top 3 Students per Class")
+            st.dataframe(top_students_df_all)
             
-            fig = px.bar(top_students_df, x='User Name', y='Marks', color='Class',
+            fig = px.bar(top_students_df_all, x='User Name', y='Marks', color='Class',
                          title='Top 3 Students by Average Marks per Class',
                          labels={'Marks': 'Average Marks', 'User Name': 'Student'})
             st.plotly_chart(fig, use_container_width=True)

@@ -70,15 +70,34 @@ if st.sidebar.button("Logout"):
 # === TEACHER DASHBOARD UI ===
 st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
 
-# Display Public Announcement
-try:
-    announcements_df = load_data(ANNOUNCEMENTS_SHEET_ID)
-    if not announcements_df.empty:
-        latest_announcement = announcements_df['Message'].iloc[0]
-        if latest_announcement:
-            st.info(f"📢 **Announcement from Principal:** {latest_announcement}")
-except Exception:
-    pass
+# In Teacher_Dashboard.py and Student_Dashboard.py, after st.header(...)
+
+# --- INSTRUCTION & REPLY SYSTEM ---
+df_users_live = load_data(ALL_USERS_SHEET_ID)
+user_info = df_users_live[df_users_live['Gmail ID'] == st.session_state.user_gmail].iloc[0]
+instruction = user_info.get('Instruction', '').strip()
+reply = user_info.get('Instruction_Reply', '').strip()
+status = user_info.get('Instruction_Status', '')
+
+if status == 'Sent' and instruction and not reply:
+    st.warning(f"**New Instruction from Principal:** {instruction}")
+    with st.form(key="reply_form"):
+        reply_text = st.text_area("Your Reply:")
+        if st.form_submit_button("Send Reply"):
+            if reply_text:
+                row_id = int(user_info.get('Row ID'))
+                reply_col = df_users.columns.get_loc('Instruction_Reply') + 1
+                status_col = df_users.columns.get_loc('Instruction_Status') + 1
+                sheet = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
+                sheet.update_cell(row_id, reply_col, reply_text)
+                sheet.update_cell(row_id, status_col, "Replied")
+                st.success("Your reply has been sent.")
+                load_data.clear()
+                st.rerun()
+            else:
+                st.warning("Reply cannot be empty.")
+# ------------------------------------
+
 
 # Load all necessary data once
 df_homework = load_data(HOMEWORK_QUESTIONS_SHEET_ID)

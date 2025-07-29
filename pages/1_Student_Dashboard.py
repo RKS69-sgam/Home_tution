@@ -232,11 +232,11 @@ else:
     st.error("Could not find your student record.")
 
 st.sidebar.markdown("---")
-    st.sidebar.markdown(
+st.sidebar.markdown(
     """
     <div style='text-align: center; font-size: 12px;'>
     © 2025 PRK Home Tuition.<br>All Rights Reserved.
     </div>
     """,
     unsafe_allow_html=True
-    )
+)

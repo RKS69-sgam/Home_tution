@@ -69,7 +69,18 @@ with tab1:
     
     if message_type == "Private Instruction":
         with st.form("instruction_form"):
-            user_list = df_users['User Name'].tolist()
+            # Create a temporary copy to avoid warnings
+            df_temp = df_users.copy()
+            
+            # Create a new column that combines Name and Class for students
+            df_temp['display_name'] = df_temp.apply(
+            lambda row: f"{row['User Name']} ({row['Class']})" if row['Role'] == 'Student' else row['User Name'],
+            axis=1
+            )
+
+            # Create the list from the new column
+            user_list = df_temp['display_name'].tolist()
+
             selected_user = st.selectbox("Select a User (Teacher or Student)", user_list)
             instruction_text = st.text_area("Instruction:")
             

@@ -230,3 +230,13 @@ if not user_info_row.empty:
                     st.warning("Your rank will be shown here after your answers are graded.")
 else:
     st.error("Could not find your student record.")
+
+st.sidebar.markdown("---")
+    st.sidebar.markdown(
+    """
+    <div style='text-align: center; font-size: 12px;'>
+    © 2025 PRK Home Tuition.<br>All Rights Reserved.
+    </div>
+    """,
+    unsafe_allow_html=True
+    )

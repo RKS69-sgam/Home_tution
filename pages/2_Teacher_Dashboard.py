@@ -248,3 +248,22 @@ with report_tab:
         )
         fig_leaderboard.update_traces(textposition='outside')
         st.plotly_chart(fig_leaderboard, use_container_width=True)
+
+  # --- ADDED: Top 3 Students Report ---
+    st.subheader("🥇 Class-wise Top 3 Students")
+    df_students_report = df_users[df_users['Role'] == 'Student']
+    if df_all_answers.empty or df_students_report.empty:
+        st.info("Leaderboard will be generated once students are graded.")
+    else:
+        df_all_answers['Marks'] = pd.to_numeric(df_all_answers.get('Marks'), errors='coerce')
+        graded_answers = df_all_answers.dropna(subset=['Marks'])
+        if graded_answers.empty:
+            st.info("The leaderboard is available after answers have been graded.")
+        else:
+            df_merged = pd.merge(graded_answers, df_students_report, left_on='Student Gmail', right_on='Gmail ID')
+            leaderboard_df = df_merged.groupby(['Class', 'User Name'])['Marks'].mean().reset_index()
+            top_students_df = leaderboard_df.groupby('Class').apply(lambda x: x.nlargest(3, 'Marks')).reset_index(drop=True)
+            top_students_df['Marks'] = top_students_df['Marks'].round(2)
+            
+            st.markdown("#### Top Performers Summary")
+            st.dataframe(top_students_df[['Rank', 'User Name', 'Class', 'Marks']])

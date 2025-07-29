@@ -223,15 +223,35 @@ with grade_tab:
 
 with report_tab:
     st.subheader("My Reports")
+    
+    # Report 1: Homework Creation Report
     st.markdown("#### Homework Creation Report")
     teacher_homework = df_homework[df_homework.get('Uploaded By') == st.session_state.user_name]
     if teacher_homework.empty:
         st.info("No homework created yet.")
     else:
-        # (Date filter and homework creation chart logic here)
-        pass
-
+        col1, col2 = st.columns(2)
+        with col1:
+            start_date = st.date_input("Start Date", datetime.today() - timedelta(days=7))
+        with col2:
+            end_date = st.date_input("End Date", datetime.today())
+        
+        teacher_homework['Date_dt'] = pd.to_datetime(teacher_homework['Date'], errors='coerce').dt.date
+        filtered = teacher_homework[
+            (teacher_homework['Date_dt'] >= start_date) &
+            (teacher_homework['Date_dt'] <= end_date)
+        ]
+        if filtered.empty:
+            st.warning("No homework found in selected range.")
+        else:
+            summary = filtered.groupby(['Class', 'Subject']).size().reset_index(name='Total')
+            st.dataframe(summary)
+            fig = px.bar(summary, x='Class', y='Total', color='Subject', title='Homework Summary')
+            st.plotly_chart(fig, use_container_width=True)
+            
     st.markdown("---")
+    
+    # Report 2: Top Teachers Leaderboard
     st.subheader("🏆 Top Teachers Leaderboard")
     df_all_teachers = df_users[df_users['Role'] == 'Teacher'].copy()
     df_all_teachers['Salary Points'] = pd.to_numeric(df_all_teachers.get('Salary Points', 0), errors='coerce').fillna(0)
@@ -249,7 +269,9 @@ with report_tab:
         fig_leaderboard.update_traces(textposition='outside')
         st.plotly_chart(fig_leaderboard, use_container_width=True)
 
-  # --- ADDED: Top 3 Students Report ---
+    st.markdown("---")
+
+    # --- ADDED: Top 3 Students Report ---
     st.subheader("🥇 Class-wise Top 3 Students")
     df_students_report = df_users[df_users['Role'] == 'Student']
     if df_all_answers.empty or df_students_report.empty:

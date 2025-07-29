@@ -226,3 +226,13 @@ with report_tab:
         )
         fig_leaderboard.update_traces(textposition='outside')
         st.plotly_chart(fig_leaderboard, use_container_width=True)
+
+    st.sidebar.markdown("---")
+    st.sidebar.markdown(
+    """
+    <div style='text-align: center; font-size: 12px;'>
+    © 2025 PRK Home Tuition.<br>All Rights Reserved.
+    </div>
+    """,
+    unsafe_allow_html=True
+    )

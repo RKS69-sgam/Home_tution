@@ -186,10 +186,10 @@ if not user_info_row.empty:
                                     #sheet.update_cell(row_id_to_update, remarks_col, "")
                                     #st.success("Corrected answer submitted for re-grading!")
                                 #else:
-                                    sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
-                                    new_row_data = [st.session_state.user_gmail, row.get('Date'), row.get('Subject'), row.get('Question'), answer_text, "", ""]
-                                    sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
-                                    st.success("Answer saved!")
+                                sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+                                new_row_data = [st.session_state.user_gmail, row.get('Date'), row.get('Subject'), row.get('Question'), answer_text, "", ""]
+                                sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
+                                st.success("Answer saved!")
                                 st.rerun()
                             else:
                                 st.warning("Answer cannot be empty.")

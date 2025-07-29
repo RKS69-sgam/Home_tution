@@ -38,7 +38,20 @@ except Exception as e:
 
 
 # === UTILITY FUNCTIONS ===
-@st.cache_data(ttl=60)
+
+
+@st.cache_resource
+def connect_to_gsheets():
+    """Establishes a connection to Google Sheets and caches it."""
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    decoded_creds = base64.b64decode(st.secrets["google_service"]["base64_credentials"])
+    credentials_dict = json.loads(decoded_creds)
+    credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
+    client = gspread.authorize(credentials)
+    return client
+
+# ... (Your other utility functions like load_data)
+
 def load_data(sheet_id):
     try:
         sheet = client.open_by_key(sheet_id).sheet1

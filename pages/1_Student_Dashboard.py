@@ -190,7 +190,7 @@ if not user_info_row.empty:
                                 new_row_data = [st.session_state.user_gmail, row.get('Date'), row.get('Subject'), row.get('Question'), answer_text, "", ""]
                                 sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
                                 st.success("Answer saved!")
-                                st.rerun()
+                            st.rerun()
                             else:
                                 st.warning("Answer cannot be empty.")
                     st.markdown("---")

@@ -222,7 +222,7 @@ if not st.session_state.logged_in:
             st.session_state.page_state = "forgot_password"
             st.rerun()
 
-# If user is logged in, switch to the correct page
+If user is logged in, switch to the correct page
 else:
     st.sidebar.success(f"Welcome, {st.session_state.user_name}")
     if st.sidebar.button("Logout"):

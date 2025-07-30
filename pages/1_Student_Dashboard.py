@@ -75,6 +75,7 @@ if st.sidebar.button("Logout"):
     st.switch_page("main.py")
 
 # === STUDENT DASHBOARD UI ===
+st.image("PRK_logo.jpg", use_container_width=True)
 st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
 # In Teacher_Dashboard.py and Student_Dashboard.py, after st.header(...)

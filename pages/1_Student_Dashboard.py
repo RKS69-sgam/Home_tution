@@ -194,7 +194,6 @@ if not user_info_row.empty:
                                     st.success("✅ Answer submitted and available soon in revision zone after grading.") 
                                 st.rerun()
                                 time.sleep(15)
-                                @st.cache_resource
                                 st.rerun()
                             else:
                                 st.warning("Answer cannot be empty.")

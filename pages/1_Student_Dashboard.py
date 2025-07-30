@@ -4,6 +4,8 @@ from datetime import datetime
 import gspread
 import json
 import base64
+import time
+import print
 import plotly.express as px
 
 from google.oauth2.service_account import Credentials
@@ -189,10 +191,10 @@ if not user_info_row.empty:
                                 else:
                                     sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
                                     new_row_data = [st.session_state.user_gmail, row.get('Date'), row.get('Subject'), row.get('Question'), answer_text, "", ""]
-                                    sheet.append_row(new_row_data)
                                     sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
-                                    
-                                    st.success("✅ Answer submitted and available soon after grading in revision zone.")     
+                                    st.success("✅ Answer submitted and available soon in revision zone after grading.") 
+                                    print("Waiting to be ready...")
+                                    time.sleep(1)
                                 st.rerun()
                             else:
                                 st.warning("Answer cannot be empty.")

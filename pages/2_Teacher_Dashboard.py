@@ -69,6 +69,7 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<br>All Rights Reserved.</div>", unsafe_allow_html=True)
 
 # === TEACHER DASHBOARD UI ===
+st.image("PRK_logo.jpg", use_container_width=True)
 st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
 
 # --- INSTRUCTION & REPLY SYSTEM ---

@@ -5,7 +5,6 @@ import gspread
 import json
 import base64
 import time
-import print
 import plotly.express as px
 
 from google.oauth2.service_account import Credentials

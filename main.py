@@ -79,7 +79,7 @@ if not st.session_state.logged_in:
 # === LOGIN / REGISTRATION PAGE ===
 if not st.session_state.logged_in:
     st.sidebar.title("Login / New Registration")
-    st.image("Ganesh logo.jpg", use_container_width=True)
+    st.image("Ganesh logo.webp", use_container_width=True)
     st.markdown(f"""<div style="text-align: center;"><h2>EPS High-tech Homework System 📈</h2></div>""", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:

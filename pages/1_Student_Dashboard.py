@@ -192,9 +192,9 @@ if not user_info_row.empty:
                                     new_row_data = [st.session_state.user_gmail, row.get('Date'), row.get('Subject'), row.get('Question'), answer_text, "", ""]
                                     sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
                                     st.success("✅ Answer submitted and available soon in revision zone after grading.") 
-                                    print("Waiting to be ready...")
-                                    time.sleep(1)
+                                    time.sleep(5)
                                 st.rerun()
+                                time.sleep(5)
                             else:
                                 st.warning("Answer cannot be empty.")
                     st.markdown("---")

@@ -79,8 +79,8 @@ if not st.session_state.logged_in:
 # === LOGIN / REGISTRATION PAGE ===
 if not st.session_state.logged_in:
     st.sidebar.title("Login / New Registration")
-    
-    st.markdown(f"""<div style="text-align: center;"><h2>꒰ꨄ︎꒱ EPS High-tech Homework System 📈</h2></div>""", unsafe_allow_html=True)
+    st.image("PRK_logo.jpg", use_container_width=True)
+    st.markdown(f"""<div style="text-align: center;"><h2>EPS High-tech Homework System 📈</h2></div>""", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
     with col1:
         st.image("PRK_logo.jpg", use_container_width=True)
@@ -132,7 +132,7 @@ if not st.session_state.logged_in:
                             st.success("Registration successful! Waiting for admin confirmation.")
 
             if plan:
-                st.info(f"Please pay {plan.split(' ')[0]} to the UPI ID below.")
+                st.info(f"Please pay through your parent's phonepe/googlepay {plan.split(' ')[0]} to the UPI ID below.")
                 st.code(f"UPI: {UPI_ID}", language="text")
 
         elif registration_type == "Teacher":
@@ -222,7 +222,7 @@ if not st.session_state.logged_in:
             st.session_state.page_state = "forgot_password"
             st.rerun()
 
-If user is logged in, switch to the correct page
+#If user is logged in, switch to the correct page
 else:
     st.sidebar.success(f"Welcome, {st.session_state.user_name}")
     if st.sidebar.button("Logout"):

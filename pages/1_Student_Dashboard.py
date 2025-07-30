@@ -189,8 +189,9 @@ if not user_info_row.empty:
                                 else:
                                     sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
                                     new_row_data = [st.session_state.user_gmail, row.get('Date'), row.get('Subject'), row.get('Question'), answer_text, "", ""]
-                                    sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
                                     sheet.append_row(new_row_data)
+                                    sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
+                                    
                                     st.success("✅ Answer submitted and available soon after grading in revision zone.")     
                                 st.rerun()
                             else:

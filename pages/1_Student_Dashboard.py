@@ -193,7 +193,9 @@ if not user_info_row.empty:
                                     sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
                                     st.success("✅ Answer submitted and available soon in revision zone after grading.") 
                                 st.rerun()
-                                time.sleep(5)
+                                time.sleep(15)
+                                @st.cache_resource
+                                st.rerun()
                             else:
                                 st.warning("Answer cannot be empty.")
                     st.markdown("---")

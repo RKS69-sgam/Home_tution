@@ -176,6 +176,11 @@ if not user_info_row.empty:
                     with st.form(key=f"pending_form_{i}"):
                         answer_text = st.text_area("Your Answer:", key=f"pending_text_{i}", value=matching_answer.iloc[0].get('Answer', '') if not matching_answer.empty else "")
                         if st.form_submit_button("Submit Answer"):
+                            sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+                            new_row_data = [st.session_state.user_gmail, row.get('Date'), row.get('Subject'), row.get('Question'), answer_text, "", ""]
+                            sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
+                            #st.success("✅ Answer submitted and available soon in revision zone after grading.") 
+                            st.rerun()
                             if answer_text:
                                 if not matching_answer.empty:
                                     row_id_to_update = int(matching_answer.iloc[0].get('Row ID'))
@@ -188,13 +193,12 @@ if not user_info_row.empty:
                                     sheet.update_cell(row_id_to_update, remarks_col, "")
                                     st.success("Corrected answer submitted for re-grading!")
                                 else:
-                                    sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
-                                    new_row_data = [st.session_state.user_gmail, row.get('Date'), row.get('Subject'), row.get('Question'), answer_text, "", ""]
-                                    sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
+                                    #sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+                                    #new_row_data = [st.session_state.user_gmail, row.get('Date'), row.get('Subject'), row.get('Question'), answer_text, "", ""]
+                                    #sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
                                     st.success("✅ Answer submitted and available soon in revision zone after grading.") 
                                 st.rerun()
                                 time.sleep(15)
-                                st.rerun()
                             else:
                                 st.warning("Answer cannot be empty.")
                     st.markdown("---")

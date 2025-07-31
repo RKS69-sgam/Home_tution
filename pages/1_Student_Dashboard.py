@@ -168,7 +168,7 @@ if not user_info_row.empty:
                     with st.form(key=f"pending_form_{i}"):
                         answer_text = st.text_area("Your Answer:", key=f"pending_text_{i}", value=matching_answer.iloc[0].get('Answer', '') if not matching_answer.empty else "")
                         if st.form_submit_button("Submit Answer"):
-                            if answer_text:
+                          if answer_text:
                         
                             # --- DEBUGGING CODE START ---
                             st.warning("--- RUNNING SUBMIT DEBUG TEST ---")
@@ -180,7 +180,7 @@ if not user_info_row.empty:
                             except Exception as e:
                                 st.error("The following error occurred when trying to open the sheet:")
                                 st.exception(e)
-                            st.stop()
+                          st.stop()
                             # --- DEBUGGING CODE END ---
                                 with st.spinner("Saving your answer..."):
                                     if not matching_answer.empty:

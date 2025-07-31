@@ -139,7 +139,58 @@ if not user_info_row.empty:
 
     st.markdown("---")
     pending_tab, revision_tab, leaderboard_tab = st.tabs(["Pending Homework", "Revision Zone", "Class Leaderboard"])
+  
+    with revision_tab:
+        st.subheader("Previously Graded Answers (from Answer Bank)")
+        if 'Marks' in student_answers_from_bank.columns:
+            student_answers_from_bank['Marks_Numeric'] = pd.to_numeric(student_answers_from_bank['Marks'], errors='coerce')
+            graded_answers = student_answers_from_bank.dropna(subset=['Marks_Numeric'])
+            if graded_answers.empty:
+                st.info("You have no graded answers to review yet.")
+            else:
+                for i, row in graded_answers.sort_values(by='Date', ascending=False).iterrows():
+                    st.markdown(f"**Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
+                    st.write(f"**Question:** {row.get('Question')}")
+                    st.info(f"**Your Answer:** {row.get('Answer')}")
+                    grade_value = int(row.get('Marks_Numeric'))
+                    grade_text = GRADE_MAP_REVERSE.get(grade_value, "N/A")
+                    st.success(f"**Grade:** {grade_text} ({grade_value}/5)")
+                    remarks = row.get('Remarks', '').strip()
+                    if remarks:
+                        st.warning(f"**Teacher's Remark:** {remarks}")
+                    st.markdown("---")
+        else:
+            st.error("Answer Bank sheet is missing the 'Marks' column.")
     
+    with leaderboard_tab:
+        st.subheader(f"Class Leaderboard ({student_class})")
+        df_students_class = df_all_users[df_all_users['Class'] == student_class]
+        class_gmail_list = df_students_class['Gmail ID'].tolist()
+        class_answers_bank = df_answer_bank[df_answer_bank['Student Gmail'].isin(class_gmail_list)].copy()
+        if class_answers_bank.empty or 'Marks' not in class_answers_bank.columns:
+            st.info("The leaderboard will appear once answers have been graded for your class.")
+        else:
+            class_answers_bank['Marks'] = pd.to_numeric(class_answers_bank['Marks'], errors='coerce')
+            graded_class_answers = class_answers_bank.dropna(subset=['Marks'])
+            if graded_class_answers.empty:
+                st.info("The leaderboard will appear once answers have been graded for your class.")
+            else:
+                leaderboard_df = graded_class_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
+                leaderboard_df = pd.merge(leaderboard_df, df_students_class[['User Name', 'Gmail ID']], left_on='Student Gmail', right_on='Gmail ID', how='left')
+                leaderboard_df['Rank'] = leaderboard_df['Marks'].rank(method='dense', ascending=False).astype(int)
+                leaderboard_df = leaderboard_df.sort_values(by='Rank')
+                leaderboard_df['Marks'] = leaderboard_df['Marks'].round(2)
+                st.markdown("##### 🏆 Top 3 Performers")
+                st.dataframe(leaderboard_df.head(3)[['Rank', 'User Name', 'Marks']])
+                st.markdown("---")
+                my_rank_row = leaderboard_df[leaderboard_df['Student Gmail'] == st.session_state.user_gmail]
+                if not my_rank_row.empty:
+                    my_rank = my_rank_row.iloc[0]['Rank']
+                    my_avg_marks = my_rank_row.iloc[0]['Marks']
+                    st.success(f"**Your Current Rank:** {my_rank} (with an average score of **{my_avg_marks}**)")
+                else:
+                    st.warning("Your rank will be shown here after your answers are graded.")
+                    
     with pending_tab:
         st.subheader("Pending Questions")
         pending_questions_list = []
@@ -225,58 +276,8 @@ if not user_info_row.empty:
         else:
             st.error("Homework sheet is missing the 'Question' column.")         
         
-    with revision_tab:
-        st.subheader("Previously Graded Answers (from Answer Bank)")
-        if 'Marks' in student_answers_from_bank.columns:
-            student_answers_from_bank['Marks_Numeric'] = pd.to_numeric(student_answers_from_bank['Marks'], errors='coerce')
-            graded_answers = student_answers_from_bank.dropna(subset=['Marks_Numeric'])
-            if graded_answers.empty:
-                st.info("You have no graded answers to review yet.")
-            else:
-                for i, row in graded_answers.sort_values(by='Date', ascending=False).iterrows():
-                    st.markdown(f"**Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
-                    st.write(f"**Question:** {row.get('Question')}")
-                    st.info(f"**Your Answer:** {row.get('Answer')}")
-                    grade_value = int(row.get('Marks_Numeric'))
-                    grade_text = GRADE_MAP_REVERSE.get(grade_value, "N/A")
-                    st.success(f"**Grade:** {grade_text} ({grade_value}/5)")
-                    remarks = row.get('Remarks', '').strip()
-                    if remarks:
-                        st.warning(f"**Teacher's Remark:** {remarks}")
-                    st.markdown("---")
-        else:
-            st.error("Answer Bank sheet is missing the 'Marks' column.")
-    
-    with leaderboard_tab:
-        st.subheader(f"Class Leaderboard ({student_class})")
-        df_students_class = df_all_users[df_all_users['Class'] == student_class]
-        class_gmail_list = df_students_class['Gmail ID'].tolist()
-        class_answers_bank = df_answer_bank[df_answer_bank['Student Gmail'].isin(class_gmail_list)].copy()
-        if class_answers_bank.empty or 'Marks' not in class_answers_bank.columns:
-            st.info("The leaderboard will appear once answers have been graded for your class.")
-        else:
-            class_answers_bank['Marks'] = pd.to_numeric(class_answers_bank['Marks'], errors='coerce')
-            graded_class_answers = class_answers_bank.dropna(subset=['Marks'])
-            if graded_class_answers.empty:
-                st.info("The leaderboard will appear once answers have been graded for your class.")
-            else:
-                leaderboard_df = graded_class_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
-                leaderboard_df = pd.merge(leaderboard_df, df_students_class[['User Name', 'Gmail ID']], left_on='Student Gmail', right_on='Gmail ID', how='left')
-                leaderboard_df['Rank'] = leaderboard_df['Marks'].rank(method='dense', ascending=False).astype(int)
-                leaderboard_df = leaderboard_df.sort_values(by='Rank')
-                leaderboard_df['Marks'] = leaderboard_df['Marks'].round(2)
-                st.markdown("##### 🏆 Top 3 Performers")
-                st.dataframe(leaderboard_df.head(3)[['Rank', 'User Name', 'Marks']])
-                st.markdown("---")
-                my_rank_row = leaderboard_df[leaderboard_df['Student Gmail'] == st.session_state.user_gmail]
-                if not my_rank_row.empty:
-                    my_rank = my_rank_row.iloc[0]['Rank']
-                    my_avg_marks = my_rank_row.iloc[0]['Marks']
-                    st.success(f"**Your Current Rank:** {my_rank} (with an average score of **{my_avg_marks}**)")
-                else:
-                    st.warning("Your rank will be shown here after your answers are graded.")
 else:
     st.error("Could not find your student record.")
-
+    
 st.markdown("---")
 st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)

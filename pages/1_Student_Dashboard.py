@@ -30,7 +30,7 @@ def connect_to_gsheets():
         st.error(f"Error connecting to Google APIs: {e}")
         return None
 
-@st.cache_data(ttl=60)
+#@st.cache_data(ttl=60)
 def load_data(sheet_id):
     """Opens a sheet by its ID and loads the data. This works correctly with Streamlit's cache."""
     try:

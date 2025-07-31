@@ -75,10 +75,10 @@ st.image("PRK_logo.jpg", use_container_width=True)
 st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
 # --- DEBUGGING CODE START ---
-st.warning("RUNNING DEBUG TEST FOR ALL_USERS_SHEET_ID")
+st.warning("RUNNING DEBUG TEST FOR HOMEWORK_QUESTIONS_SHEET_ID")
 try:
-    df_answers_debug = load_data(ALL_USERS_SHEET_ID)
-    st.write("Columns found in ALL_USERS_SHEET_ID:")
+    df_answers_debug = load_data(HOMEWORK_QUESTIONS_SHEET_ID)
+    st.write("Columns found in HOMEWORK_QUESTIONS_SHEET_ID:")
     st.write(list(df_answers_debug.columns))
     
     st.write("First 5 rows of data from that sheet:")

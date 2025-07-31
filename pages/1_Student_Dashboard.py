@@ -16,7 +16,7 @@ DATE_FORMAT = "%d-%m-%Y"
 GRADE_MAP_REVERSE = {1: "Needs Improvement", 2: "Average", 3: "Good", 4: "Very Good", 5: "Outstanding"}
 
 # === UTILITY FUNCTIONS ===
-@st.cache_resource
+#@st.cache_resource
 def connect_to_gsheets():
     """Establishes a connection to Google Sheets and caches it."""
     try:

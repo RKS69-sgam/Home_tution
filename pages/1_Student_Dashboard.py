@@ -13,7 +13,7 @@ from googleapiclient.errors import HttpError
 
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="Student Dashboard")
-DATE_FORMAT = "%Y-%m-%d"
+DATE_FORMAT = "%d-%m-%Y"
 GRADE_MAP_REVERSE = {1: "Needs Improvement", 2: "Average", 3: "Good", 4: "Very Good", 5: "Outstanding"}
 
 # === UTILITY FUNCTIONS ===

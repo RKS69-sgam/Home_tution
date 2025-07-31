@@ -169,6 +169,19 @@ if not user_info_row.empty:
                         answer_text = st.text_area("Your Answer:", key=f"pending_text_{i}", value=matching_answer.iloc[0].get('Answer', '') if not matching_answer.empty else "")
                         if st.form_submit_button("Submit Answer"):
                             if answer_text:
+                        
+                            # --- DEBUGGING CODE START ---
+                            st.warning("--- RUNNING SUBMIT DEBUG TEST ---")
+                            try:
+                                st.info("Attempting to connect and open the MASTER_ANSWER_SHEET for writing...")
+                                client = connect_to_gsheets()
+                                sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+                                st.success("Successfully opened the sheet for writing.")
+                            except Exception as e:
+                                st.error("The following error occurred when trying to open the sheet:")
+                                st.exception(e)
+                            st.stop()
+                            # --- DEBUGGING CODE END ---
                                 with st.spinner("Saving your answer..."):
                                     if not matching_answer.empty:
                                         row_id_to_update = int(matching_answer.iloc[0].get('Row ID'))

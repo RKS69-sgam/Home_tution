@@ -30,7 +30,7 @@ def connect_to_gsheets():
         st.error(f"Error connecting to Google APIs: {e}")
         return None
 
-#@st.cache_data(ttl=60)
+@st.cache_data(ttl=60)
 def load_data(sheet_id):
     """Opens a sheet by its ID and loads the data. This works correctly with Streamlit's cache."""
     try:
@@ -47,14 +47,14 @@ def load_data(sheet_id):
         st.error(f"Failed to load data for sheet ID {sheet_id}: {e}")
         return pd.DataFrame()
 
-# === SHEET IDs SETUP ===
+# === SHEET IDs ===
 ALL_USERS_SHEET_ID = "18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA"
 HOMEWORK_QUESTIONS_SHEET_ID = "1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI"
-MASTER_ANSWER_SHEET_ID = "1lW2Eattf9kyhllV_NzMMq9tznibkhNJ4Ma-wLV5rpW0"
-ANSWER_BANK_SHEET_ID = "12S2YwNPHZIVtWSqXaRHIBakbFqoBVB4xcAcFfpwN3uw"
+MASTER_ANSWER_SHEET_ID = "1lW2Eattf9kyhllV_NzMMq9tznibkhNJ4Ma-wLV5rpW0" # <-- UPDATED
 ANNOUNCEMENTS_SHEET_ID = "1zEAhoWC9_3UK09H4cFk6lRd6i5ChF3EknVc76L7zquQ"
 
 # === SECURITY GATEKEEPER ===
+
 if not st.session_state.get("logged_in") or st.session_state.get("user_role") != "student":
     st.error("You must be logged in as a Student to view this page.")
     st.page_link("main.py", label="Go to Login Page")

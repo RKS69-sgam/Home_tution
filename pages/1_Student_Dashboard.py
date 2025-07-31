@@ -74,22 +74,6 @@ st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<
 st.image("PRK_logo.jpg", use_container_width=True)
 st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
-# --- DEBUGGING CODE START ---
-st.warning("RUNNING DEBUG TEST FOR HOMEWORK_QUESTIONS_SHEET_ID")
-try:
-    df_answers_debug = load_data(HOMEWORK_QUESTIONS_SHEET_ID)
-    st.write("Columns found in HOMEWORK_QUESTIONS_SHEET_ID:")
-    st.write(list(df_answers_debug.columns))
-    
-    st.write("First 5 rows of data from that sheet:")
-    st.dataframe(df_answers_debug.head())
-    
-except Exception as e:
-    st.error("An error occurred while reading the sheet for debugging:")
-    st.exception(e)
-st.stop()
-# --- DEBUGGING CODE END ---
-
 # --- INSTRUCTION & REPLY SYSTEM ---
 df_users_live = load_data(ALL_USERS_SHEET_ID)
 user_info = df_users_live[df_users_live['Gmail ID'] == st.session_state.user_gmail].iloc[0]

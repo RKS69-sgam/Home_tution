@@ -198,6 +198,29 @@ with grade_tab:
 
 with report_tab:
     st.subheader("My Reports")
+    
+    # --- DEBUGGING CODE START ---
+    st.warning("RUNNING DEBUG TEST FOR REPORT TAB")
+    try:
+        df_answers_debug = load_data(MASTER_ANSWER_SHEET_ID)
+        df_users_debug = load_data(ALL_USERS_SHEET_ID)
+        df_students_debug = df_users_debug[df_users_debug['Role'] == 'Student']
+
+        st.markdown("### Columns in Graded Answers DataFrame:")
+        st.write(list(df_answers_debug.columns))
+
+        st.markdown("### Columns in Students DataFrame:")
+        st.write(list(df_students_debug.columns))
+        
+        st.markdown("---")
+        st.info("The two lists above must contain 'Student Gmail' and 'Gmail ID' respectively for the merge to work.")
+
+    except Exception as e:
+        st.error("An error occurred during the debug test:")
+        st.exception(e)
+    st.stop()
+    # --- DEBUGGING CODE END ---
+
     st.markdown("#### Homework Creation Report")
     teacher_homework = df_homework[df_homework.get('Uploaded By') == st.session_state.user_name]
     if teacher_homework.empty:

@@ -7,8 +7,6 @@ import base64
 import plotly.express as px
 
 from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="Teacher Dashboard")
@@ -19,7 +17,6 @@ GRADE_MAP_REVERSE = {v: k for k, v in GRADE_MAP.items()}
 # === UTILITY FUNCTIONS ===
 @st.cache_resource
 def connect_to_gsheets():
-    """Establishes a connection to Google Sheets and caches it."""
     try:
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         decoded_creds = base64.b64decode(st.secrets["google_service"]["base64_credentials"])
@@ -33,7 +30,6 @@ def connect_to_gsheets():
 
 @st.cache_data(ttl=60)
 def load_data(sheet_id):
-    """Opens a sheet by its ID and loads the data. This works correctly with Streamlit's cache."""
     try:
         client = connect_to_gsheets()
         if client is None: return pd.DataFrame()
@@ -72,20 +68,26 @@ st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<
 # === TEACHER DASHBOARD UI ===
 st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
 
-# Display Public Announcement
-try:
-    announcements_df = load_data(ANNOUNCEMENTS_SHEET_ID)
-    if not announcements_df.empty:
-        latest_announcement = announcements_df['Message'].iloc[0]
-        if latest_announcement:
-            st.info(f"📢 **Announcement from Principal:** {latest_announcement}")
-except Exception:
-    pass
+# --- INSTRUCTION, ANNOUNCEMENT & SALARY NOTIFICATION ---
+df_users = load_data(ALL_USERS_SHEET_ID)
+teacher_info_row = df_users[df_users['Gmail ID'] == st.session_state.user_gmail]
+if not teacher_info_row.empty:
+    teacher_info = teacher_info_row.iloc[0]
+    salary_points = int(teacher_info.get('Salary Points', 0))
+    if salary_points >= 5000:
+        st.success("🎉 Congratulations! You have earned 5000+ points. Please contact administration to register your salary account.")
+        st.balloons()
+    
+    instruction = teacher_info.get('Instruction', '').strip()
+    reply = teacher_info.get('Instruction_Reply', '').strip()
+    status = teacher_info.get('Instruction_Status', '')
+    if status == 'Sent' and instruction and not reply:
+        st.warning(f"**New Instruction from Principal:** {instruction}")
+        # (Instruction reply form logic here)
 
-# Load all necessary data once
+# Load other necessary data
 df_homework = load_data(HOMEWORK_QUESTIONS_SHEET_ID)
 df_live_answers = load_data(MASTER_ANSWER_SHEET_ID)
-df_users = load_data(ALL_USERS_SHEET_ID)
 df_answer_bank = load_data(ANSWER_BANK_SHEET_ID)
 
 # Display a summary of today's submitted homework
@@ -95,14 +97,184 @@ todays_homework = df_homework[(df_homework.get('Uploaded By') == st.session_stat
 if todays_homework.empty:
     st.info("You have not created any homework assignments today.")
 else:
-    # (Clickable summary logic here)
-    pass
+    summary = todays_homework.groupby(['Class', 'Subject']).size().reset_index(name='Question Count')
+    for index, row in summary.iterrows():
+        button_label = f"View -> Class: {row.get('Class')} | Subject: {row.get('Subject')} | Questions: {row.get('Question Count')}"
+        if st.button(button_label, key=f"summary_{index}"):
+            st.session_state.selected_assignment = {'Class': row.get('Class'), 'Subject': row.get('Subject'), 'Date': today_str}
+            st.rerun()
 
+if 'selected_assignment' in st.session_state:
+    st.markdown("---")
+    st.subheader("Viewing Questions for Selected Assignment")
+    selected = st.session_state.selected_assignment
+    st.info(f"Class: **{selected['Class']}** | Subject: **{selected['Subject']}** | Date: **{selected['Date']}**")
+    selected_questions = df_homework[(df_homework['Class'] == selected['Class']) & (df_homework['Subject'] == selected['Subject']) & (df_homework['Date'] == selected['Date'])]
+    for i, row in enumerate(selected_questions.itertuples()):
+        st.write(f"{i + 1}. {row.Question}")
+    if st.button("Back to Main View"):
+        del st.session_state.selected_assignment
+        st.rerun()
 st.markdown("---")
 
 create_tab, grade_tab, report_tab = st.tabs(["Create Homework", "Grade Answers", "My Reports"])
 
 with create_tab:
+    st.subheader("Create a New Homework Assignment")
+    if 'context_set' not in st.session_state:
+        st.session_state.context_set = False
+    if not st.session_state.context_set:
+        with st.form("context_form"):
+            subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance Classes"])
+            cls = st.selectbox("Class", [f"{i}th" for i in range(6, 13)])
+            date = st.date_input("Date", datetime.today(), format="DD-MM-YYYY")
+            if st.form_submit_button("Start Adding Questions →"):
+                st.session_state.context_set = True
+                st.session_state.homework_context = {"subject": subject, "class": cls, "date": date}
+                st.session_state.questions_list = []
+                st.rerun()
+    if st.session_state.context_set:
+        ctx = st.session_state.homework_context
+        st.success(f"Creating homework for: **{ctx['class']} - {ctx['subject']}** (Date: {ctx['date'].strftime(DATE_FORMAT)})")
+        with st.form("add_question_form", clear_on_submit=True):
+            question_text = st.text_area("Enter a question to add:", height=100)
+            if st.form_submit_button("Add Question") and question_text:
+                st.session_state.questions_list.append(question_text)
+        if st.session_state.questions_list:
+            st.write("#### Current Questions:")
+            for i, q in enumerate(st.session_state.questions_list):
+                st.write(f"{i + 1}. {q}")
+            if st.button("Final Submit Homework"):
+                client = connect_to_gsheets()
+                sheet = client.open_by_key(HOMEWORK_QUESTIONS_SHEET_ID).sheet1
+                rows_to_add = [[ctx['class'], ctx['date'].strftime(DATE_FORMAT), st.session_state.user_name, ctx['subject'], q] for q in st.session_state.questions_list]
+                sheet.append_rows(rows_to_add, value_input_option='USER_ENTERED')
+                load_data.clear()
+                st.success("Homework submitted successfully!")
+                del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
+                st.rerun()
+        if st.session_state.context_set and st.button("Create Another Homework (Reset)"):
+            del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
+            st.rerun()
+
+with grade_tab:
+    st.subheader("Grade Student Answers")
+    my_questions = df_homework[df_homework.get('Uploaded By') == st.session_state.user_name]['Question'].tolist()
+    answers_to_my_questions = df_live_answers[df_live_answers['Question'].isin(my_questions)].copy()
+    answers_to_my_questions['Marks'] = pd.to_numeric(answers_to_my_questions.get('Marks'), errors='coerce')
+    ungraded = answers_to_my_questions[answers_to_my_questions['Marks'].isna()]
+    if ungraded.empty:
+        st.success("🎉 All answers for your questions have been graded!")
+    else:
+        student_gmails = ungraded['Student Gmail'].unique().tolist()
+        df_students = df_users[df_users['Role'] == 'Student']
+        gradable_students = df_students[df_students['Gmail ID'].isin(student_gmails)]
+        if gradable_students.empty:
+            st.info("No confirmed students have pending answers.")
+        else:
+            selected_student = st.selectbox("Select Student", gradable_students['User Name'].tolist())
+            if selected_student:
+                selected_gmail = gradable_students[gradable_students['User Name'] == selected_student].iloc[0]['Gmail ID']
+                student_answers_df = ungraded[ungraded['Student Gmail'] == selected_gmail]
+                st.markdown(f"#### Grading answers for: **{selected_student}**")
+                for i, row in student_answers_df.sort_values(by='Date', ascending=False).iterrows():
+                    st.write(f"**Question:** {row.get('Question')}")
+                    st.info(f"**Answer:** {row.get('Answer')}")
+                    with st.form(f"grade_form_{i}"):
+                        grade = st.selectbox("Grade", list(GRADE_MAP.keys()), key=f"grade_{i}")
+                        remarks = ""
+                        if grade in ["Needs Improvement", "Average", "Good"]:
+                            remarks = st.text_area("Remarks/Feedback (Required)", key=f"remarks_{i}")
+                        if st.form_submit_button("Save Grade"):
+                            if grade in ["Needs Improvement", "Average", "Good"] and not remarks.strip():
+                                st.warning("Remarks are required for this grade.")
+                            else:
+                                with st.spinner("Saving..."):
+                                    client = connect_to_gsheets()
+                                    row_id_to_update = int(row.get('Row ID'))
+                                    if grade in ["Very Good", "Outstanding"]:
+                                        live_sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+                                        answer_bank_sheet = client.open_by_key(ANSWER_BANK_SHEET_ID).sheet1
+                                        row_values = live_sheet.row_values(row_id_to_update)
+                                        marks_col_index = list(df_live_answers.columns).index("Marks")
+                                        remarks_col_index = list(df_live_answers.columns).index("Remarks")
+                                        row_values[marks_col_index] = GRADE_MAP[grade]
+                                        row_values[remarks_col_index] = remarks
+                                        answer_bank_sheet.append_row(row_values, value_input_option='USER_ENTERED')
+                                        live_sheet.delete_rows(row_id_to_update)
+                                        st.success("Grade saved and moved to Answer Bank!")
+                                    else:
+                                        live_sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+                                        marks_col = list(df_live_answers.columns).index("Marks") + 1
+                                        remarks_col = list(df_live_answers.columns).index("Remarks") + 1
+                                        live_sheet.update_cell(row_id_to_update, marks_col, GRADE_MAP[grade])
+                                        live_sheet.update_cell(row_id_to_update, remarks_col, remarks)
+                                        st.success("Grade and remarks saved!")
+                                    
+                                    teacher_row_id = int(teacher_info.get('Row ID'))
+                                    current_points = int(teacher_info.get('Salary Points', 0))
+                                    new_points = current_points + 1
+                                    points_col = list(df_users.columns).index("Salary Points") + 1
+                                    user_sheet = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
+                                    user_sheet.update_cell(teacher_row_id, points_col, new_points)
+
+                                    load_data.clear()
+                                    st.rerun()
+                    st.markdown("---")
+
+with report_tab:
+    st.subheader("My Reports")
+    st.markdown("#### Homework Creation Report")
+    teacher_homework = df_homework[df_homework.get('Uploaded By') == st.session_state.user_name]
+    if teacher_homework.empty:
+        st.info("No homework created yet.")
+    else:
+        col1, col2 = st.columns(2)
+        with col1:
+            start_date = st.date_input("Start Date", datetime.today() - timedelta(days=7), format="DD-MM-YYYY")
+        with col2:
+            end_date = st.date_input("End Date", datetime.today(), format="DD-MM-YYYY")
+        teacher_homework['Date_dt'] = pd.to_datetime(teacher_homework['Date'], format=DATE_FORMAT, errors='coerce').dt.date
+        filtered = teacher_homework[(teacher_homework['Date_dt'] >= start_date) & (teacher_homework['Date_dt'] <= end_date)]
+        if filtered.empty:
+            st.warning("No homework found in selected range.")
+        else:
+            summary = filtered.groupby(['Class', 'Subject']).size().reset_index(name='Total')
+            st.dataframe(summary)
+    
+    st.markdown("---")
+    st.subheader("🏆 Top Teachers Leaderboard")
+    df_all_teachers = df_users[df_users['Role'] == 'Teacher'].copy()
+    df_all_teachers['Salary Points'] = pd.to_numeric(df_all_teachers.get('Salary Points', 0), errors='coerce').fillna(0)
+    if df_all_teachers.empty:
+        st.info("The teacher leaderboard will appear here once teachers start grading.")
+    else:
+        ranked_teachers = df_all_teachers.sort_values(by='Salary Points', ascending=False)
+        ranked_teachers['Rank'] = range(1, len(ranked_teachers) + 1)
+        st.dataframe(ranked_teachers[['Rank', 'User Name', 'Salary Points']])
+        
+    st.markdown("---")
+    st.subheader("🥇 Class-wise Top 3 Students")
+    df_students_report = df_users[df_users['Role'] == 'Student']
+    if df_answer_bank.empty or df_students_report.empty:
+        st.info("Leaderboard will be generated once answers are graded and moved to the bank.")
+    else:
+        df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
+        graded_answers = df_answer_bank.dropna(subset=['Marks'])
+        if graded_answers.empty:
+            st.info("The leaderboard is available after answers have been graded.")
+        else:
+            df_merged = pd.merge(graded_answers, df_students_report, left_on='Student Gmail', right_on='Gmail ID')
+            leaderboard_df = df_merged.groupby(['Class', 'User Name'])['Marks'].mean().reset_index()
+            leaderboard_df['Rank'] = leaderboard_df.groupby('Class')['Marks'].rank(method='dense', ascending=False).astype(int)
+            leaderboard_df = leaderboard_df.sort_values(by=['Class', 'Rank'])
+            top_students_df = leaderboard_df.groupby('Class').head(3).reset_index(drop=True)
+            top_students_df['Marks'] = top_students_df['Marks'].round(2)
+            st.markdown("#### Top Performers Summary")
+            st.dataframe(top_students_df[['Rank', 'User Name', 'Class', 'Marks']])
+
+st.markdown("---")
+st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)
     st.subheader("Create a New Homework Assignment")
     if 'context_set' not in st.session_state:
         st.session_state.context_set = False

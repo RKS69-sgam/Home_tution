@@ -200,10 +200,7 @@ if not user_info_row.empty:
                 question_text = hw_row['Question']
                 question_date = hw_row['Date']
 
-           #     answer_row = student_answers[
-           #         (student_answers['Question'] == question_text) &
-           #         (student_answers['Date'] == question_date)
-           #     ]
+                answer_row = student_answers[(student_answers['Question'] == question_text) & (student_answers['Date'] == question_date)]
                 is_answered = not answer_row.empty
                 has_remarks = False
                 if is_answered and answer_row.iloc[0].get('Remarks', '').strip():

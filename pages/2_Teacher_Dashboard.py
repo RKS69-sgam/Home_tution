@@ -201,6 +201,7 @@ with create_tab:
 
 with grade_tab:
     st.subheader("Grade Student Answers")
+
     my_questions = df_homework[df_homework.get('Uploaded By') == st.session_state.user_name]['Question'].tolist()
     answers_to_my_questions = df_all_answers[df_all_answers['Question'].isin(my_questions)].copy()
     answers_to_my_questions['Marks'] = pd.to_numeric(answers_to_my_questions.get('Marks'), errors='coerce')
@@ -212,6 +213,7 @@ with grade_tab:
         student_gmails = ungraded['Student Gmail'].unique().tolist()
         df_students = df_users[df_users['Role'] == 'Student']
         gradable_students = df_students[df_students['Gmail ID'].isin(student_gmails)]
+
         if gradable_students.empty:
             st.info("No confirmed students have pending answers for your questions.")
         else:
@@ -219,10 +221,12 @@ with grade_tab:
             if selected_student:
                 selected_gmail = gradable_students[gradable_students['User Name'] == selected_student].iloc[0]['Gmail ID']
                 student_answers_df = ungraded[ungraded['Student Gmail'] == selected_gmail]
+
                 st.markdown(f"#### Grading answers for: **{selected_student}**")
                 for i, row in student_answers_df.sort_values(by='Date', ascending=False).iterrows():
                     st.write(f"**Question:** {row.get('Question')}")
                     st.info(f"**Answer:** {row.get('Answer')}")
+
                     with st.form(f"grade_form_{i}"):
                         grade = st.selectbox("Grade", list(GRADE_MAP.keys()), key=f"grade_{i}")
                         remarks = ""
@@ -234,16 +238,16 @@ with grade_tab:
                             else:
                                 with st.spinner("Saving..."):
                                     client = connect_to_gsheets()
-                                    sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
-                                    row_id_to_update = int(row.get('Row ID'))
-                                    marks_col = list(df_all_answers.columns).index("Marks") + 1
-                                    remarks_col = list(df_all_answers.columns).index("Remarks") + 1
-                                    sheet.update_cell(row_id_to_update, marks_col, GRADE_MAP[grade])
-                                    sheet.update_cell(row_id_to_update, remarks_col, remarks)
-                                    load_data.clear()
-                                    st.success("Saved!")
-                                    st.rerun()
-                    st.markdown("---")
+                                sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+                                row_id_to_update = int(row.get('Row ID'))
+                                marks_col = list(df_all_answers.columns).index("Marks") + 1
+                                remarks_col = list(df_all_answers.columns).index("Remarks") + 1
+                                sheet.update_cell(row_id_to_update, marks_col, GRADE_MAP[grade])
+                                sheet.update_cell(row_id_to_update, remarks_col, remarks)
+                                load_data.clear()
+                                st.success("Saved!")
+                                st.rerun()
+                st.markdown("---")
 
 with report_tab:
     st.subheader("My Reports")

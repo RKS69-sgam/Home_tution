@@ -238,16 +238,16 @@ with grade_tab:
                             else:
                                 with st.spinner("Saving..."):
                                     client = connect_to_gsheets()
-                                sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
-                                row_id_to_update = int(row.get('Row ID'))
-                                marks_col = list(df_all_answers.columns).index("Marks") + 1
-                                remarks_col = list(df_all_answers.columns).index("Remarks") + 1
-                                sheet.update_cell(row_id_to_update, marks_col, GRADE_MAP[grade])
-                                sheet.update_cell(row_id_to_update, remarks_col, remarks)
-                                load_data.clear()
-                                st.success("Saved!")
-                                st.rerun()
-                st.markdown("---")
+                                    sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+                                    row_id_to_update = int(row.get('Row ID'))
+                                    marks_col = list(df_all_answers.columns).index("Marks") + 1
+                                    remarks_col = list(df_all_answers.columns).index("Remarks") + 1
+                                    sheet.update_cell(row_id_to_update, marks_col, GRADE_MAP[grade])
+                                    sheet.update_cell(row_id_to_update, remarks_col, remarks)
+                                    load_data.clear()
+                                    st.success("Saved!")
+                                    st.rerun()
+                    st.markdown("---")
 
 with report_tab:
     st.subheader("My Reports")

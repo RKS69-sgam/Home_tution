@@ -9,7 +9,7 @@ from google.oauth2.service_account import Credentials
 
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="Admin Dashboard")
-DATE_FORMAT = "%Y-%m-%d"
+DATE_FORMAT = "%d-%m-%Y"
 SUBSCRIPTION_PLANS = {
     "₹100 for 30 days (Normal)": 30,
     "₹550 for 6 months (Advance)": 182,

@@ -232,7 +232,14 @@ if not user_info_row.empty:
             for i, row in df_pending.iterrows():
                 st.markdown(f"**Assignment Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
                 st.write(f"**Question:** {row.get('Question')}")
-
+                
+                # --- DEBUGGING CODE START ---
+                st.warning("RUNNING DEBUG TEST")
+                st.write("Columns found in the `df_all_answers` DataFrame (should be from MASTER_ANSWER_SHEET):")
+                st.write(list(df_all_answers.columns))
+                st.stop()
+                # --- DEBUGGING CODE END ---
+                
                 matching_answer = student_answers[
                     (student_answers['Question'] == row.get('Question')) &
                     (student_answers['Date'] == row.get('Date'))

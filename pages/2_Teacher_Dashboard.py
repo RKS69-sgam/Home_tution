@@ -9,6 +9,7 @@ import plotly.express as px
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from datetime import datetime
 
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="Teacher Dashboard")
@@ -108,9 +109,6 @@ df_all_answers = load_data(MASTER_ANSWER_SHEET_ID)
 df_users = load_data(ALL_USERS_SHEET_ID)
 
 # Display a summary of today's submitted homework
-st.subheader("Today's Submitted Homework")
-from datetime import datetime
-
 st.subheader("📌 Today's Submitted Homework")
 today_str = datetime.today().strftime(DATE_FORMAT)
 

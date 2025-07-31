@@ -109,30 +109,55 @@ df_users = load_data(ALL_USERS_SHEET_ID)
 
 # Display a summary of today's submitted homework
 st.subheader("Today's Submitted Homework")
-today_str = datetime.today().strftime(DATE_FORMAT)
-todays_homework = df_homework[(df_homework.get('Uploaded By') == st.session_state.user_name) & (df_homework.get('Date') == today_str)]
-if todays_homework.empty:
-    st.info("You have not created any homework assignments today.")
-else:
-    summary = todays_homework.groupby(['Class', 'Subject']).size().reset_index(name='Question Count')
-    for index, row in summary.iterrows():
-        button_label = f"View -> Class: {row.get('Class')} | Subject: {row.get('Subject')} | Questions: {row.get('Question Count')}"
-        if st.button(button_label, key=f"summary_{index}"):
-            st.session_state.selected_assignment = {'Class': row.get('Class'), 'Subject': row.get('Subject'), 'Date': today_str}
-            st.rerun()
+from datetime import datetime
 
-# Display questions if an assignment is selected from the summary
-if 'selected_assignment' in st.session_state:
-    st.markdown("---")
-    st.subheader("Viewing Questions for Selected Assignment")
-    selected = st.session_state.selected_assignment
-    st.info(f"Class: **{selected['Class']}** | Subject: **{selected['Subject']}** | Date: **{selected['Date']}**")
-    selected_questions = df_homework[(df_homework['Class'] == selected['Class']) & (df_homework['Subject'] == selected['Subject']) & (df_homework['Date'] == selected['Date'])]
-    for i, row in enumerate(selected_questions.itertuples()):
-        st.write(f"{i + 1}. {row.Question}")
-    if st.button("Back to Main View"):
-        del st.session_state.selected_assignment
-        st.rerun()
+st.subheader("📌 Today's Submitted Homework")
+today_str = datetime.today().strftime(DATE_FORMAT)
+
+# Filter today's homework uploaded by this teacher
+todays_homework = df_homework[
+    (df_homework['Uploaded By'] == st.session_state.user_name) &
+    (df_homework['Date'] == today_str)
+]
+
+if todays_homework.empty:
+    st.info("📭 You have not created any homework assignments today.")
+else:
+    if 'selected_assignment' not in st.session_state:
+        # Show summary table with View buttons
+        summary = todays_homework.groupby(['Class', 'Subject']).size().reset_index(name='Total Questions')
+        st.markdown("### 📊 Summary")
+        for index, row in summary.iterrows():
+            col1, col2 = st.columns([5, 1])
+            with col1:
+                st.markdown(f"**Class:** {row['Class']} | **Subject:** {row['Subject']} | **Questions:** {row['Total Questions']}")
+            with col2:
+                if st.button("View", key=f"view_{index}"):
+                    st.session_state.selected_assignment = {
+                        'Class': row['Class'],
+                        'Subject': row['Subject'],
+                        'Date': today_str
+                    }
+                    st.rerun()
+    else:
+        # Show details of selected assignment
+        selected = st.session_state.selected_assignment
+        st.markdown("### 📄 Viewing Questions for Selected Assignment")
+        st.info(f"📚 **Class:** {selected['Class']} | 📝 **Subject:** {selected['Subject']} | 📅 **Date:** {selected['Date']}")
+
+        selected_questions = df_homework[
+            (df_homework['Class'] == selected['Class']) &
+            (df_homework['Subject'] == selected['Subject']) &
+            (df_homework['Date'] == selected['Date'])
+        ]
+
+        for i, row in enumerate(selected_questions.itertuples(), 1):
+            st.write(f"{i}. {row.Question}")
+
+        st.markdown("---")
+        if st.button("🔙 Back to Summary"):
+            del st.session_state.selected_assignment
+            st.rerun()
 
 st.markdown("---")
 

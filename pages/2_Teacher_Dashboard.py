@@ -231,6 +231,23 @@ with grade_tab:
                                         answer_bank_sheet.append_row(row_values_to_append, value_input_option='USER_ENTERED')
                                         live_sheet.delete_rows(row_id_to_update)
                                         st.success("Grade saved and moved to Answer Bank!")
+                                        # --- FIX: Safely handle Salary Points increment ---
+                                        teacher_info_row = df_users[df_users['Gmail ID'] == st.session_state.user_gmail]
+                                        if not teacher_info_row.empty:
+                                            teacher_row_id = int(teacher_info_row.iloc[0].get('Row ID'))
+                
+                                            # Safely get the current points, defaulting to 0 if empty or not a number
+                                            points_str = str(teacher_info_row.iloc[0].get('Salary Points', '0')).strip()
+                                            current_points = int(points_str) if points_str.isdigit() else 0
+                
+                                            new_points = current_points + 1
+                                            points_col = list(df_users.columns).index("Salary Points") + 1
+                                            user_sheet = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
+                                            user_sheet.update_cell(teacher_row_id, points_col, new_points)
+            
+                                            load_data.clear()
+                                            st.success("Saved!")
+                                            st.rerun()
                                     else:
                                         live_sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
                                         marks_col = list(df_live_answers.columns).index("Marks") + 1

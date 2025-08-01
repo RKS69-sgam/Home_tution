@@ -73,6 +73,13 @@ df_users = load_data(ALL_USERS_SHEET_ID)
 teacher_info_row = df_users[df_users['Gmail ID'] == st.session_state.user_gmail]
 if not teacher_info_row.empty:
     teacher_info = teacher_info_row.iloc[0]
+     # --- FIX: Safely handle empty strings before converting to int ---
+    points_str = str(teacher_info.get('Salary Points', '0')).strip()
+    if not points_str.isdigit():
+        salary_points = 0
+    else:
+        salary_points = int(points_str)
+    # -----------------------------------------------------------
     salary_points = int(teacher_info.get('Salary Points', 0))
     if salary_points >= 5000:
         st.success("🎉 Congratulations! You have earned 5000+ points. Please contact administration to register your salary account.")

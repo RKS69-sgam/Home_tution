@@ -65,7 +65,88 @@ if st.sidebar.button("Logout"):
 st.sidebar.markdown("---")
 st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<br>All Rights Reserved.</div>", unsafe_allow_html=True)
 
+# === TEACHER DASHBOARD UI ===
+st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
 
+# --- INSTRUCTION, ANNOUNCEMENT & SALARY NOTIFICATION ---
+df_users = load_data(ALL_USERS_SHEET_ID)
+teacher_info_row = df_users[df_users['Gmail ID'] == st.session_state.user_gmail]
+if not teacher_info_row.empty:
+    teacher_info = teacher_info_row.iloc[0]
+    points_str = str(teacher_info.get('Salary Points', '0')).strip()
+    salary_points = int(points_str) if points_str.isdigit() else 0
+
+    if salary_points >= 5000:
+        st.success("🎉 Congratulations! You have earned 5000+ points. Please contact administration to register your salary account.")
+        st.balloons()
+    
+    instruction = teacher_info.get('Instruction', '').strip()
+    reply = teacher_info.get('Instruction_Reply', '').strip()
+    status = teacher_info.get('Instruction_Status', '')
+    if status == 'Sent' and instruction and not reply:
+        st.warning(f"**New Instruction from Principal:** {instruction}")
+        with st.form(key="reply_form"):
+            reply_text = st.text_area("Your Reply:")
+            if st.form_submit_button("Send Reply"):
+                if reply_text:
+                    row_id = int(teacher_info.get('Row ID'))
+                    reply_col = df_users.columns.get_loc('Instruction_Reply') + 1
+                    status_col = df_users.columns.get_loc('Instruction_Status') + 1
+                    sheet = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
+                    sheet.update_cell(row_id, reply_col, reply_text)
+                    sheet.update_cell(row_id, status_col, "Replied")
+                    st.success("Your reply has been sent.")
+                    load_data.clear()
+                    st.rerun()
+                else:
+                    st.warning("Reply cannot be empty.")
+    st.markdown("---")
+
+# Load other necessary data
+df_homework = load_data(HOMEWORK_QUESTIONS_SHEET_ID)
+df_live_answers = load_data(MASTER_ANSWER_SHEET_ID)
+df_answer_bank = load_data(ANSWER_BANK_SHEET_ID)
+
+# Display a summary of today's submitted homework
+st.subheader("Today's Submitted Homework")
+today_str = datetime.today().strftime(DATE_FORMAT)
+todays_homework = df_homework[(df_homework.get('Uploaded By') == st.session_state.user_name) & (df_homework.get('Date') == today_str)]
+
+if todays_homework.empty:
+    st.info("You have not created any homework assignments today.")
+else:
+    if 'selected_assignment' not in st.session_state:
+        summary_table = pd.pivot_table(todays_homework, index='Class', columns='Subject', aggfunc='size', fill_value=0)
+        st.markdown("#### Summary Table")
+        st.dataframe(summary_table)
+        st.markdown("---")
+        st.markdown("#### View Details")
+        for class_name, row in summary_table.iterrows():
+            for subject_name, count in row.items():
+                if count > 0:
+                    col1, col2 = st.columns([4, 1])
+                    with col1:
+                        st.write(f"**Class:** {class_name} | **Subject:** {subject_name}")
+                    with col2:
+                        if st.button(f"View {count} Questions", key=f"view_{class_name}_{subject_name}"):
+                            st.session_state.selected_assignment = {'Class': class_name, 'Subject': subject_name, 'Date': today_str}
+                            st.rerun()
+    
+    if 'selected_assignment' in st.session_state:
+        st.markdown("---")
+        st.subheader("Viewing Questions for Selected Assignment")
+        selected = st.session_state.selected_assignment
+        st.info(f"Class: **{selected['Class']}** | Subject: **{selected['Subject']}** | Date: **{selected['Date']}**")
+        selected_questions = df_homework[
+            (df_homework['Class'] == selected['Class']) &
+            (df_homework['Subject'] == selected['Subject']) &
+            (df_homework['Date'] == selected['Date'])
+        ]
+        for i, row in enumerate(selected_questions.itertuples()):
+            st.write(f"{i + 1}. {row.Question}")
+        if st.button("Back to Main View"):
+            del st.session_state.selected_assignment
+            st.rerun()
 
 st.markdown("---")
 

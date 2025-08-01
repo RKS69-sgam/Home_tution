@@ -230,6 +230,8 @@ with grade_tab:
 
 with report_tab:
     st.subheader("My Reports")
+    
+    # Report 1: Homework Creation Report
     st.markdown("#### Homework Creation Report")
     teacher_homework = df_homework[df_homework.get('Uploaded By') == st.session_state.user_name]
     if teacher_homework.empty:
@@ -240,15 +242,21 @@ with report_tab:
             start_date = st.date_input("Start Date", datetime.today() - timedelta(days=7), format="DD-MM-YYYY")
         with col2:
             end_date = st.date_input("End Date", datetime.today(), format="DD-MM-YYYY")
+        
         teacher_homework['Date_dt'] = pd.to_datetime(teacher_homework['Date'], format=DATE_FORMAT, errors='coerce').dt.date
         filtered = teacher_homework[(teacher_homework['Date_dt'] >= start_date) & (teacher_homework['Date_dt'] <= end_date)]
+        
         if filtered.empty:
-            st.warning("No homework found in selected range.")
+            st.warning("No homework found in the selected date range.")
         else:
             summary = filtered.groupby(['Class', 'Subject']).size().reset_index(name='Total')
             st.dataframe(summary)
-    
+            fig = px.bar(summary, x='Class', y='Total', color='Subject', title='Homework Summary')
+            st.plotly_chart(fig, use_container_width=True)
+
     st.markdown("---")
+    
+    # Report 2: Top Teachers Leaderboard
     st.subheader("🏆 Top Teachers Leaderboard")
     df_all_teachers = df_users[df_users['Role'] == 'Teacher'].copy()
     df_all_teachers['Salary Points'] = pd.to_numeric(df_all_teachers.get('Salary Points', 0), errors='coerce').fillna(0)
@@ -260,22 +268,29 @@ with report_tab:
         st.dataframe(ranked_teachers[['Rank', 'User Name', 'Salary Points']])
         
     st.markdown("---")
+
+    # Report 3: Top 3 Students (from Answer Bank)
     st.subheader("🥇 Class-wise Top 3 Students")
     df_students_report = df_users[df_users['Role'] == 'Student']
-    if df_answer_bank.empty or df_students_report.empty:
+    df_answer_bank_report = load_data(ANSWER_BANK_SHEET_ID)
+
+    if df_answer_bank_report.empty or df_students_report.empty:
         st.info("Leaderboard will be generated once answers are graded and moved to the bank.")
     else:
-        df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
-        graded_answers = df_answer_bank.dropna(subset=['Marks'])
+        df_answer_bank_report['Marks'] = pd.to_numeric(df_answer_bank_report.get('Marks'), errors='coerce')
+        graded_answers = df_answer_bank_report.dropna(subset=['Marks'])
+        
         if graded_answers.empty:
-            st.info("The leaderboard is available after answers have been graded.")
+            st.info("The leaderboard is available after answers have been graded and moved to the bank.")
         else:
             df_merged = pd.merge(graded_answers, df_students_report, left_on='Student Gmail', right_on='Gmail ID')
             leaderboard_df = df_merged.groupby(['Class', 'User Name'])['Marks'].mean().reset_index()
             leaderboard_df['Rank'] = leaderboard_df.groupby('Class')['Marks'].rank(method='dense', ascending=False).astype(int)
             leaderboard_df = leaderboard_df.sort_values(by=['Class', 'Rank'])
+            
             top_students_df = leaderboard_df.groupby('Class').head(3).reset_index(drop=True)
             top_students_df['Marks'] = top_students_df['Marks'].round(2)
+            
             st.markdown("#### Top Performers Summary")
             st.dataframe(top_students_df[['Rank', 'User Name', 'Class', 'Marks']])
 

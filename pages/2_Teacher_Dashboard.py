@@ -231,6 +231,28 @@ with grade_tab:
 with report_tab:
     st.subheader("My Reports")
     
+    # --- DEBUGGING CODE START ---
+    st.warning("--- RUNNING DEBUG TEST FOR REPORT TAB ---")
+    
+    try:
+        st.markdown("### Columns found in Answer Bank Sheet:")
+        df_answers_debug = load_data(ANSWER_BANK_SHEET_ID)
+        st.write(list(df_answers_debug.columns))
+        
+        st.markdown("### Columns found in All Users Sheet:")
+        df_users_debug = load_data(ALL_USERS_SHEET_ID)
+        st.write(list(df_users_debug.columns))
+        
+        st.info("The lists above MUST contain 'Class' and 'User Name' for the report to work.")
+        
+    except Exception as e:
+        st.error("An error occurred during the debug test:")
+        st.exception(e)
+
+    st.stop()
+    # --- DEBUGGING CODE END ---
+
+    
     # Report 1: Homework Creation Report
     st.markdown("#### Homework Creation Report")
     teacher_homework = df_homework[df_homework.get('Uploaded By') == st.session_state.user_name]

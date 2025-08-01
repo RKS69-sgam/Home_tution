@@ -92,35 +92,69 @@ if not teacher_info_row.empty:
         # (Instruction reply form logic here)
 
 # Load other necessary data
-df_homework = load_data(HOMEWORK_QUESTIONS_SHEET_ID)
-df_live_answers = load_data(MASTER_ANSWER_SHEET_ID)
-df_answer_bank = load_data(ANSWER_BANK_SHEET_ID)
-
-# Display a summary of today's submitted homework
 st.subheader("Today's Submitted Homework")
 today_str = datetime.today().strftime(DATE_FORMAT)
-todays_homework = df_homework[(df_homework.get('Uploaded By') == st.session_state.user_name) & (df_homework.get('Date') == today_str)]
+
+todays_homework = df_homework[
+    (df_homework.get('Uploaded By') == st.session_state.user_name) & 
+    (df_homework.get('Date') == today_str)
+]
+
 if todays_homework.empty:
     st.info("You have not created any homework assignments today.")
 else:
-    summary = todays_homework.groupby(['Class', 'Subject']).size().reset_index(name='Question Count')
-    for index, row in summary.iterrows():
-        button_label = f"View -> Class: {row.get('Class')} | Subject: {row.get('Subject')} | Questions: {row.get('Question Count')}"
-        if st.button(button_label, key=f"summary_{index}"):
-            st.session_state.selected_assignment = {'Class': row.get('Class'), 'Subject': row.get('Subject'), 'Date': today_str}
-            st.rerun()
+    # Create a pivot table to summarize the data
+    summary_table = pd.pivot_table(
+        todays_homework,
+        index='Class',
+        columns='Subject',
+        aggfunc='size',
+        fill_value=0
+    )
+    
+    st.markdown("#### Summary Table")
+    st.dataframe(summary_table)
 
+    st.markdown("---")
+    st.markdown("#### View Details")
+
+    # Create clickable options based on the summary
+    for class_name, row in summary_table.iterrows():
+        for subject_name, count in row.items():
+            if count > 0:
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.write(f"**Class:** {class_name} | **Subject:** {subject_name}")
+                with col2:
+                    if st.button(f"View {count} Questions", key=f"view_{class_name}_{subject_name}"):
+                        st.session_state.selected_assignment = {
+                            'Class': class_name,
+                            'Subject': subject_name,
+                            'Date': today_str
+                        }
+                        st.rerun()
+
+# Display questions if an assignment is selected
 if 'selected_assignment' in st.session_state:
     st.markdown("---")
     st.subheader("Viewing Questions for Selected Assignment")
+    
     selected = st.session_state.selected_assignment
     st.info(f"Class: **{selected['Class']}** | Subject: **{selected['Subject']}** | Date: **{selected['Date']}**")
-    selected_questions = df_homework[(df_homework['Class'] == selected['Class']) & (df_homework['Subject'] == selected['Subject']) & (df_homework['Date'] == selected['Date'])]
+
+    selected_questions = df_homework[
+        (df_homework['Class'] == selected['Class']) &
+        (df_homework['Subject'] == selected['Subject']) &
+        (df_homework['Date'] == selected['Date'])
+    ]
+
     for i, row in enumerate(selected_questions.itertuples()):
         st.write(f"{i + 1}. {row.Question}")
+
     if st.button("Back to Main View"):
         del st.session_state.selected_assignment
         st.rerun()
+
 st.markdown("---")
 
 create_tab, grade_tab, report_tab = st.tabs(["Create Homework", "Grade Answers", "My Reports"])

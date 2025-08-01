@@ -176,64 +176,80 @@ with grade_tab:
     else:
         student_gmails = ungraded['Student Gmail'].unique().tolist()
         df_students = df_users[df_users['Role'] == 'Student']
-        gradable_students = df_students[df_students['Gmail ID'].isin(student_gmails)]
-        
+        gradable_students = df_students[df_students['Gmail ID'].isin(student_gmails)].copy()
+
         if gradable_students.empty:
             st.info("No confirmed students have pending answers for your questions.")
         else:
-            selected_student = st.selectbox("Select Student", gradable_students['User Name'].tolist())
-            if selected_student:
-                selected_gmail = gradable_students[gradable_students['User Name'] == selected_student].iloc[0]['Gmail ID']
-                student_answers_df = ungraded[ungraded['Student Gmail'] == selected_gmail]
-                st.markdown(f"#### Grading answers for: **{selected_student}**")
+            gradable_students['display_name'] = gradable_students.apply(
+                lambda row: f"{row['User Name']} ({row['Class']})" if row.get('Class') else row['User Name'],
+                axis=1
+            )
+            student_list = ["---Select Student---"] + gradable_students['display_name'].tolist()
+            
+            selected_student_display = st.selectbox("Select Student", student_list)
+
+            if selected_student_display != "---Select Student---":
+                real_user_name = selected_student_display.split(' (')[0]
+                selected_gmail = gradable_students[gradable_students['User Name'] == real_user_name].iloc[0]['Gmail ID']
                 
-                for index, row in student_answers_df.sort_values(by='Date', ascending=False).iterrows():
+                student_answers_df = ungraded[ungraded['Student Gmail'] == selected_gmail]
+                st.markdown(f"#### Grading answers for: **{real_user_name}**")
+                
+                for i, row in student_answers_df.sort_values(by='Date', ascending=False).iterrows():
                     st.write(f"**Question:** {row.get('Question')}")
                     st.info(f"**Answer:** {row.get('Answer')}")
                     
-                    with st.form(key=f"grade_form_{index}"):
-                        grade = st.selectbox("Grade", list(GRADE_MAP.keys()), key=f"grade_{index}")
+                    with st.form(key=f"grade_form_{i}"):
+                        grade_options = ["---Select Grade---"] + list(GRADE_MAP.keys())
+                        grade = st.selectbox("Grade", grade_options, key=f"grade_{i}")
                         remarks = ""
+                        
                         if grade in ["Needs Improvement", "Average", "Good"]:
-                            remarks = st.text_area("Remarks/Feedback (Required)", key=f"remarks_{index}")
+                            remarks = st.text_area("Remarks/Feedback (Required)", key=f"remarks_{i}")
                         
                         if st.form_submit_button("Save Grade"):
-                            if grade in ["Needs Improvement", "Average", "Good"] and not remarks.strip():
+                            if grade == "---Select Grade---":
+                                st.warning("Please select a valid grade.")
+                            elif grade in ["Needs Improvement", "Average", "Good"] and not remarks.strip():
                                 st.warning("Remarks are required for this grade.")
                             else:
                                 with st.spinner("Saving..."):
                                     client = connect_to_gsheets()
                                     row_id_to_update = int(row.get('Row ID'))
                                     
-                                    # --- FIX: Prepare data using the DataFrame ---
                                     if grade in ["Very Good", "Outstanding"]:
                                         live_sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
                                         answer_bank_sheet = client.open_by_key(ANSWER_BANK_SHEET_ID).sheet1
-                                        
-                                        # Get the original row data from the DataFrame
-                                        row_to_move = df_live_answers.loc[index].copy()
-                                        row_to_move['Marks'] = GRADE_MAP[grade]
-                                        row_to_move['Remarks'] = remarks
-                                        
-                                        # Drop the Row ID before appending
-                                        row_to_move = row_to_move.drop('Row ID')
-                                        answer_bank_sheet.append_row(row_to_move.tolist(), value_input_option='USER_ENTERED')
-                                        
-                                        # Delete the original row from the live sheet
+                                        row_values = live_sheet.row_values(row_id_to_update)
+                                        marks_col_index = list(df_live_answers.columns).index("Marks")
+                                        remarks_col_index = list(df_live_answers.columns).index("Remarks")
+                                        row_values[marks_col_index] = GRADE_MAP[grade]
+                                        row_values[remarks_col_index] = remarks
+                                        answer_bank_sheet.append_row(row_values, value_input_option='USER_ENTERED')
                                         live_sheet.delete_rows(row_id_to_update)
                                         st.success("Grade saved and moved to Answer Bank!")
                                     else:
-                                        # Update in the live sheet
                                         live_sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
                                         marks_col = list(df_live_answers.columns).index("Marks") + 1
                                         remarks_col = list(df_live_answers.columns).index("Remarks") + 1
                                         live_sheet.update_cell(row_id_to_update, marks_col, GRADE_MAP[grade])
                                         live_sheet.update_cell(row_id_to_update, remarks_col, remarks)
                                         st.success("Grade and remarks saved!")
-
+                                    
+                                    teacher_info_row = df_users[df_users['Gmail ID'] == st.session_state.user_gmail]
+                                    if not teacher_info_row.empty:
+                                        teacher_row_id = int(teacher_info_row.iloc[0].get('Row ID'))
+                                        current_points = int(teacher_info_row.iloc[0].get('Salary Points', 0))
+                                        new_points = current_points + 1
+                                        points_col = list(df_users.columns).index("Salary Points") + 1
+                                        user_sheet = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
+                                        user_sheet.update_cell(teacher_row_id, points_col, new_points)
+                                    
                                     load_data.clear()
                                     st.rerun()
                     st.markdown("---")
+
 
 
 with report_tab:

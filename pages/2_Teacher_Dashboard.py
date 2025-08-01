@@ -196,17 +196,17 @@ with grade_tab:
                 student_answers_df = ungraded[ungraded['Student Gmail'] == selected_gmail]
                 st.markdown(f"#### Grading answers for: **{real_user_name}**")
                 
-                for i, row in student_answers_df.sort_values(by='Date', ascending=False).iterrows():
+                for index, row in student_answers_df.sort_values(by='Date', ascending=False).iterrows():
                     st.write(f"**Question:** {row.get('Question')}")
                     st.info(f"**Answer:** {row.get('Answer')}")
                     
-                    with st.form(key=f"grade_form_{i}"):
+                    with st.form(key=f"grade_form_{index}"):
                         grade_options = ["---Select Grade---"] + list(GRADE_MAP.keys())
-                        grade = st.selectbox("Grade", grade_options, key=f"grade_{i}")
+                        grade = st.selectbox("Grade", grade_options, key=f"grade_{index}")
                         remarks = ""
                         
                         if grade in ["Needs Improvement", "Average", "Good"]:
-                            remarks = st.text_area("Remarks/Feedback (Required)", key=f"remarks_{i}")
+                            remarks = st.text_area("Remarks/Feedback (Required)", key=f"remarks_{index}")
                         
                         if st.form_submit_button("Save Grade"):
                             if grade == "---Select Grade---":
@@ -221,12 +221,14 @@ with grade_tab:
                                     if grade in ["Very Good", "Outstanding"]:
                                         live_sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
                                         answer_bank_sheet = client.open_by_key(ANSWER_BANK_SHEET_ID).sheet1
-                                        row_values = live_sheet.row_values(row_id_to_update)
-                                        marks_col_index = list(df_live_answers.columns).index("Marks")
-                                        remarks_col_index = list(df_live_answers.columns).index("Remarks")
-                                        row_values[marks_col_index] = GRADE_MAP[grade]
-                                        row_values[remarks_col_index] = remarks
-                                        answer_bank_sheet.append_row(row_values, value_input_option='USER_ENTERED')
+                                        
+                                        row_to_move = df_live_answers.loc[index].copy()
+                                        row_to_move['Marks'] = GRADE_MAP[grade]
+                                        row_to_move['Remarks'] = remarks
+                                        
+                                        row_values_to_append = row_to_move.drop('Row ID').tolist()
+                                        
+                                        answer_bank_sheet.append_row(row_values_to_append, value_input_option='USER_ENTERED')
                                         live_sheet.delete_rows(row_id_to_update)
                                         st.success("Grade saved and moved to Answer Bank!")
                                     else:
@@ -249,6 +251,7 @@ with grade_tab:
                                     load_data.clear()
                                     st.rerun()
                     st.markdown("---")
+
 
 
 

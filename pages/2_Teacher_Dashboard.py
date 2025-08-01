@@ -80,7 +80,6 @@ if not teacher_info_row.empty:
     else:
         salary_points = int(points_str)
     # -----------------------------------------------------------
-    salary_points = int(teacher_info.get('Salary Points', 0))
     if salary_points >= 5000:
         st.success("🎉 Congratulations! You have earned 5000+ points. Please contact administration to register your salary account.")
         st.balloons()

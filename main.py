@@ -147,7 +147,7 @@ def show_registration_page():
         security_a = st.text_input("Your Security Answer").lower().strip()
         
         if registration_type == "Student":
-            st.subheader("Student Details")
+            #st.subheader("Student Details")
             father_name = st.text_input("Father's Name")
             cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
             parent_phonepe = st.text_input("Parent's PhonePe Number")

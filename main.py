@@ -84,6 +84,17 @@ if "logged_in" not in st.session_state:
     st.session_state.user_role = ""
     st.session_state.user_gmail = ""
     st.session_state.page_state = "login"
+    # This code is inside the show_login_page() function
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("New User? Register Here", use_container_width=True):
+            st.session_state.page_state = "register"
+            st.rerun()
+    with col2:
+        if st.button("Forgot Password?", use_container_width=True):
+            st.session_state.page_state = "forgot_password"
+            st.rerun()
 
 # --- Hide sidebar page navigation when not logged in ---
 if not st.session_state.logged_in:
@@ -249,14 +260,3 @@ else:
     }
     if role in page_map:
         st.switch_page(page_map[role])
-    # This code is inside the show_login_page() function
-
-col1, col2 = st.columns(2)
-with col1:
-    if st.button("New User? Register Here", use_container_width=True):
-        st.session_state.page_state = "register"
-        st.rerun()
-with col2:
-    if st.button("Forgot Password?", use_container_width=True):
-        st.session_state.page_state = "forgot_password"
-        st.rerun()

@@ -118,19 +118,6 @@ def show_login_page():
             else:
                 st.error("Incorrect PIN or Gmail.")
 
-# This code is inside the show_login_page() function
-
-col1, col2 = st.columns(2)
-with col1:
-    if st.button("New User? Register Here", use_container_width=True):
-        st.session_state.page_state = "register"
-        st.rerun()
-with col2:
-    if st.button("Forgot Password?", use_container_width=True):
-        st.session_state.page_state = "forgot_password"
-        st.rerun()
-
-
 def show_registration_page():
     st.header("✍️ New Registration")
     registration_type = st.radio("Register as:", ["Student", "Teacher"])
@@ -188,8 +175,8 @@ def show_registration_page():
 def show_forgot_password_page():
     st.header("🔑 Reset Your Password")
     with st.form("forgot_password_form"):
-        # (Forgot password logic here)
-        pass
+        # forgot password 
+
 
 # === MAIN APP ROUTING ===
 if not st.session_state.logged_in:
@@ -199,7 +186,20 @@ if not st.session_state.logged_in:
     with col1: st.image("PRK_logo.jpg", use_container_width=True)
     with col2: st.image("Excellent_logo.jpg", use_container_width=True)
     st.markdown("---")
-    
+
+# This code is inside the show_login_page() function
+
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("New User? Register Here", use_container_width=True):
+        st.session_state.page_state = "register"
+        st.rerun()
+with col2:
+    if st.button("Forgot Password?", use_container_width=True):
+        st.session_state.page_state = "forgot_password"
+        st.rerun()
+
+        pass
     if st.session_state.page_state == "register":
         show_registration_page()
     elif st.session_state.page_state == "forgot_password":

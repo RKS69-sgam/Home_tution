@@ -90,6 +90,19 @@ if not st.session_state.logged_in:
     st.markdown("<style> [data-testid='stSidebarNav'] {display: none;} </style>", unsafe_allow_html=True)
 
 # === PAGE DEFINITIONS ===
+# This code is inside the show_login_page() function
+
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("New User? Register Here", use_container_width=True):
+        st.session_state.page_state = "register"
+        st.rerun()
+with col2:
+    if st.button("Forgot Password?", use_container_width=True):
+        st.session_state.page_state = "forgot_password"
+        st.rerun()
+
+
 def show_login_page():
     st.header("Login to Your Dashboard")
     with st.form("unified_login_form"):

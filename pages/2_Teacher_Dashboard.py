@@ -274,7 +274,7 @@ with grade_tab:
             
                                             load_data.clear()
                                             st.success("Saved!")
-                                            #st.rerun()
+                                            st.rerun()
                                     else:
                                         live_sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
                                         marks_col = list(df_live_answers.columns).index("Marks") + 1
@@ -293,7 +293,7 @@ with grade_tab:
                                         user_sheet.update_cell(teacher_row_id, points_col, new_points)
                                     
                                     load_data.clear()
-                                    st.rerun()
+                                    #st.rerun()
                     st.markdown("---")
 
 

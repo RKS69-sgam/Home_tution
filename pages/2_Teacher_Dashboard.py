@@ -271,7 +271,7 @@ with create_tab:
                 st.session_state.context_set = True
                 st.session_state.homework_context = {"subject": subject, "class": cls, "date": date}
                 st.session_state.questions_list = []
-                st.rerun()
+                #st.rerun()
     if st.session_state.context_set:
         ctx = st.session_state.homework_context
         st.success(f"Creating homework for: **{ctx['class']} - {ctx['subject']}** (Date: {ctx['date'].strftime(DATE_FORMAT)})")

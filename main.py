@@ -12,9 +12,9 @@ from google.oauth2.service_account import Credentials
 st.set_page_config(layout="wide", page_title="PRK Home Tuition - Login")
 DATE_FORMAT = "%d-%m-%Y"
 SUBSCRIPTION_PLANS = {
-    "₹550 for 6 months (Advance)": 182,
-    "₹1000 for 1 year (Advance)": 365,
-    "₹100 for 30 days (Subjects Homework Only)": 30
+    "₹1000 for 6 months (With Advance Classes)": 182,
+    "₹2000 for 1 year (With Advance Classes)": 365,
+    "₹200 for 30 days (Subjects Homework Only)": 30
 }
 UPI_ID = "9685840429@pnb"
 SECURITY_QUESTIONS = ["What is your mother's maiden name?", "What was the name of your first pet?", "What city were you born in?"]
@@ -164,7 +164,7 @@ else:
                 father_name = st.text_input("Father's Name")
                 gmail = st.text_input("Gmail ID").lower().strip()
                 mobile_number = st.text_input("Mobile Number")
-                cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
+                cls = st.selectbox("Class", [f"{i}th" for i in range(5,13)])
                 parent_phonepe = st.text_input("Parent's PhonePe Number")
                 pwd = st.text_input("Create Password", type="password")
                 confirm_pwd = st.text_input("Confirm Password", type="password")

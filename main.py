@@ -111,7 +111,7 @@ else:
     st.sidebar.title("Login / New Registration")
     st.markdown("<style> [data-testid='stSidebarNav'] {display: none;} </style>", unsafe_allow_html=True)
 
-    st.image("Ganesh logo.webp", use_container_width=True)
+    st.image("Ganesh_logo.png", use_container_width=True)
     
     st.markdown(f"""<div style="text-align: center;"><h2>EPS High-tech Homework System 📈</h2></div>""", unsafe_allow_html=True)
     col1, col2 = st.columns(2)

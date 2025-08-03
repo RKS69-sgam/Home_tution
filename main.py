@@ -77,17 +77,13 @@ def check_hashes(password, hashed_text):
 # === SHEET IDs ===
 ALL_USERS_SHEET_ID = "18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA"
 
-# === SESSION STATE ===
+# === SESSION STATE INITIALIZATION ===
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user_name = ""
     st.session_state.user_role = ""
     st.session_state.user_gmail = ""
     st.session_state.page_state = "login"
-    
-# --- Hide sidebar page navigation when not logged in ---
-if not st.session_state.logged_in:
-    st.markdown("<style> [data-testid='stSidebarNav'] {display: none;} </style>", unsafe_allow_html=True)
 
 # === PAGE DEFINITIONS ===
 def show_login_page():
@@ -175,8 +171,6 @@ def show_forgot_password_page():
     st.header("🔑 Reset Your Password")
     with st.form("forgot_password_form", clear_on_submit=True):
         gmail_to_reset = st.text_input("Enter your registered Gmail ID").lower().strip()
-        
-        # Look up the user to display their security question
         user_data = find_user(gmail_to_reset)
         if user_data is not None:
             st.info(f"Security Question: **{user_data.get('Security Question')}**")
@@ -185,9 +179,7 @@ def show_forgot_password_page():
         new_password = st.text_input("Enter new password", type="password")
         confirm_password = st.text_input("Confirm new password", type="password")
         
-        submitted = st.form_submit_button("Reset Password")
-
-        if submitted:
+        if st.form_submit_button("Reset Password"):
             if not all([gmail_to_reset, security_answer, new_password, confirm_password]):
                 st.warning("Please fill all fields.")
             elif new_password != confirm_password:
@@ -197,26 +189,17 @@ def show_forgot_password_page():
             elif security_answer != user_data.get("Security Answer"):
                 st.error("Incorrect security answer.")
             else:
-                with st.spinner("Updating password..."):
-                    # Find the cell and update the password with the new hash
-                    client = connect_to_gsheets()
-                    sheet = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
-                    cell = sheet.find(gmail_to_reset)
-                    
-                    if cell:
-                        header_row = sheet.row_values(1)
-                        password_col = header_row.index("Password") + 1
-                        sheet.update_cell(cell.row, password_col, make_hashes(new_password))
-                        
-                        load_data.clear()
-                        st.success("Password updated! Please log in.")
-                        st.session_state.page_state = "login"
-                    else:
-                        st.error("An unexpected error occurred. Please try again.")
-
-    if st.button("← Back to Login"):
-        st.session_state.page_state = "login"
-        st.rerun()
+                client = connect_to_gsheets()
+                sheet = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
+                cell = sheet.find(gmail_to_reset)
+                if cell:
+                    header_row = sheet.row_values(1)
+                    password_col = header_row.index("Password") + 1
+                    sheet.update_cell(cell.row, password_col, make_hashes(new_password))
+                    load_data.clear()
+                    st.success("Password updated! Please log in.")
+                    st.session_state.page_state = "login"
+                    st.rerun()
 
 # === MAIN APP ROUTING ===
 if not st.session_state.logged_in:
@@ -227,6 +210,15 @@ if not st.session_state.logged_in:
     with col2: st.image("Excellent_logo.jpg", use_container_width=True)
     st.markdown("---")
     
+    option = st.sidebar.radio("Select an option:", ["Login", "New Registration", "Forgot Password"])
+
+    if option == "New Registration":
+        st.session_state.page_state = "register"
+    elif option == "Login":
+        st.session_state.page_state = "login"
+    elif option == "Forgot Password":
+        st.session_state.page_state = "forgot_password"
+        
     if st.session_state.page_state == "register":
         show_registration_page()
     elif st.session_state.page_state == "forgot_password":

@@ -84,7 +84,7 @@ if "logged_in" not in st.session_state:
     st.session_state.user_role = ""
     st.session_state.user_gmail = ""
     st.session_state.page_state = "login"
-    
+
 # === MAIN APP ROUTER ===
 
 if st.session_state.logged_in:
@@ -106,6 +106,7 @@ if st.session_state.logged_in:
         st.error("Invalid role detected. Logging out.")
         st.session_state.clear()
         st.rerun()
+
 else:
     st.sidebar.title("Login / New Registration")
     st.markdown("<style> [data-testid='stSidebarNav'] {display: none;} </style>", unsafe_allow_html=True)
@@ -154,52 +155,49 @@ else:
         st.header("✍️ New Registration")
         registration_type = st.radio("Register as:", ["Student", "Teacher"])
         
-        with st.form("registration_form"):
-            name = st.text_input("Full Name")
-            gmail = st.text_input("Gmail ID").lower().strip()
-            mobile = st.text_input("Mobile Number")
-            pwd = st.text_input("Create Password", type="password")
-            confirm_pwd = st.text_input("Confirm Password", type="password")
-            security_q = st.selectbox("Choose a Security Question", SECURITY_QUESTIONS)
-            security_a = st.text_input("Your Security Answer").lower().strip()
-            
-            if registration_type == "Student":
-                st.subheader("Student Details")
+        if registration_type == "Student":
+            plan = st.selectbox("Choose Subscription Plan", list(SUBSCRIPTION_PLANS.keys()))
+            with st.form("registration_form"):
+                name = st.text_input("Full Name")
                 father_name = st.text_input("Father's Name")
+                gmail = st.text_input("Gmail ID").lower().strip()
+                mobile_number = st.text_input("Mobile Number")
                 cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
                 parent_phonepe = st.text_input("Parent's PhonePe Number")
-                plan = st.selectbox("Choose Subscription Plan", list(SUBSCRIPTION_PLANS.keys()))
-            
-            submitted = st.form_submit_button(f"Register as {registration_type}")
-            if submitted:
-                if pwd != confirm_pwd:
-                    st.error("Passwords do not match.")
-                else:
-                    df = load_data(ALL_USERS_SHEET_ID)
-                    if not df.empty and gmail in df["Gmail ID"].values:
-                        st.error("This Gmail is already registered.")
+                pwd = st.text_input("Create Password", type="password")
+                confirm_pwd = st.text_input("Confirm Password", type="password")
+                security_q = st.selectbox("Choose a Security Question", SECURITY_QUESTIONS)
+                security_a = st.text_input("Your Security Answer").lower().strip()
+                submitted = st.form_submit_button("Register")
+                
+                if submitted:
+                    if pwd != confirm_pwd:
+                        st.error("Passwords do not match.")
+                    elif not all([name, father_name, gmail, mobile_number, cls, pwd, plan, security_q, security_a, parent_phonepe]):
+                        st.warning("Please fill in ALL details.")
                     else:
-                        new_row_data = {
-                            "User Name": name, "Gmail ID": gmail, "Password": make_hashes(pwd),
-                            "Role": registration_type, "Mobile Number": mobile,
-                            "Security Question": security_q, "Security Answer": security_a,
-                            "Class": cls if registration_type == "Student" else "",
-                            "Subscription Plan": plan if registration_type == "Student" else "",
-                            "Payment Confirmed": "No" if registration_type == "Student" else "",
-                            "Father Name": father_name if registration_type == "Student" else "",
-                            "Parent PhonePe": parent_phonepe if registration_type == "Student" else "",
-                            "Confirmed": "No" if registration_type == "Teacher" else "Yes", # Admins/Principals might be auto-confirmed
-                        }
-                        df_new = pd.DataFrame([new_row_data])
-                        df = pd.concat([df, df_new], ignore_index=True)
-                        if save_data(df, ALL_USERS_SHEET_ID):
-                            st.success(f"{registration_type} registered! Please wait for confirmation.")
+                        df = load_data(ALL_USERS_SHEET_ID)
+                        if not df.empty and gmail in df["Gmail ID"].values:
+                            st.error("This Gmail is already registered.")
+                        else:
+                            new_row_data = {
+                                "User Name": name, "Father Name": father_name, "Gmail ID": gmail, 
+                                "Mobile Number": mobile_number, "Class": cls, "Password": make_hashes(pwd), 
+                                "Subscription Plan": plan, "Security Question": security_q, 
+                                "Security Answer": security_a, "Role": "Student", 
+                                "Payment Confirmed": "No", "Subscription Date": "", 
+                                "Subscribed Till": "", "Parent PhonePe": parent_phonepe
+                            }
+                            df_new = pd.DataFrame([new_row_data])
+                            df = pd.concat([df, df_new], ignore_index=True)
+                            if save_data(df, ALL_USERS_SHEET_ID):
+                                st.success("Registration successful! Please follow payment instructions.")
 
-        if registration_type == "Student" and 'plan' in locals():
-            st.info(f"Please pay {plan.split(' ')[0]} to the UPI ID: **{UPI_ID}**")
-            st.image("Qr logo.jpg", width=250, caption="Scan QR code to pay")
-            whatsapp_link = "https://wa.me/919685840429"
-            st.success(f"After payment, send a screenshot with student's name and class to our [Official WhatsApp Support]({whatsapp_link}). Your account will be activated within 24 hours.")
+            if plan:
+                st.info(f"Please pay {plan.split(' ')[0]} to the UPI ID: **{UPI_ID}**")
+                st.image("Qr logo.jpg", width=250, caption="Scan QR code to pay")
+                whatsapp_link = "https://wa.me/919685840429"
+                st.success(f"After payment, send a screenshot with student's name and class to our [Official WhatsApp Support]({whatsapp_link}). Your account will be activated within 24 hours.")
     
     elif option == "Forgot Password":
         st.header("🔑 Reset Your Password")
@@ -232,3 +230,6 @@ else:
                         sheet.update_cell(cell.row, password_col, make_hashes(new_password))
                         load_data.clear()
                         st.success("Password updated! Please log in.")
+    
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<br>All Rights Reserved.</div>", unsafe_allow_html=True)

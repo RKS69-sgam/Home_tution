@@ -218,34 +218,71 @@ with report_tab:
 
 with individual_tab:
     st.subheader("Individual Growth Charts")
+    
+    # --- FORCE COLUMN RENAME FOR SAFETY ---
+    try:
+        df_answer_bank.columns = ['Student Gmail','Date','Class','Subject','Question','Answer','Marks','Remarks', 'Row ID']
+        df_users.columns = [
+            'User Name','Gmail ID','Password','Role','Class','Confirmed',
+            'Subscription Plan','Subscription Date','Subscribed Till',
+            'Security Question','Security Answer','Instructions','Payment Confirmed',
+            'Salary Points','Instruction_Reply','Instruction_Status','Father Name',
+            'Mobile Number','Parent PhonePe', 'Row ID'
+        ]
+        df_homework.columns = ['Class','Date','Uploaded By','Subject','Question','Row ID']
+    except Exception as e:
+        st.error(f"Could not prepare data for individual reports. Please check your sheet structures. Error: {e}")
+        st.stop()
+    # ------------------------------------
+
     report_type = st.selectbox("Select report type", ["Student", "Teacher"])
+
     if report_type == "Student":
         df_students = df_users[df_users['Role'] == 'Student']
-        student_name = st.selectbox("Select Student", df_students['User Name'].tolist())
-        if student_name:
-            student_gmail = df_students[df_students['User Name'] == student_name].iloc[0]['Gmail ID']
-            student_answers = df_answer_bank[df_answer_bank['Student Gmail'] == student_gmail].copy()
-            if not student_answers.empty:
-                student_answers['Marks'] = pd.to_numeric(student_answers['Marks'], errors='coerce')
-                graded_answers = student_answers.dropna(subset=['Marks'])
-                if not graded_answers.empty:
-                    fig = px.bar(graded_answers, x='Subject', y='Marks', color='Subject', title=f"Subject-wise Performance for {student_name}")
-                    st.plotly_chart(fig, use_container_width=True)
+        student_list = df_students['User Name'].tolist()
+        
+        search_student = st.text_input("Search Student Name:")
+        if search_student:
+            student_list = [name for name in student_list if search_student.lower() in name.lower()]
+        
+        if not student_list:
+            st.warning("No students found.")
+        else:
+            student_name = st.selectbox("Select Student", student_list)
+            if student_name:
+                student_gmail = df_students[df_students['User Name'] == student_name].iloc[0]['Gmail ID']
+                student_answers = df_answer_bank[df_answer_bank['Student Gmail'] == student_gmail].copy()
+                if not student_answers.empty:
+                    student_answers['Marks'] = pd.to_numeric(student_answers['Marks'], errors='coerce')
+                    graded_answers = student_answers.dropna(subset=['Marks'])
+                    if not graded_answers.empty:
+                        fig = px.bar(graded_answers, x='Subject', y='Marks', color='Subject', title=f"Subject-wise Performance for {student_name}")
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info(f"{student_name} has no graded answers yet.")
                 else:
-                    st.info(f"{student_name} has no graded answers yet.")
-            else:
-                st.info(f"{student_name} has not submitted any answers yet.")
+                    st.info(f"{student_name} has not submitted any answers to the Answer Bank yet.")
+
     elif report_type == "Teacher":
         df_teachers = df_users[df_users['Role'] == 'Teacher']
-        teacher_name = st.selectbox("Select Teacher", df_teachers['User Name'].tolist())
-        if teacher_name:
-            teacher_homework = df_homework[df_homework['Uploaded By'] == teacher_name]
-            if not teacher_homework.empty:
-                questions_by_subject = teacher_homework.groupby('Subject').size().reset_index(name='Question Count')
-                fig = px.bar(questions_by_subject, x='Subject', y='Question Count', color='Subject', title=f"Homework Created by {teacher_name}")
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info(f"{teacher_name} has not created any homework yet.")
+        teacher_list = df_teachers['User Name'].tolist()
+
+        search_teacher = st.text_input("Search Teacher Name:")
+        if search_teacher:
+            teacher_list = [name for name in teacher_list if search_teacher.lower() in name.lower()]
+
+        if not teacher_list:
+            st.warning("No teachers found.")
+        else:
+            teacher_name = st.selectbox("Select Teacher", teacher_list)
+            if teacher_name:
+                teacher_homework = df_homework[df_homework['Uploaded By'] == teacher_name]
+                if not teacher_homework.empty:
+                    questions_by_subject = teacher_homework.groupby('Subject').size().reset_index(name='Question Count')
+                    fig = px.bar(questions_by_subject, x='Subject', y='Question Count', color='Subject', title=f"Homework Created by {teacher_name}")
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info(f"{teacher_name} has not created any homework yet.")
 
 st.markdown("---")
 st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)

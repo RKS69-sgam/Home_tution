@@ -198,6 +198,43 @@ else:
                 st.image("Qr logo.jpg", width=250, caption="Scan QR code to pay")
                 whatsapp_link = "https://wa.me/919685840429"
                 st.success(f"After payment, send a screenshot with student's name and class to our [Official WhatsApp Support]({whatsapp_link}). Your account will be activated within 24 hours.")
+
+                # This code should be inside the "New Registration" section
+        elif registration_type == "Teacher":
+            st.subheader("Teacher Registration")
+            with st.form("teacher_registration_form"):
+                name = st.text_input("Full Name")
+                gmail = st.text_input("Gmail ID").lower().strip()
+                mobile_number = st.text_input("Mobile Number")
+                pwd = st.text_input("Create Password", type="password")
+                confirm_pwd = st.text_input("Confirm Password", type="password")
+                security_q = st.selectbox("Choose a Security Question", SECURITY_QUESTIONS)
+                security_a = st.text_input("Your Security Answer").lower().strip()
+                
+                submitted = st.form_submit_button("Register Teacher")
+
+                if submitted:
+                    if pwd != confirm_pwd:
+                        st.error("Passwords do not match.")
+                    elif not all([name, gmail, mobile_number, pwd, security_q, security_a]):
+                        st.warning("Please fill in all details.")
+                    else:
+                        df = load_data(ALL_USERS_SHEET_ID)
+                        if not df.empty and gmail in df["Gmail ID"].values:
+                            st.error("This Gmail is already registered.")
+                        else:
+                            new_row = {
+                                "User Name": name, "Gmail ID": gmail, 
+                                "Mobile Number": mobile_number, "Password": make_hashes(pwd), 
+                                "Security Question": security_q, "Security Answer": security_a, 
+                                "Role": "Teacher", "Confirmed": "No"
+                            }
+                            df_new = pd.DataFrame([new_row])
+                            df = pd.concat([df, df_new], ignore_index=True)
+                            if save_data(df, ALL_USERS_SHEET_ID):
+                                st.success("Teacher registered! Please wait for admin confirmation.")
+                                
+
     
     elif option == "Forgot Password":
         st.header("🔑 Reset Your Password")

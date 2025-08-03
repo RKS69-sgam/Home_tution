@@ -150,45 +150,7 @@ else:
 
 st.markdown("---")
 
-create_tab, grade_tab, report_tab = st.tabs(["Create Homework", "Grade Answers", "My Reports"])
-
-with create_tab:
-    st.subheader("Create a New Homework Assignment")
-    if 'context_set' not in st.session_state:
-        st.session_state.context_set = False
-    if not st.session_state.context_set:
-        with st.form("context_form"):
-            subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance Classes"])
-            cls = st.selectbox("Class", [f"{i}th" for i in range(5, 13)])
-            date = st.date_input("Date", datetime.today(), format="DD-MM-YYYY")
-            if st.form_submit_button("Start Adding Questions →"):
-                st.session_state.context_set = True
-                st.session_state.homework_context = {"subject": subject, "class": cls, "date": date}
-                st.session_state.questions_list = []
-                st.rerun()
-    if st.session_state.context_set:
-        ctx = st.session_state.homework_context
-        st.success(f"Creating homework for: **{ctx['class']} - {ctx['subject']}** (Date: {ctx['date'].strftime(DATE_FORMAT)})")
-        with st.form("add_question_form", clear_on_submit=True):
-            question_text = st.text_area("Enter a question to add:", height=100)
-            if st.form_submit_button("Add Question") and question_text:
-                st.session_state.questions_list.append(question_text)
-        if st.session_state.questions_list:
-            st.write("#### Current Questions:")
-            for i, q in enumerate(st.session_state.questions_list):
-                st.write(f"{i + 1}. {q}")
-            if st.button("Final Submit Homework"):
-                client = connect_to_gsheets()
-                sheet = client.open_by_key(HOMEWORK_QUESTIONS_SHEET_ID).sheet1
-                rows_to_add = [[ctx['class'], ctx['date'].strftime(DATE_FORMAT), st.session_state.user_name, ctx['subject'], q] for q in st.session_state.questions_list]
-                sheet.append_rows(rows_to_add, value_input_option='USER_ENTERED')
-                load_data.clear()
-                st.success("Homework submitted successfully!")
-                del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
-                st.rerun()
-        if st.session_state.context_set and st.button("Create Another Homework (Reset)"):
-            del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
-            st.rerun()
+grade_tab, create_tab, report_tab = st.tabs(["Create Homework", "Grade Answers", "My Reports"])
 
 with grade_tab:
     st.subheader("Grade Student Answers")
@@ -293,11 +255,47 @@ with grade_tab:
                                         user_sheet.update_cell(teacher_row_id, points_col, new_points)
                                     
                                     load_data.clear()
-                                    #st.rerun()
+                                    st.rerun()
                     st.markdown("---")
-
-
-
+                    
+with create_tab:
+    st.subheader("Create a New Homework Assignment")
+    if 'context_set' not in st.session_state:
+        st.session_state.context_set = False
+    if not st.session_state.context_set:
+        with st.form("context_form"):
+            subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance Classes"])
+            cls = st.selectbox("Class", [f"{i}th" for i in range(5, 13)])
+            date = st.date_input("Date", datetime.today(), format="DD-MM-YYYY")
+            if st.form_submit_button("Start Adding Questions →"):
+                st.session_state.context_set = True
+                st.session_state.homework_context = {"subject": subject, "class": cls, "date": date}
+                st.session_state.questions_list = []
+                st.rerun()
+    if st.session_state.context_set:
+        ctx = st.session_state.homework_context
+        st.success(f"Creating homework for: **{ctx['class']} - {ctx['subject']}** (Date: {ctx['date'].strftime(DATE_FORMAT)})")
+        with st.form("add_question_form", clear_on_submit=True):
+            question_text = st.text_area("Enter a question to add:", height=100)
+            if st.form_submit_button("Add Question") and question_text:
+                st.session_state.questions_list.append(question_text)
+        if st.session_state.questions_list:
+            st.write("#### Current Questions:")
+            for i, q in enumerate(st.session_state.questions_list):
+                st.write(f"{i + 1}. {q}")
+            if st.button("Final Submit Homework"):
+                client = connect_to_gsheets()
+                sheet = client.open_by_key(HOMEWORK_QUESTIONS_SHEET_ID).sheet1
+                rows_to_add = [[ctx['class'], ctx['date'].strftime(DATE_FORMAT), st.session_state.user_name, ctx['subject'], q] for q in st.session_state.questions_list]
+                sheet.append_rows(rows_to_add, value_input_option='USER_ENTERED')
+                load_data.clear()
+                st.success("Homework submitted successfully!")
+                del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
+                st.rerun()
+        if st.session_state.context_set and st.button("Create Another Homework (Reset)"):
+            del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
+            st.rerun()
+            
 
 with report_tab:
     st.subheader("My Reports")

@@ -10,7 +10,7 @@ from google.oauth2.service_account import Credentials
 
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="PRK Home Tuition - Login")
-DATE_FORMAT = "%Y-%m-%d"
+DATE_FORMAT = "%d-%m-%Y"
 SUBSCRIPTION_PLANS = {
     "₹550 for 6 months (Advance)": 182,
     "₹1000 for 1 year (Advance)": 365,
@@ -110,6 +110,8 @@ if st.session_state.logged_in:
 else:
     st.sidebar.title("Login / New Registration")
     st.markdown("<style> [data-testid='stSidebarNav'] {display: none;} </style>", unsafe_allow_html=True)
+
+    st.image("Ganesh logo.png", use_container_width=True)
     
     st.markdown(f"""<div style="text-align: center;"><h2>EPS High-tech Homework System 📈</h2></div>""", unsafe_allow_html=True)
     col1, col2 = st.columns(2)

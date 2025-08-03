@@ -279,6 +279,7 @@ with create_tab:
             question_text = st.text_area("Enter a question to add:", height=100)
             if st.form_submit_button("Add Question") and question_text:
                 st.session_state.questions_list.append(question_text)
+                st.markdown("---")
         if st.session_state.questions_list:
             st.write("#### Current Questions:")
             for i, q in enumerate(st.session_state.questions_list):

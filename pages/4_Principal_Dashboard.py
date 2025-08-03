@@ -66,24 +66,7 @@ st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<
 
 # === PRINCIPAL DASHBOARD UI ===
 st.header("🏛️ Principal Dashboard")
-# --- DEBUGGING CODE START ---
-#st.warning("RUNNING DEBUG TEST FOR REPORT TAB")
-#try:
-    #st.markdown("### Columns found in MASTER_ANSWER_SHEET:")
-    #df_answers_debug = load_data(MASTER_ANSWER_SHEET_ID)
-    #st.write(list(df_answers_debug.columns))
 
-   # st.markdown("### Columns found in ALL_USERS_SHEET:")
-   # df_users_debug = load_data(ALL_USERS_SHEET_ID)
-   # st.write(list(df_users_debug.columns))
-    
-   # st.info("The lists above MUST contain 'Student Gmail', 'Class', 'User Name', and 'Gmail ID' for the report to work.")
-
-#except Exception as e:
-   # st.error("An error occurred during the debug test:")
-   # st.exception(e)
-#st.stop()
-# --- DEBUGGING CODE END ---
 # Display Public Announcement
 try:
     announcements_df = load_data(ANNOUNCEMENTS_SHEET_ID)
@@ -99,21 +82,6 @@ df_users = load_data(ALL_USERS_SHEET_ID)
 df_answers = load_data(MASTER_ANSWER_SHEET_ID)
 df_homework = load_data(HOMEWORK_QUESTIONS_SHEET_ID)
 df_answer_bank = load_data(ANSWER_BANK_SHEET_ID)
-
-# --- CORRECTED COLUMN HEADERS (as per your debug output) ---
-try:
-    df_answers.columns = ['Student Gmail', 'Date', 'Class', 'Subject', 'Question', 'Answer', 'Marks', 'Remarks', 'Row ID']
-    df_users.columns = [
-        'User Name', 'Gmail ID', 'Password', 'Role', 'Class', 'Confirmed',
-        'Subscription Plan', 'Subscription Date', 'Subscribed Till', 'Security Question',
-        'Security Answer', 'Instructions', 'Payment Confirmed', 'Salary Points',
-        'Instruction_Reply', 'Instruction_Status', 'Father Name', 'Mobile Number',
-        'Parent PhonePe', 'Row ID'
-    ]
-except Exception as e:
-    st.error(f"Could not rename columns. Please ensure your sheets have the correct number of columns. Error: {e}")
-    st.stop()
-# -----------------------------------------------------------
 
 instruction_tab, report_tab, individual_tab = st.tabs(["Send Messages", "Performance Reports", "Individual Growth Charts"])
 
@@ -177,11 +145,7 @@ with instruction_tab:
 with report_tab:
     st.subheader("Performance Reports")
     
-    df_answers = load_data(MASTER_ANSWER_SHEET_ID)
-    df_users = load_data(ALL_USERS_SHEET_ID)
-    
     col1, col2 = st.columns(2)
-
     with col1:
         st.markdown("#### 🏆 Top 3 Teachers (by Points)")
         df_teachers = df_users[df_users['Role'].isin(['Teacher', 'Admin', 'Principal'])].copy()
@@ -192,28 +156,27 @@ with report_tab:
     with col2:
         st.markdown("#### 📉 Students Needing Improvement")
         df_students = df_users[df_users['Role'] == 'Student']
-        if not df_answers.empty:
-            df_answers['Marks'] = pd.to_numeric(df_answers.get('Marks'), errors='coerce')
-            graded_answers = df_answers.dropna(subset=['Marks'])
+        if not df_answer_bank.empty:
+            df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
+            graded_answers = df_answer_bank.dropna(subset=['Marks'])
             if not graded_answers.empty:
                 student_performance = graded_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
                 merged_df = pd.merge(student_performance, df_students, left_on='Student Gmail', right_on='Gmail ID')
                 weakest_students = merged_df.nsmallest(5, 'Marks').round(2)
                 st.dataframe(weakest_students[['User Name', 'Class', 'Marks']])
             else:
-                st.info("No graded answers available.")
+                st.info("No graded answers available to determine student performance.")
         else:
-            st.info("No student answers available yet.")
+            st.info("Answer Bank is empty.")
 
     st.markdown("---")
     st.subheader("Class-wise Student Performance")
-
     df_students_report = df_users[df_users['Role'] == 'Student']
-    if df_answers.empty or df_students_report.empty:
-        st.info("Leaderboard will be generated once students are graded.")
+    if df_answer_bank.empty or df_students_report.empty:
+        st.info("Leaderboard will be generated once answers are graded and moved to the bank.")
     else:
-        df_answers['Marks'] = pd.to_numeric(df_answers.get('Marks'), errors='coerce')
-        graded_answers_all = df_answers.dropna(subset=['Marks'])
+        df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
+        graded_answers_all = df_answer_bank.dropna(subset=['Marks'])
         if graded_answers_all.empty:
             st.info("The leaderboard is available after answers have been graded.")
         else:
@@ -233,53 +196,33 @@ with report_tab:
 with individual_tab:
     st.subheader("Individual Growth Charts")
     report_type = st.selectbox("Select report type", ["Student", "Teacher"])
-
     if report_type == "Student":
         df_students = df_users[df_users['Role'] == 'Student']
-        student_list = df_students['User Name'].tolist()
-        
-        search_student = st.text_input("Search Student Name:")
-        if search_student:
-            student_list = [name for name in student_list if search_student.lower() in name.lower()]
-        
-        if not student_list:
-            st.warning("No students found.")
-        else:
-            student_name = st.selectbox("Select Student", student_list)
-            if student_name:
-                student_gmail = df_students[df_students['User Name'] == student_name].iloc[0]['Gmail ID']
-                student_answers = df_answer_bank[df_answer_bank['Student Gmail'] == student_gmail].copy()
-                if not student_answers.empty:
-                    student_answers['Marks'] = pd.to_numeric(student_answers['Marks'], errors='coerce')
-                    graded_answers = student_answers.dropna(subset=['Marks'])
-                    if not graded_answers.empty:
-                        fig = px.bar(graded_answers, x='Subject', y='Marks', color='Subject', title=f"Subject-wise Performance for {student_name}")
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.info(f"{student_name} has no graded answers yet.")
-                else:
-                    st.info(f"{student_name} has not submitted any answers to the Answer Bank yet.")
-
-    elif report_type == "Teacher":
-        df_teachers = df_users[df_users['Role'] == 'Teacher']
-        teacher_list = df_teachers['User Name'].tolist()
-
-        search_teacher = st.text_input("Search Teacher Name:")
-        if search_teacher:
-            teacher_list = [name for name in teacher_list if search_teacher.lower() in name.lower()]
-
-        if not teacher_list:
-            st.warning("No teachers found.")
-        else:
-            teacher_name = st.selectbox("Select Teacher", teacher_list)
-            if teacher_name:
-                teacher_homework = df_homework[df_homework['Uploaded By'] == teacher_name]
-                if not teacher_homework.empty:
-                    questions_by_subject = teacher_homework.groupby('Subject').size().reset_index(name='Question Count')
-                    fig = px.bar(questions_by_subject, x='Subject', y='Question Count', color='Subject', title=f"Homework Created by {teacher_name}")
+        student_name = st.selectbox("Select Student", df_students['User Name'].tolist())
+        if student_name:
+            student_gmail = df_students[df_students['User Name'] == student_name].iloc[0]['Gmail ID']
+            student_answers = df_answer_bank[df_answer_bank['Student Gmail'] == student_gmail].copy()
+            if not student_answers.empty:
+                student_answers['Marks'] = pd.to_numeric(student_answers['Marks'], errors='coerce')
+                graded_answers = student_answers.dropna(subset=['Marks'])
+                if not graded_answers.empty:
+                    fig = px.bar(graded_answers, x='Subject', y='Marks', color='Subject', title=f"Subject-wise Performance for {student_name}")
                     st.plotly_chart(fig, use_container_width=True)
                 else:
-                    st.info(f"{teacher_name} has not created any homework yet.")
+                    st.info(f"{student_name} has no graded answers yet.")
+            else:
+                st.info(f"{student_name} has not submitted any answers to the Answer Bank yet.")
+    elif report_type == "Teacher":
+        df_teachers = df_users[df_users['Role'] == 'Teacher']
+        teacher_name = st.selectbox("Select Teacher", df_teachers['User Name'].tolist())
+        if teacher_name:
+            teacher_homework = df_homework[df_homework['Uploaded By'] == teacher_name]
+            if not teacher_homework.empty:
+                questions_by_subject = teacher_homework.groupby('Subject').size().reset_index(name='Question Count')
+                fig = px.bar(questions_by_subject, x='Subject', y='Question Count', color='Subject', title=f"Homework Created by {teacher_name}")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info(f"{teacher_name} has not created any homework yet.")
 
 st.markdown("---")
 st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)

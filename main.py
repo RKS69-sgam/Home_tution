@@ -129,59 +129,87 @@ def show_login_page():
             st.session_state.page_state = "forgot_password"
             st.rerun()
 
-def show_registration_page():
+def show_registration_page(sheet_object):
     st.header("✍️ New Registration")
     registration_type = st.radio("Register as:", ["Student", "Teacher"])
-    if registration_type == "Student":
-        plan = st.selectbox("Choose Subscription Plan", list(SUBSCRIPTION_PLANS.keys()))
-    else:
-        plan = None
     
-    with st.form("registration_form"):
-        name = st.text_input("Full Name")
-        gmail = st.text_input("Gmail ID").lower().strip()
-        mobile = st.text_input("Mobile Number")
-        pwd = st.text_input("Create Password", type="password")
-        confirm_pwd = st.text_input("Confirm Password", type="password")
-        security_q = st.selectbox("Choose a Security Question", SECURITY_QUESTIONS)
-        security_a = st.text_input("Your Security Answer").lower().strip()
+    if registration_type == "Student":
+        st.subheader("Student Registration")
+        plan = st.selectbox("Choose Subscription Plan", list(SUBSCRIPTION_PLANS.keys()))
         
-        if registration_type == "Student":
-            #st.subheader("Student Details")
+        with st.form("student_registration_form"):
+            name = st.text_input("Full Name")
             father_name = st.text_input("Father's Name")
+            gmail = st.text_input("Gmail ID").lower().strip()
+            mobile_number = st.text_input("Mobile Number")
             cls = st.selectbox("Class", [f"{i}th" for i in range(6,13)])
             parent_phonepe = st.text_input("Parent's PhonePe Number")
-        
-        submitted = st.form_submit_button(f"Register as {registration_type}")
-        if submitted:
-            if pwd != confirm_pwd:
-                st.error("Passwords do not match.")
-            else:
-                df = load_data(ALL_USERS_SHEET_ID)
-                if not df.empty and gmail in df["Gmail ID"].values:
-                    st.error("This Gmail is already registered.")
-                else:
-                    new_row_data = {
-                        "User Name": name, "Gmail ID": gmail, "Password": make_hashes(pwd),
-                        "Role": registration_type, "Mobile Number": mobile,
-                        "Security Question": security_q, "Security Answer": security_a,
-                        "Class": cls if registration_type == "Student" else "",
-                        "Subscription Plan": plan if registration_type == "Student" else "",
-                        "Payment Confirmed": "No" if registration_type == "Student" else "",
-                        "Father Name": father_name if registration_type == "Student" else "",
-                        "Parent PhonePe": parent_phonepe if registration_type == "Student" else "",
-                        "Confirmed": "No" if registration_type == "Teacher" else "",
-                    }
-                    df_new = pd.DataFrame([new_row_data])
-                    df = pd.concat([df, df_new], ignore_index=True)
-                    if save_data(df, ALL_USERS_SHEET):
-                        st.success(f"{registration_type} registered! Please wait for confirmation.")
+            pwd = st.text_input("Create Password", type="password")
+            confirm_pwd = st.text_input("Confirm Password", type="password")
+            security_q = st.selectbox("Choose a Security Question", SECURITY_QUESTIONS)
+            security_a = st.text_input("Your Security Answer").lower().strip()
+            
+            submitted = st.form_submit_button("Register (After Payment)")
 
-    if registration_type == "Student" and plan:
-        st.info(f"Please pay {plan.split(' ')[0]} to the UPI ID: **{UPI_ID}**")
-        st.image("Qr logo.jpg", width=250, caption="Scan QR code to pay")
-        whatsapp_link = "https://wa.me/919685840429"
-        st.success(f"After payment, send a screenshot with student's name and class to our [Official WhatsApp Support]({whatsapp_link}). Your account will be activated within 24 hours.")
+            if submitted:
+                if pwd != confirm_pwd:
+                    st.error("Passwords do not match.")
+                elif not all([name, father_name, gmail, mobile_number, cls, pwd, plan, security_q, security_a, parent_phonepe]):
+                    st.warning("Please fill in ALL details.")
+                else:
+                    df = load_data(sheet_object)
+                    if not df.empty and gmail in df["Gmail ID"].values:
+                        st.error("This Gmail is already registered.")
+                    else:
+                        new_row_data = {
+                            "User Name": name, "Father Name": father_name, "Gmail ID": gmail, 
+                            "Mobile Number": mobile_number, "Class": cls, "Password": make_hashes(pwd), 
+                            "Subscription Plan": plan, "Security Question": security_q, 
+                            "Security Answer": security_a, "Role": "Student", 
+                            "Payment Confirmed": "No", "Subscription Date": "", 
+                            "Subscribed Till": "", "Parent PhonePe": parent_phonepe
+                        }
+                        df_new = pd.DataFrame([new_row_data])
+                        df = pd.concat([df, df_new], ignore_index=True)
+                        save_data(df, sheet_object)
+                        st.success("Registration successful! Please follow payment instructions.")
+        
+        if plan:
+            st.info(f"Please pay {plan.split(' ')[0]} to the UPI ID: **{UPI_ID}**")
+            st.image("Qr logo.jpg", width=250, caption="Scan QR code to pay")
+            whatsapp_link = "https://wa.me/919685840429"
+            st.success(f"After payment, send a screenshot with student's name and class to our [Official WhatsApp Support]({whatsapp_link}). Your account will be activated within 24 hours.")
+    
+    elif registration_type == "Teacher":
+        st.subheader("Teacher Registration")
+        with st.form("teacher_registration_form"):
+            name = st.text_input("Full Name")
+            gmail = st.text_input("Gmail ID").lower().strip()
+            mobile_number = st.text_input("Mobile Number")
+            pwd = st.text_input("Create Password", type="password")
+            confirm_pwd = st.text_input("Confirm Password", type="password")
+            security_q = st.selectbox("Choose a Security Question", SECURITY_QUESTIONS)
+            security_a = st.text_input("Your Security Answer").lower().strip()
+            
+            if st.form_submit_button("Register Teacher"):
+                if pwd != confirm_pwd:
+                    st.error("Passwords do not match.")
+                elif not all([name, gmail, mobile_number, pwd, security_q, security_a]):
+                    st.warning("Please fill in all details.")
+                else:
+                    df_teachers = load_data(sheet_object)
+                    if not df_teachers.empty and gmail in df_teachers["Gmail ID"].values:
+                        st.error("This Gmail is already registered.")
+                    else:
+                        new_row = {"User Name": name, "Gmail ID": gmail, "Mobile Number": mobile_number, "Password": make_hashes(pwd), "Security Question": security_q, "Security Answer": security_a, "Role": "Teacher", "Confirmed": "No"}
+                        df_new = pd.DataFrame([new_row])
+                        df_teachers = pd.concat([df_teachers, df_new], ignore_index=True)
+                        save_data(df_teachers, sheet_object)
+                        st.success("Teacher registered! Please wait for admin confirmation.")
+
+    if st.button("← Back to Login"):
+        st.session_state.page_state = "login"
+        st.rerun()
 
 def show_forgot_password_page():
     st.header("🔑 Reset Your Password")

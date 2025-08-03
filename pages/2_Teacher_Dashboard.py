@@ -336,7 +336,13 @@ with report_tab:
     # --- FORCE COLUMN RENAME ---
     try:
         df_answer_bank_report.columns = ['Student Gmail', 'Date', 'Class', 'Subject', 'Question', 'Answer', 'Marks', 'Remarks', 'Row ID']
-        df_students_report.columns = ['User Name', 'Gmail ID', 'Password', 'Role', 'Class', 'Confirmed', 'Subscription Plan', 'Subscription Date', 'Subscribed Till', 'Security Question', 'Security Answer', 'Instructions', 'Payment Confirmed', 'Salary Points', 'Row ID']
+        df_students_report.columns = [
+            'User Name','Gmail ID','Password','Role','Class','Confirmed',
+            'Subscription Plan','Subscription Date','Subscribed Till',
+            'Security Question','Security Answer','Instructions','Payment Confirmed',
+            'Salary Points','Instruction_Reply','Instruction_Status','Father Name',
+            'Mobile Number','Parent PhonePe', 'Row ID']
+   
     except Exception as e:
         st.error(f"Could not rename columns, please check your sheet structure. Error: {e}")
         st.stop()

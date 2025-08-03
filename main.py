@@ -81,9 +81,96 @@ ALL_USERS_SHEET_ID = "18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA"
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user_name = ""
+    st.session_state.user_rimport streamlit as st
+import pandas as pd
+from datetime import datetime, timedelta
+import gspread
+import json
+import base64
+import hashlib
+
+from google.oauth2.service_account import Credentials
+
+# === CONFIGURATION ===
+st.set_page_config(layout="wide", page_title="PRK Home Tuition - Login")
+DATE_FORMAT = "%Y-%m-%d"
+SUBSCRIPTION_PLANS = {
+    "₹550 for 6 months (Advance)": 182,
+    "₹1000 for 1 year (Advance)": 365,
+    "₹100 for 30 days (Subjects Homework Only)": 30
+}
+UPI_ID = "9685840429@pnb"
+SECURITY_QUESTIONS = ["What is your mother's maiden name?", "What was the name of your first pet?", "What city were you born in?"]
+
+# === UTILITY FUNCTIONS ===
+@st.cache_resource
+def connect_to_gsheets():
+    try:
+        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        decoded_creds = base64.b64decode(st.secrets["google_service"]["base64_credentials"])
+        credentials_dict = json.loads(decoded_creds)
+        credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
+        client = gspread.authorize(credentials)
+        return client
+    except Exception as e:
+        st.error(f"Error connecting to Google APIs: {e}")
+        return None
+
+@st.cache_data(ttl=30)
+def load_data(sheet_id):
+    try:
+        client = connect_to_gsheets()
+        if client is None: return pd.DataFrame()
+        sheet = client.open_by_key(sheet_id).sheet1
+        all_values = sheet.get_all_values()
+        if not all_values: return pd.DataFrame()
+        return pd.DataFrame(all_values[1:], columns=all_values[0])
+    except Exception as e:
+        st.error(f"Failed to load data for sheet ID {sheet_id}: {e}")
+        return pd.DataFrame()
+
+def save_data(df, sheet_id):
+    try:
+        client = connect_to_gsheets()
+        sheet = client.open_by_key(sheet_id).sheet1
+        df_to_save = df.drop(columns=['Row ID'], errors='ignore')
+        df_str = df_to_save.fillna("").astype(str)
+        sheet.clear()
+        sheet.update([df_str.columns.values.tolist()] + df_str.values.tolist())
+        load_data.clear()
+        return True
+    except Exception as e:
+        st.error(f"Failed to save data: {e}")
+        return False
+
+def find_user(gmail):
+    df_users = load_data(ALL_USERS_SHEET_ID)
+    if not df_users.empty and 'Gmail ID' in df_users.columns:
+        user_data = df_users[df_users['Gmail ID'] == gmail]
+        if not user_data.empty:
+            return user_data.iloc[0]
+    return None
+
+def make_hashes(password):
+    return hashlib.sha256(str.encode(password)).hexdigest()
+
+def check_hashes(password, hashed_text):
+    return make_hashes(password) == hashed_text if hashed_text else False
+
+# === SHEET IDs ===
+ALL_USERS_SHEET_ID = "18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA"
+
+# === SESSION STATE ===
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.user_name = ""
     st.session_state.user_role = ""
     st.session_state.user_gmail = ""
     st.session_state.page_state = "login"
+    
+# --- Hide sidebar page navigation when not logged in ---
+if not st.session_state.logged_in:
+    st.markdown("<style> [data-testid='stSidebarNav'] {display: none;} </style>", unsafe_allow_html=True)
 
 # === PAGE DEFINITIONS ===
 def show_login_page():
@@ -210,15 +297,6 @@ if not st.session_state.logged_in:
     with col2: st.image("Excellent_logo.jpg", use_container_width=True)
     st.markdown("---")
     
-    option = st.sidebar.radio("Select an option:", ["Login", "New Registration", "Forgot Password"])
-
-    if option == "New Registration":
-        st.session_state.page_state = "register"
-    elif option == "Login":
-        st.session_state.page_state = "login"
-    elif option == "Forgot Password":
-        st.session_state.page_state = "forgot_password"
-        
     if st.session_state.page_state == "register":
         show_registration_page()
     elif st.session_state.page_state == "forgot_password":

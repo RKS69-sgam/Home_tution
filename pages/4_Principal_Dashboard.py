@@ -144,7 +144,30 @@ with instruction_tab:
 
 with report_tab:
     st.subheader("Performance Reports")
+    
+    df_answers = load_data(MASTER_ANSWER_SHEET_ID)
+    df_users = load_data(ALL_USERS_SHEET_ID)
+    
+    # --- FORCE COLUMN RENAME ---
+    try:
+        # This list should match your MASTER_ANSWER_SHEET exactly
+        df_answers.columns = ['Student Gmail','Date','Class','Subject','Question','Answer','Marks','Remarks', 'Row ID']
+        
+        # This list now has all 19 columns for your ALL_USERS_SHEET
+        df_users.columns = [
+            'User Name','Gmail ID','Password','Role','Class','Confirmed',
+            'Subscription Plan','Subscription Date','Subscribed Till',
+            'Security Question','Security Answer','Instructions','Payment Confirmed',
+            'Salary Points','Instruction_Reply','Instruction_Status','Father Name',
+            'Mobile Number','Parent PhonePe', 'Row ID'
+        ]
+    except Exception as e:
+        st.error(f"Could not rename columns, please check your sheet structure. Error: {e}")
+        st.stop()
+    # ---------------------------
+
     col1, col2 = st.columns(2)
+
     with col1:
         st.markdown("#### 🏆 Top 3 Teachers (by Points)")
         df_teachers = df_users[df_users['Role'].isin(['Teacher', 'Admin', 'Principal'])].copy()
@@ -155,27 +178,28 @@ with report_tab:
     with col2:
         st.markdown("#### 📉 Students Needing Improvement")
         df_students = df_users[df_users['Role'] == 'Student']
-        if not df_answer_bank.empty:
-            df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
-            graded_answers = df_answer_bank.dropna(subset=['Marks'])
+        if not df_answers.empty:
+            df_answers['Marks'] = pd.to_numeric(df_answers.get('Marks'), errors='coerce')
+            graded_answers = df_answers.dropna(subset=['Marks'])
             if not graded_answers.empty:
                 student_performance = graded_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
                 merged_df = pd.merge(student_performance, df_students, left_on='Student Gmail', right_on='Gmail ID')
                 weakest_students = merged_df.nsmallest(5, 'Marks').round(2)
                 st.dataframe(weakest_students[['User Name', 'Class', 'Marks']])
             else:
-                st.info("No graded answers available in the Answer Bank.")
+                st.info("No graded answers available.")
         else:
-            st.info("Answer Bank is empty.")
+            st.info("No student answers available yet.")
 
     st.markdown("---")
     st.subheader("Class-wise Student Performance")
+
     df_students_report = df_users[df_users['Role'] == 'Student']
-    if df_answer_bank.empty or df_students_report.empty:
-        st.info("Leaderboard will be generated once answers are graded and moved to the bank.")
+    if df_answers.empty or df_students_report.empty:
+        st.info("Leaderboard will be generated once students are graded.")
     else:
-        df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
-        graded_answers_all = df_answer_bank.dropna(subset=['Marks'])
+        df_answers['Marks'] = pd.to_numeric(df_answers.get('Marks'), errors='coerce')
+        graded_answers_all = df_answers.dropna(subset=['Marks'])
         if graded_answers_all.empty:
             st.info("The leaderboard is available after answers have been graded.")
         else:
@@ -183,9 +207,13 @@ with report_tab:
             leaderboard_df_all = df_merged_all.groupby(['Class', 'User Name'])['Marks'].mean().reset_index()
             top_students_df_all = leaderboard_df_all.groupby('Class').apply(lambda x: x.nlargest(3, 'Marks')).reset_index(drop=True)
             top_students_df_all['Marks'] = top_students_df_all['Marks'].round(2)
+            
             st.markdown("#### 🥇 Top 3 Students per Class")
             st.dataframe(top_students_df_all)
-            fig = px.bar(top_students_df_all, x='User Name', y='Marks', color='Class', title='Top 3 Students by Average Marks per Class', labels={'Marks': 'Average Marks', 'User Name': 'Student'})
+            
+            fig = px.bar(top_students_df_all, x='User Name', y='Marks', color='Class',
+                         title='Top 3 Students by Average Marks per Class',
+                         labels={'Marks': 'Average Marks', 'User Name': 'Student'})
             st.plotly_chart(fig, use_container_width=True)
 
 with individual_tab:

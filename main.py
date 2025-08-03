@@ -173,9 +173,50 @@ def show_registration_page():
 
 def show_forgot_password_page():
     st.header("🔑 Reset Your Password")
-    with st.form("forgot_password_form"):
-        # (Forgot password logic here)
-        pass
+    with st.form("forgot_password_form", clear_on_submit=True):
+        gmail_to_reset = st.text_input("Enter your registered Gmail ID").lower().strip()
+        
+        # Look up the user to display their security question
+        user_data = find_user(gmail_to_reset)
+        if user_data is not None:
+            st.info(f"Security Question: **{user_data.get('Security Question')}**")
+        
+        security_answer = st.text_input("Your Security Answer").lower().strip()
+        new_password = st.text_input("Enter new password", type="password")
+        confirm_password = st.text_input("Confirm new password", type="password")
+        
+        submitted = st.form_submit_button("Reset Password")
+
+        if submitted:
+            if not all([gmail_to_reset, security_answer, new_password, confirm_password]):
+                st.warning("Please fill all fields.")
+            elif new_password != confirm_password:
+                st.error("Passwords do not match.")
+            elif user_data is None:
+                st.error("This Gmail ID is not registered.")
+            elif security_answer != user_data.get("Security Answer"):
+                st.error("Incorrect security answer.")
+            else:
+                with st.spinner("Updating password..."):
+                    # Find the cell and update the password with the new hash
+                    client = connect_to_gsheets()
+                    sheet = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
+                    cell = sheet.find(gmail_to_reset)
+                    
+                    if cell:
+                        header_row = sheet.row_values(1)
+                        password_col = header_row.index("Password") + 1
+                        sheet.update_cell(cell.row, password_col, make_hashes(new_password))
+                        
+                        load_data.clear()
+                        st.success("Password updated! Please log in.")
+                        st.session_state.page_state = "login"
+                    else:
+                        st.error("An unexpected error occurred. Please try again.")
+
+    if st.button("← Back to Login"):
+        st.session_state.page_state = "login"
+        st.rerun()
 
 # === MAIN APP ROUTING ===
 if not st.session_state.logged_in:

@@ -67,22 +67,22 @@ st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<
 # === PRINCIPAL DASHBOARD UI ===
 st.header("🏛️ Principal Dashboard")
 # --- DEBUGGING CODE START ---
-st.warning("RUNNING DEBUG TEST FOR REPORT TAB")
-try:
-    st.markdown("### Columns found in MASTER_ANSWER_SHEET:")
-    df_answers_debug = load_data(MASTER_ANSWER_SHEET_ID)
-    st.write(list(df_answers_debug.columns))
+#st.warning("RUNNING DEBUG TEST FOR REPORT TAB")
+#try:
+    #st.markdown("### Columns found in MASTER_ANSWER_SHEET:")
+    #df_answers_debug = load_data(MASTER_ANSWER_SHEET_ID)
+    #st.write(list(df_answers_debug.columns))
 
-    st.markdown("### Columns found in ALL_USERS_SHEET:")
-    df_users_debug = load_data(ALL_USERS_SHEET_ID)
-    st.write(list(df_users_debug.columns))
+   # st.markdown("### Columns found in ALL_USERS_SHEET:")
+   # df_users_debug = load_data(ALL_USERS_SHEET_ID)
+   # st.write(list(df_users_debug.columns))
     
-    st.info("The lists above MUST contain 'Student Gmail', 'Class', 'User Name', and 'Gmail ID' for the report to work.")
+   # st.info("The lists above MUST contain 'Student Gmail', 'Class', 'User Name', and 'Gmail ID' for the report to work.")
 
-except Exception as e:
-    st.error("An error occurred during the debug test:")
-    st.exception(e)
-st.stop()
+#except Exception as e:
+   # st.error("An error occurred during the debug test:")
+   # st.exception(e)
+#st.stop()
 # --- DEBUGGING CODE END ---
 # Display Public Announcement
 try:
@@ -99,6 +99,21 @@ df_users = load_data(ALL_USERS_SHEET_ID)
 df_answers = load_data(MASTER_ANSWER_SHEET_ID)
 df_homework = load_data(HOMEWORK_QUESTIONS_SHEET_ID)
 df_answer_bank = load_data(ANSWER_BANK_SHEET_ID)
+
+# --- CORRECTED COLUMN HEADERS (as per your debug output) ---
+try:
+    df_answers.columns = ['Student Gmail', 'Date', 'Class', 'Subject', 'Question', 'Answer', 'Marks', 'Remarks', 'Row ID']
+    df_users.columns = [
+        'User Name', 'Gmail ID', 'Password', 'Role', 'Class', 'Confirmed',
+        'Subscription Plan', 'Subscription Date', 'Subscribed Till', 'Security Question',
+        'Security Answer', 'Instructions', 'Payment Confirmed', 'Salary Points',
+        'Instruction_Reply', 'Instruction_Status', 'Father Name', 'Mobile Number',
+        'Parent PhonePe', 'Row ID'
+    ]
+except Exception as e:
+    st.error(f"Could not rename columns. Please ensure your sheets have the correct number of columns. Error: {e}")
+    st.stop()
+# -----------------------------------------------------------
 
 instruction_tab, report_tab, individual_tab = st.tabs(["Send Messages", "Performance Reports", "Individual Growth Charts"])
 

@@ -299,15 +299,43 @@ with create_tab:
 
 with report_tab:
     st.subheader("My Reports")
-    
-    # Report 1: Homework Creation Report
     st.markdown("#### Homework Creation Report")
     teacher_homework = df_homework[df_homework.get('Uploaded By') == st.session_state.user_name]
+    
     if teacher_homework.empty:
         st.info("No homework created yet.")
     else:
-        # (Your date filter and chart for homework creation goes here)
-        pass
+        col1, col2 = st.columns(2)
+        with col1:
+            start_date = st.date_input("Start Date", datetime.today() - timedelta(days=7), format="DD-MM-YYYY")
+        with col2:
+            end_date = st.date_input("End Date", datetime.today(), format="DD-MM-YYYY")
+        
+        # Convert 'Date' column in DataFrame to a comparable format
+        teacher_homework['Date_dt'] = pd.to_datetime(teacher_homework['Date'], format=DATE_FORMAT, errors='coerce').dt.date
+        
+        # Filter the DataFrame based on the selected date range
+        filtered_report = teacher_homework[
+            (teacher_homework['Date_dt'] >= start_date) &
+            (teacher_homework['Date_dt'] <= end_date)
+        ]
+        
+        if filtered_report.empty:
+            st.warning("No homework found in the selected date range.")
+        else:
+            # Create a summary table
+            summary = filtered_report.groupby(['Class', 'Subject']).size().reset_index(name='Total Questions')
+            st.dataframe(summary)
+            
+            # Create a summary bar chart
+            fig = px.bar(
+                summary, 
+                x='Class', 
+                y='Total Questions', 
+                color='Subject', 
+                title='Your Homework Contributions'
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("---")
     

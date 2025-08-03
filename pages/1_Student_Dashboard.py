@@ -72,6 +72,16 @@ st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<
 st.image("PRK_logo.jpg", use_container_width=True)
 st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
+# Display Public Announcement
+try:
+    announcements_df = load_data(ANNOUNCEMENTS_SHEET_ID)
+    if not announcements_df.empty:
+        latest_announcement = announcements_df['Message'].iloc[0]
+        if latest_announcement:
+            st.info(f"📢 **Latest Public Announcement:** {latest_announcement}")
+except Exception:
+    pass
+    
 # --- INSTRUCTION & REPLY SYSTEM ---
 df_all_users = load_data(ALL_USERS_SHEET_ID)
 user_info_row = df_all_users[df_all_users['Gmail ID'] == st.session_state.user_gmail]

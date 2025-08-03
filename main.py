@@ -268,9 +268,10 @@ if not st.session_state.logged_in:
     with col2: st.image("Excellent_logo.jpg", use_container_width=True)
     st.markdown("---")
     if st.session_state.page_state == "register":
-        show_registration_page()
+       show_registration_page(ALL_USERS_SHEET)
+
     elif st.session_state.page_state == "forgot_password":
-        show_forgot_password_page()
+        show_forgot_password_page(ALL_USERS_SHEET)
     else:
         show_login_page()
 else:

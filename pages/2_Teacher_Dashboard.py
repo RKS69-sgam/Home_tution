@@ -150,7 +150,7 @@ else:
 
 st.markdown("---")
 
-grade_tab, create_tab, report_tab = st.tabs(["Create Homework", "Grade Answers", "My Reports"])
+grade_tab, create_tab, report_tab = st.tabs(["Grade Answers", "Create Homework", "My Reports"])
 
 with grade_tab:
     st.subheader("Grade Student Answers")

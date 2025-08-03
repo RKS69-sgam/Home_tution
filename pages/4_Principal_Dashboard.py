@@ -180,24 +180,6 @@ with report_tab:
     df_answers = load_data(MASTER_ANSWER_SHEET_ID)
     df_users = load_data(ALL_USERS_SHEET_ID)
     
-    # --- FORCE COLUMN RENAME ---
-    try:
-        # This list should match your MASTER_ANSWER_SHEET exactly
-        df_answers.columns = ['Student Gmail','Date','Class','Subject','Question','Answer','Marks','Remarks', 'Row ID']
-        
-        # This list now has all 19 columns for your ALL_USERS_SHEET
-        df_users.columns = [
-            'User Name','Gmail ID','Password','Role','Class','Confirmed',
-            'Subscription Plan','Subscription Date','Subscribed Till',
-            'Security Question','Security Answer','Instructions','Payment Confirmed',
-            'Salary Points','Instruction_Reply','Instruction_Status','Father Name',
-            'Mobile Number','Parent PhonePe', 'Row ID'
-        ]
-    except Exception as e:
-        st.error(f"Could not rename columns, please check your sheet structure. Error: {e}")
-        st.stop()
-    # ---------------------------
-
     col1, col2 = st.columns(2)
 
     with col1:
@@ -250,23 +232,6 @@ with report_tab:
 
 with individual_tab:
     st.subheader("Individual Growth Charts")
-    
-    # --- FORCE COLUMN RENAME FOR SAFETY ---
-    try:
-        df_answer_bank.columns = ['Student Gmail','Date','Class','Subject','Question','Answer','Marks','Remarks', 'Row ID']
-        df_users.columns = [
-            'User Name','Gmail ID','Password','Role','Class','Confirmed',
-            'Subscription Plan','Subscription Date','Subscribed Till',
-            'Security Question','Security Answer','Instructions','Payment Confirmed',
-            'Salary Points','Instruction_Reply','Instruction_Status','Father Name',
-            'Mobile Number','Parent PhonePe', 'Row ID'
-        ]
-        df_homework.columns = ['Class','Date','Uploaded By','Subject','Question','Row ID']
-    except Exception as e:
-        st.error(f"Could not prepare data for individual reports. Please check your sheet structures. Error: {e}")
-        st.stop()
-    # ------------------------------------
-
     report_type = st.selectbox("Select report type", ["Student", "Teacher"])
 
     if report_type == "Student":

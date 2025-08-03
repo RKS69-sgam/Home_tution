@@ -159,7 +159,7 @@ with create_tab:
     if not st.session_state.context_set:
         with st.form("context_form"):
             subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance Classes"])
-            cls = st.selectbox("Class", [f"{i}th" for i in range(6, 13)])
+            cls = st.selectbox("Class", [f"{i}th" for i in range(5, 13)])
             date = st.date_input("Date", datetime.today(), format="DD-MM-YYYY")
             if st.form_submit_button("Start Adding Questions →"):
                 st.session_state.context_set = True
@@ -274,7 +274,7 @@ with grade_tab:
             
                                             load_data.clear()
                                             st.success("Saved!")
-                                            st.rerun()
+                                            #st.rerun()
                                     else:
                                         live_sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
                                         marks_col = list(df_live_answers.columns).index("Marks") + 1

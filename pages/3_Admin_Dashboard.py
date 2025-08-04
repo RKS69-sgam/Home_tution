@@ -11,9 +11,9 @@ from google.oauth2.service_account import Credentials
 st.set_page_config(layout="wide", page_title="Admin Dashboard")
 DATE_FORMAT = "%d-%m-%Y"
 SUBSCRIPTION_PLANS = {
-    "₹100 for 30 days (Normal)": 30,
-    "₹550 for 6 months (Advance)": 182,
-    "₹1000 for 1 year (Advance)": 365
+    "₹1000 for 6 months (Advance)": 182,
+    "₹2000 for 1 year (Advance)": 365,
+    "₹200 for 30 days (Normal)": 30
 }
 
 # === AUTHENTICATION & GOOGLE SHEETS SETUP ===

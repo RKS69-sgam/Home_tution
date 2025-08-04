@@ -145,6 +145,7 @@ with instruction_tab:
 
 with report_tab:
     st.subheader("Performance Reports")
+    
     # --- Today's Teacher Activity Report ---
     st.markdown("#### 📅 Today's Teacher Activity")
     
@@ -155,9 +156,8 @@ with report_tab:
     todays_homework = df_homework[df_homework['Date'] == today_str]
     questions_created = todays_homework.groupby('Uploaded By').size().reset_index(name='Created Today')
     
-    # Merge with teachers list
     teacher_activity = pd.merge(df_teachers_report[['User Name']], questions_created, left_on='User Name', right_on='Uploaded By', how='left')
-    teacher_activity.drop(columns=['Uploaded By'], inplace=True)
+    teacher_activity.drop(columns=['Uploaded By'], inplace=True, errors='ignore')
 
     # 2. Pending Answers for each teacher's questions
     df_live_answers['Marks'] = pd.to_numeric(df_live_answers.get('Marks'), errors='coerce')
@@ -187,12 +187,8 @@ with report_tab:
         ranked_teachers['Rank'] = range(1, len(ranked_teachers) + 1)
         st.dataframe(ranked_teachers[['User Name', 'Role', 'Salary Points']])
 
-        # Graph for ALL teachers
         fig_teachers = px.bar(
-            ranked_teachers, 
-            x='User Name', 
-            y='Salary Points', 
-            color='User Name',
+            ranked_teachers, x='User Name', y='Salary Points', color='User Name',
             title='All Teachers by Performance Points',
             labels={'Salary Points': 'Total Points', 'User Name': 'Teacher'},
             text='Salary Points'
@@ -239,7 +235,6 @@ with report_tab:
                          title='Top 3 Students by Average Marks per Class',
                          labels={'Marks': 'Average Marks', 'User Name': 'Student'})
             st.plotly_chart(fig, use_container_width=True)
-
 
 with individual_tab:
     st.subheader("Individual Growth Charts")

@@ -255,33 +255,56 @@ if not user_info_row.empty:
             st.error("Answer Bank sheet is missing the 'Marks' column.")
     
     with leaderboard_tab:
-        st.subheader(f"Class Leaderboard ({student_class})")
-        df_students_class = df_all_users[df_all_users['Class'] == student_class]
-        class_gmail_list = df_students_class['Gmail ID'].tolist()
-        class_answers_bank = df_answer_bank[df_answer_bank['Student Gmail'].isin(class_gmail_list)].copy()
-        if class_answers_bank.empty or 'Marks' not in class_answers_bank.columns:
+    st.subheader(f"Class Leaderboard ({student_class})")
+    
+    df_students_class = df_all_users[df_all_users['Class'] == student_class]
+    class_gmail_list = df_students_class['Gmail ID'].tolist()
+    class_answers_bank = df_answer_bank[df_answer_bank['Student Gmail'].isin(class_gmail_list)].copy()
+
+    if class_answers_bank.empty or 'Marks' not in class_answers_bank.columns:
+        st.info("The leaderboard will appear once answers have been graded for your class.")
+    else:
+        class_answers_bank['Marks'] = pd.to_numeric(class_answers_bank['Marks'], errors='coerce')
+        graded_class_answers = class_answers_bank.dropna(subset=['Marks'])
+        
+        if graded_class_answers.empty:
             st.info("The leaderboard will appear once answers have been graded for your class.")
         else:
-            class_answers_bank['Marks'] = pd.to_numeric(class_answers_bank['Marks'], errors='coerce')
-            graded_class_answers = class_answers_bank.dropna(subset=['Marks'])
-            if graded_class_answers.empty:
-                st.info("The leaderboard will appear once answers have been graded for your class.")
+            leaderboard_df = graded_class_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
+            leaderboard_df = pd.merge(leaderboard_df, df_students_class[['User Name', 'Gmail ID']], left_on='Student Gmail', right_on='Gmail ID', how='left')
+            
+            leaderboard_df['Rank'] = leaderboard_df['Marks'].rank(method='dense', ascending=False).astype(int)
+            leaderboard_df = leaderboard_df.sort_values(by='Rank')
+            leaderboard_df['Marks'] = leaderboard_df['Marks'].round(2)
+            
+            st.markdown("##### 🏆 Top 3 Performers")
+            top_3_df = leaderboard_df.head(3)
+            st.dataframe(top_3_df[['Rank', 'User Name', 'Marks']])
+
+            # --- NEW: Bar chart for Top 3 Performers ---
+            if not top_3_df.empty:
+                fig = px.bar(
+                    top_3_df,
+                    x='User Name',
+                    y='Marks',
+                    color='User Name', # Makes each bar a different color
+                    title=f"Top 3 Performers in {student_class}",
+                    labels={'Marks': 'Average Marks', 'User Name': 'Student'},
+                    text='Marks'
+                )
+                fig.update_traces(textposition='outside')
+                st.plotly_chart(fig, use_container_width=True)
+            # ---------------------------------------------
+            
+            st.markdown("---")
+            my_rank_row = leaderboard_df[leaderboard_df['Student Gmail'] == st.session_state.user_gmail]
+            if not my_rank_row.empty:
+                my_rank = my_rank_row.iloc[0]['Rank']
+                my_avg_marks = my_rank_row.iloc[0]['Marks']
+                st.success(f"**Your Current Rank:** {my_rank} (with an average score of **{my_avg_marks}**)")
             else:
-                leaderboard_df = graded_class_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
-                leaderboard_df = pd.merge(leaderboard_df, df_students_class[['User Name', 'Gmail ID']], left_on='Student Gmail', right_on='Gmail ID', how='left')
-                leaderboard_df['Rank'] = leaderboard_df['Marks'].rank(method='dense', ascending=False).astype(int)
-                leaderboard_df = leaderboard_df.sort_values(by='Rank')
-                leaderboard_df['Marks'] = leaderboard_df['Marks'].round(2)
-                st.markdown("##### 🏆 Top 3 Performers")
-                st.dataframe(leaderboard_df.head(3)[['Rank', 'User Name', 'Marks']])
-                st.markdown("---")
-                my_rank_row = leaderboard_df[leaderboard_df['Student Gmail'] == st.session_state.user_gmail]
-                if not my_rank_row.empty:
-                    my_rank = my_rank_row.iloc[0]['Rank']
-                    my_avg_marks = my_rank_row.iloc[0]['Marks']
-                    st.success(f"**Your Current Rank:** {my_rank} (with an average score of **{my_avg_marks}**)")
-                else:
-                    st.warning("Your rank will be shown here after your answers are graded.")
+                st.warning("Your rank will be shown here after your answers are graded.")
+
 else:
     st.error("Could not find your student record.")
 

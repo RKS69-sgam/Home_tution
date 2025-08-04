@@ -67,6 +67,24 @@ st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<
 
 # === PRINCIPAL DASHBOARD UI ===
 st.header("🏛️ Principal Dashboard")
+# --- DEBUGGING CODE START ---
+st.warning("RUNNING DEBUG TEST FOR REPORT TAB")
+try:
+    st.markdown("### Columns found in Answer Bank Sheet:")
+    df_answers_debug = load_data(ANSWER_BANK_SHEET_ID)
+    st.write(list(df_answers_debug.columns))
+
+    st.markdown("### Columns found in All Users Sheet:")
+    df_users_debug = load_data(ALL_USERS_SHEET_ID)
+    st.write(list(df_users_debug.columns))
+    
+    st.info("The lists above MUST contain 'Student Gmail', 'Class', 'User Name', and 'Gmail ID' for the report to work.")
+
+except Exception as e:
+    st.error("An error occurred during the debug test:")
+    st.exception(e)
+st.stop()
+# --- DEBUGGING CODE END ---
 
 # Display Public Announcement
 try:

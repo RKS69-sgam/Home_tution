@@ -80,7 +80,7 @@ except Exception:
 
 # Load all necessary data once
 df_users = load_data(ALL_USERS_SHEET_ID)
-df_answers = load_data(MASTER_ANSWER_SHEET_ID)
+df_live_answers = load_data(MASTER_ANSWER_SHEET_ID) # <-- FIX: This line was missing
 df_homework = load_data(HOMEWORK_QUESTIONS_SHEET_ID)
 df_answer_bank = load_data(ANSWER_BANK_SHEET_ID)
 

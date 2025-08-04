@@ -315,9 +315,10 @@ elif selected_tab == "Grade Answers":
 
 elif selected_tab == "My Reports":
     st.subheader("My Reports")
+    
+    # Report 1: Homework Creation Report
     st.markdown("#### Homework Creation Report")
     teacher_homework = df_homework[df_homework.get('Uploaded By') == st.session_state.user_name]
-    
     if teacher_homework.empty:
         st.info("No homework created yet.")
     else:
@@ -327,30 +328,17 @@ elif selected_tab == "My Reports":
         with col2:
             end_date = st.date_input("End Date", datetime.today(), format="DD-MM-YYYY")
         
-        # Convert 'Date' column in DataFrame to a comparable format
         teacher_homework['Date_dt'] = pd.to_datetime(teacher_homework['Date'], format=DATE_FORMAT, errors='coerce').dt.date
-        
-        # Filter the DataFrame based on the selected date range
         filtered_report = teacher_homework[
             (teacher_homework['Date_dt'] >= start_date) &
             (teacher_homework['Date_dt'] <= end_date)
         ]
-        
         if filtered_report.empty:
             st.warning("No homework found in the selected date range.")
         else:
-            # Create a summary table
             summary = filtered_report.groupby(['Class', 'Subject']).size().reset_index(name='Total Questions')
             st.dataframe(summary)
-            
-            # Create a summary bar chart
-            fig = px.bar(
-                summary, 
-                x='Class', 
-                y='Total Questions', 
-                color='Subject', 
-                title='Your Homework Contributions'
-            )
+            fig = px.bar(summary, x='Class', y='Total Questions', color='Subject', title='Your Homework Contributions')
             st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("---")
@@ -362,7 +350,22 @@ elif selected_tab == "My Reports":
         df_all_teachers['Salary Points'] = pd.to_numeric(df_all_teachers.get('Salary Points', 0), errors='coerce').fillna(0)
         ranked_teachers = df_all_teachers.sort_values(by='Salary Points', ascending=False)
         ranked_teachers['Rank'] = range(1, len(ranked_teachers) + 1)
+        
         st.dataframe(ranked_teachers[['Rank', 'User Name', 'Salary Points']])
+
+        # --- NEW: Graph for Top Teachers ---
+        fig_teachers = px.bar(
+            ranked_teachers.head(10), 
+            x='User Name', 
+            y='Salary Points', 
+            color='User Name',
+            title='Top Teachers by Performance Points',
+            labels={'Salary Points': 'Total Points', 'User Name': 'Teacher'},
+            text='Salary Points'
+        )
+        fig_teachers.update_traces(textposition='outside')
+        st.plotly_chart(fig_teachers, use_container_width=True)
+        # ------------------------------------
     else:
         st.warning("'Salary Points' column not found in All Users Sheet.")
 
@@ -370,49 +373,40 @@ elif selected_tab == "My Reports":
 
     # Report 3: Top 3 Students (from Answer Bank)
     st.subheader("🥇 Class-wise Top 3 Students")
-    
-    df_answer_bank_report = load_data(ANSWER_BANK_SHEET_ID)
-    df_users_report = load_data(ALL_USERS_SHEET_ID)
-    df_students_report = df_users_report[df_users_report['Role'] == 'Student']
-    
-    # --- FORCE COLUMN RENAME ---
-    try:
-        df_answer_bank_report.columns = ['Student Gmail', 'Date', 'Class', 'Subject', 'Question', 'Answer', 'Marks', 'Remarks', 'Row ID']
-        df_students_report.columns = [
-            'User Name','Gmail ID','Password','Role','Class','Confirmed',
-            'Subscription Plan','Subscription Date','Subscribed Till',
-            'Security Question','Security Answer','Instructions','Payment Confirmed',
-            'Salary Points','Instruction_Reply','Instruction_Status','Father Name',
-            'Mobile Number','Parent PhonePe', 'Row ID']
-   
-    except Exception as e:
-        st.error(f"Could not rename columns, please check your sheet structure. Error: {e}")
-        st.stop()
-    # ---------------------------
-    
-                    
-    if df_answer_bank_report.empty or df_students_report.empty:
+    df_students_report = df_users[df_users['Role'] == 'Student']
+    if df_answer_bank.empty or df_students_report.empty:
         st.info("Leaderboard will be generated once answers are graded and moved to the bank.")
     else:
-        df_answer_bank_report['Marks'] = pd.to_numeric(df_answer_bank_report.get('Marks'), errors='coerce')
-        graded_answers = df_answer_bank_report.dropna(subset=['Marks'])
-        
+        df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
+        graded_answers = df_answer_bank.dropna(subset=['Marks'])
         if graded_answers.empty:
             st.info("The leaderboard is available after answers have been graded and moved to the bank.")
         else:
             df_merged = pd.merge(graded_answers, df_students_report, left_on='Student Gmail', right_on='Gmail ID', suffixes=('_ans', '_user'))
-            
             leaderboard_df = df_merged.groupby(['Class_user', 'User Name'])['Marks'].mean().reset_index()
-            leaderboard_df.rename(columns={'Class_user': 'Class'}, inplace=True) # Rename merged column
-
+            leaderboard_df.rename(columns={'Class_user': 'Class'}, inplace=True)
             leaderboard_df['Rank'] = leaderboard_df.groupby('Class')['Marks'].rank(method='dense', ascending=False).astype(int)
             leaderboard_df = leaderboard_df.sort_values(by=['Class', 'Rank'])
-            
             top_students_df = leaderboard_df.groupby('Class').head(3).reset_index(drop=True)
             top_students_df['Marks'] = top_students_df['Marks'].round(2)
             
             st.markdown("#### Top Performers Summary")
             st.dataframe(top_students_df[['Rank', 'User Name', 'Class', 'Marks']])
+
+            # --- NEW: Graph for Top Students ---
+            fig_students = px.bar(
+                top_students_df,
+                x='User Name',
+                y='Marks',
+                color='Class',
+                title='Top 3 Students by Average Marks per Class',
+                labels={'Marks': 'Average Marks', 'User Name': 'Student'},
+                text='Marks'
+            )
+            fig_students.update_traces(textposition='outside')
+            st.plotly_chart(fig_students, use_container_width=True)
+            # ------------------------------------
+
 
 
 st.markdown("---")

@@ -144,14 +144,60 @@ with instruction_tab:
 
 with report_tab:
     st.subheader("Performance Reports")
+    # --- Today's Teacher Activity Report ---
+    st.markdown("#### 📅 Today's Teacher Activity")
     
+    today_str = datetime.today().strftime(DATE_FORMAT)
+    df_teachers_report = df_users[df_users['Role'].isin(['Teacher', 'Admin', 'Principal'])].copy()
+
+    # 1. Questions Created Today
+    todays_homework = df_homework[df_homework['Date'] == today_str]
+    questions_created = todays_homework.groupby('Uploaded By').size().reset_index(name='Created Today')
+    
+    # Merge with teachers list
+    teacher_activity = pd.merge(df_teachers_report[['User Name']], questions_created, left_on='User Name', right_on='Uploaded By', how='left')
+    teacher_activity.drop(columns=['Uploaded By'], inplace=True)
+
+    # 2. Pending Answers for each teacher's questions
+    df_live_answers['Marks'] = pd.to_numeric(df_live_answers.get('Marks'), errors='coerce')
+    ungraded_answers = df_live_answers[df_live_answers['Marks'].isna()]
+    
+    pending_summary_list = []
+    for teacher_name in teacher_activity['User Name']:
+        teacher_questions = df_homework[df_homework['Uploaded By'] == teacher_name]['Question'].tolist()
+        pending_count = len(ungraded_answers[ungraded_answers['Question'].isin(teacher_questions)])
+        pending_summary_list.append({'User Name': teacher_name, 'Pending Answers': pending_count})
+        
+    pending_df = pd.DataFrame(pending_summary_list)
+    teacher_activity = pd.merge(teacher_activity, pending_df, on='User Name', how='left')
+    
+    teacher_activity.fillna(0, inplace=True)
+    st.dataframe(teacher_activity)
+    
+    st.markdown("---")
+    
+    # --- Existing Reports ---
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("#### 🏆 Top 3 Teachers (by Points)")
+        st.markdown("#### 🏆 Top Teachers Leaderboard (All Time)")
         df_teachers = df_users[df_users['Role'].isin(['Teacher', 'Admin', 'Principal'])].copy()
         df_teachers['Salary Points'] = pd.to_numeric(df_teachers.get('Salary Points', 0), errors='coerce').fillna(0)
-        top_teachers = df_teachers.nlargest(3, 'Salary Points')
-        st.dataframe(top_teachers[['User Name', 'Role', 'Salary Points']])
+        ranked_teachers = df_teachers.sort_values(by='Salary Points', ascending=False)
+        ranked_teachers['Rank'] = range(1, len(ranked_teachers) + 1)
+        st.dataframe(ranked_teachers[['User Name', 'Role', 'Salary Points']])
+
+        # Graph for ALL teachers
+        fig_teachers = px.bar(
+            ranked_teachers, 
+            x='User Name', 
+            y='Salary Points', 
+            color='User Name',
+            title='All Teachers by Performance Points',
+            labels={'Salary Points': 'Total Points', 'User Name': 'Teacher'},
+            text='Salary Points'
+        )
+        fig_teachers.update_traces(textposition='outside')
+        st.plotly_chart(fig_teachers, use_container_width=True)
 
     with col2:
         st.markdown("#### 📉 Students Needing Improvement")
@@ -192,6 +238,7 @@ with report_tab:
                          title='Top 3 Students by Average Marks per Class',
                          labels={'Marks': 'Average Marks', 'User Name': 'Student'})
             st.plotly_chart(fig, use_container_width=True)
+
 
 with individual_tab:
     st.subheader("Individual Growth Charts")

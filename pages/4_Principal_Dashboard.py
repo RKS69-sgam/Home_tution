@@ -10,6 +10,7 @@ from google.oauth2.service_account import Credentials
 
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="Principal Dashboard")
+DATE_FORMAT = "%d-%m-%Y"
 
 # === UTILITY FUNCTIONS ===
 @st.cache_resource

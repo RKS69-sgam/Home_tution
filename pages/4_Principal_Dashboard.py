@@ -155,15 +155,6 @@ with instruction_tab:
 with report_tab:
     st.subheader("Performance Reports")
     
-    # --- FORCE COLUMN RENAME (FIX) ---
-    try:
-        df_users.columns = ['User Name','Gmail ID','Password','Role','Class','Confirmed','Subscription Plan','Subscription Date','Subscribed Till','Security Question','Security Answer','Instructions','Payment Confirmed','Salary Points','Instruction_Reply','Instruction_Status','Father Name','Mobile Number','Parent PhonePe', 'Row ID']
-        df_answer_bank.columns = ['Student Gmail', 'Date', 'Class', 'Subject', 'Question', 'Answer', 'Marks', 'Remarks', 'Row ID']
-    except Exception as e:
-        st.error(f"Could not rename columns. Please ensure your sheets have the correct number of columns. Error: {e}")
-        st.stop()
-    # ---------------------------
-    
     # --- Today's Teacher Activity Report ---
     st.markdown("#### 📅 Today's Teacher Activity")
     
@@ -242,6 +233,16 @@ with report_tab:
             st.info("The leaderboard is available after answers have been graded.")
         else:
             df_merged_all = pd.merge(graded_answers_all, df_students_report, left_on='Student Gmail', right_on='Gmail ID')
+
+            # --- FORCE COLUMN RENAME (FIX) ---
+            try:
+               df_users.columns = ['User Name','Gmail ID','Password','Role','Class','Confirmed','Subscription Plan','Subscription Date','Subscribed Till','Security Question','Security Answer','Instructions','Payment Confirmed','Salary Points','Instruction_Reply','Instruction_Status','Father Name','Mobile Number','Parent PhonePe', 'Row ID']
+               df_answer_bank.columns = ['Student Gmail', 'Date', 'Class', 'Subject', 'Question', 'Answer', 'Marks', 'Remarks', 'Row ID']
+            except Exception as e:
+               st.error(f"Could not rename columns. Please ensure your sheets have the correct number of columns. Error: {e}")
+               st.stop()
+                # ---------------------------
+
             leaderboard_df_all = df_merged_all.groupby(['Class', 'User Name'])['Marks'].mean().reset_index()
             top_students_df_all = leaderboard_df_all.groupby('Class').apply(lambda x: x.nlargest(3, 'Marks')).reset_index(drop=True)
             top_students_df_all['Marks'] = top_students_df_all['Marks'].round(2)

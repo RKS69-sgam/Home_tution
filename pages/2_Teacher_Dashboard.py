@@ -284,7 +284,7 @@ elif selected_tab == "Grade Answers":
                                             points_str = str(teacher_info_row.iloc[0].get('Salary Points', '0')).strip()
                                             current_points = int(points_str) if points_str.isdigit() else 0
                 
-                                            new_points = current_points + 1
+                                            new_points = current_points + 0.2
                                             points_col = list(df_users.columns).index("Salary Points") + 1
                                             user_sheet = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
                                             user_sheet.update_cell(teacher_row_id, points_col, new_points)

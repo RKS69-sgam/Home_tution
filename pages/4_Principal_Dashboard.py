@@ -155,6 +155,15 @@ with instruction_tab:
 with report_tab:
     st.subheader("Performance Reports")
     
+    # --- FORCE COLUMN RENAME (FIX) ---
+    try:
+        df_users.columns = ['User Name','Gmail ID','Password','Role','Class','Confirmed','Subscription Plan','Subscription Date','Subscribed Till','Security Question','Security Answer','Instructions','Payment Confirmed','Salary Points','Instruction_Reply','Instruction_Status','Father Name','Mobile Number','Parent PhonePe', 'Row ID']
+        df_answer_bank.columns = ['Student Gmail', 'Date', 'Class', 'Subject', 'Question', 'Answer', 'Marks', 'Remarks', 'Row ID']
+    except Exception as e:
+        st.error(f"Could not rename columns. Please ensure your sheets have the correct number of columns. Error: {e}")
+        st.stop()
+    # ---------------------------
+    
     # --- Today's Teacher Activity Report ---
     st.markdown("#### 📅 Today's Teacher Activity")
     

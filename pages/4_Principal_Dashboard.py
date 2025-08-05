@@ -229,7 +229,8 @@ with report_tab:
             fig_students.update_traces(textposition='outside')
             st.plotly_chart(fig_students, use_container_width=True)
             # ------------------------------------
-     st.markdown("---")
+    st.markdown("---")
+
 with individual_tab:
     st.subheader("Individual Growth Charts")
     report_type = st.selectbox("Select report type", ["Student", "Teacher"])

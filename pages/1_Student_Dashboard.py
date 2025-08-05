@@ -72,15 +72,23 @@ st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<
 st.image("PRK_logo.jpg", use_container_width=True)
 st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
-# Display Public Announcement
+# --- Display Public Announcement (Updated) ---
 try:
     announcements_df = load_data(ANNOUNCEMENTS_SHEET_ID)
     if not announcements_df.empty:
-        latest_announcement = announcements_df['Message'].iloc[0]
-        if latest_announcement:
-            st.info(f"📢 **Latest Public Announcement:** {latest_announcement}")
+        today_str = datetime.today().strftime(DATE_FORMAT)
+        
+        # Filter for announcements with today's date
+        todays_announcement = announcements_df[announcements_df.get('Date') == today_str]
+        
+        if not todays_announcement.empty:
+            latest_message = todays_announcement['Message'].iloc[0]
+            st.info(f"📢 **Public Announcement:** {latest_message}")
 except Exception:
+    # Fail silently if announcements can't be loaded
     pass
+# ---------------------------------------------
+
     
 # --- INSTRUCTION & REPLY SYSTEM ---
 df_all_users = load_data(ALL_USERS_SHEET_ID)

@@ -66,15 +66,23 @@ st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<
 # === PRINCIPAL DASHBOARD UI ===
 st.header("🏛️ Principal Dashboard")
 
-# Display Public Announcement
+# --- Display Public Announcement (Updated) ---
 try:
     announcements_df = load_data(ANNOUNCEMENTS_SHEET_ID)
     if not announcements_df.empty:
-        latest_announcement = announcements_df['Message'].iloc[0]
-        if latest_announcement:
-            st.info(f"📢 **Latest Public Announcement:** {latest_announcement}")
+        today_str = datetime.today().strftime(DATE_FORMAT)
+        
+        # Filter for announcements with today's date
+        todays_announcement = announcements_df[announcements_df.get('Date') == today_str]
+        
+        if not todays_announcement.empty:
+            latest_message = todays_announcement['Message'].iloc[0]
+            st.info(f"📢 **Public Announcement:** {latest_message}")
 except Exception:
+    # Fail silently if announcements can't be loaded
     pass
+# ---------------------------------------------
+
 
 # Load all necessary data once
 df_users = load_data(ALL_USERS_SHEET_ID)
@@ -122,6 +130,8 @@ with instruction_tab:
                             sheet.update_cell(row_id, instruction_col, instruction_text)
                             st.success(f"Instruction sent to {real_user_name}.")
                             load_data.clear()
+                        else:
+                            st.error("Selected user could not be found in the database.")
                     else:
                         st.warning("Please select a user and write an instruction.")
 
@@ -132,7 +142,11 @@ with instruction_tab:
                 if announcement_text:
                     client = connect_to_gsheets()
                     announcement_sheet_obj = client.open_by_key(ANNOUNCEMENTS_SHEET_ID).sheet1
-                    announcement_sheet_obj.insert_row([announcement_text], 2)
+                    
+                    # Add today's date with the announcement
+                    today_str = datetime.today().strftime(DATE_FORMAT)
+                    announcement_sheet_obj.insert_row([announcement_text, today_str], 2)
+                    
                     st.success("Public announcement sent to all dashboards!")
                     load_data.clear()
                 else:

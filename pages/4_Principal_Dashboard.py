@@ -234,35 +234,51 @@ with report_tab:
 with individual_tab:
     st.subheader("Individual Growth Charts")
     report_type = st.selectbox("Select report type", ["Student", "Teacher"])
+
     if report_type == "Student":
-        df_students = df_users[df_users['Role'] == 'Student']
-        student_list = df_students['User Name'].tolist()
+        df_students = df_users[df_users['Role'] == 'Student'].copy()
+        
+        # --- FIX: Create display name with class ---
+        df_students['display_name'] = df_students.apply(
+            lambda row: f"{row['User Name']} ({row['Class']})" if row.get('Class') else row['User Name'],
+            axis=1
+        )
+        student_list = df_students['display_name'].tolist()
+        
         search_student = st.text_input("Search Student Name:")
         if search_student:
             student_list = [name for name in student_list if search_student.lower() in name.lower()]
+
         if not student_list:
             st.warning("No students found.")
         else:
-            student_name = st.selectbox("Select Student", ["---Select---"] + student_list)
-            if student_name != "---Select---":
-                student_gmail = df_students[df_students['User Name'] == student_name].iloc[0]['Gmail ID']
+            selected_display_name = st.selectbox("Select Student", ["---Select---"] + student_list)
+            
+            if selected_display_name != "---Select---":
+                # --- FIX: Extract real name to find the user ---
+                real_name = selected_display_name.split(' (')[0]
+                student_gmail = df_students[df_students['User Name'] == real_name].iloc[0]['Gmail ID']
+                
                 student_answers = df_answer_bank[df_answer_bank['Student Gmail'] == student_gmail].copy()
                 if not student_answers.empty:
                     student_answers['Marks'] = pd.to_numeric(student_answers['Marks'], errors='coerce')
                     graded_answers = student_answers.dropna(subset=['Marks'])
                     if not graded_answers.empty:
-                        fig = px.bar(graded_answers, x='Subject', y='Marks', color='Subject', title=f"Subject-wise Performance for {student_name}")
+                        fig = px.bar(graded_answers, x='Subject', y='Marks', color='Subject', title=f"Subject-wise Performance for {selected_display_name}")
                         st.plotly_chart(fig, use_container_width=True)
                     else:
-                        st.info(f"{student_name} has no graded answers yet.")
+                        st.info(f"{selected_display_name} has no graded answers yet.")
                 else:
-                    st.info(f"{student_name} has not submitted any answers to the Answer Bank yet.")
+                    st.info(f"{selected_display_name} has not submitted any answers to the Answer Bank yet.")
+
     elif report_type == "Teacher":
         df_teachers = df_users[df_users['Role'] == 'Teacher']
         teacher_list = df_teachers['User Name'].tolist()
+        
         search_teacher = st.text_input("Search Teacher Name:")
         if search_teacher:
             teacher_list = [name for name in teacher_list if search_teacher.lower() in name.lower()]
+            
         if not teacher_list:
             st.warning("No teachers found.")
         else:
@@ -275,6 +291,7 @@ with individual_tab:
                     st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.info(f"{teacher_name} has not created any homework yet.")
+
 
 st.markdown("---")
 st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)

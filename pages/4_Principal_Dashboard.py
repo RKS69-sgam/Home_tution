@@ -15,7 +15,6 @@ DATE_FORMAT = "%d-%m-%Y"
 # === UTILITY FUNCTIONS ===
 @st.cache_resource
 def connect_to_gsheets():
-    """Establishes a connection to Google Sheets and caches it."""
     try:
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         decoded_creds = base64.b64decode(st.secrets["google_service"]["base64_credentials"])
@@ -29,7 +28,6 @@ def connect_to_gsheets():
 
 @st.cache_data(ttl=60)
 def load_data(sheet_id):
-    """Opens a sheet by its ID and loads the data. This works correctly with Streamlit's cache."""
     try:
         client = connect_to_gsheets()
         if client is None: return pd.DataFrame()
@@ -68,15 +66,23 @@ st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<
 # === PRINCIPAL DASHBOARD UI ===
 st.header("🏛️ Principal Dashboard")
 
-# Display Public Announcement
+# --- Display Public Announcement (Updated) ---
 try:
     announcements_df = load_data(ANNOUNCEMENTS_SHEET_ID)
     if not announcements_df.empty:
-        latest_announcement = announcements_df['Message'].iloc[0]
-        if latest_announcement:
-            st.info(f"📢 **Latest Public Announcement:** {latest_announcement}")
+        today_str = datetime.today().strftime(DATE_FORMAT)
+        
+        # Filter for announcements with today's date
+        todays_announcement = announcements_df[announcements_df.get('Date') == today_str]
+        
+        if not todays_announcement.empty:
+            latest_message = todays_announcement['Message'].iloc[0]
+            st.info(f"📢 **Public Announcement:** {latest_message}")
 except Exception:
+    # Fail silently if announcements can't be loaded
     pass
+# ---------------------------------------------
+
 
 # Load all necessary data once
 df_users = load_data(ALL_USERS_SHEET_ID)
@@ -84,15 +90,9 @@ df_live_answers = load_data(MASTER_ANSWER_SHEET_ID)
 df_homework = load_data(HOMEWORK_QUESTIONS_SHEET_ID)
 df_answer_bank = load_data(ANSWER_BANK_SHEET_ID)
 
-# --- Radio button navigation ---
-page = st.radio(
-    "Select a section",
-    ["Send Messages", "Performance Reports", "Individual Growth Charts"],
-    horizontal=True,
-    label_visibility="collapsed"
-)
+instruction_tab, report_tab, individual_tab = st.tabs(["Send Messages", "Performance Reports", "Individual Growth Charts"])
 
-if page == "Send Messages":
+with instruction_tab:
     st.subheader("Send a Message")
     
     message_type = st.radio("Select message type:", ["Individual Instruction", "Public Announcement"])
@@ -130,6 +130,8 @@ if page == "Send Messages":
                             sheet.update_cell(row_id, instruction_col, instruction_text)
                             st.success(f"Instruction sent to {real_user_name}.")
                             load_data.clear()
+                        else:
+                            st.error("Selected user could not be found in the database.")
                     else:
                         st.warning("Please select a user and write an instruction.")
 
@@ -140,13 +142,17 @@ if page == "Send Messages":
                 if announcement_text:
                     client = connect_to_gsheets()
                     announcement_sheet_obj = client.open_by_key(ANNOUNCEMENTS_SHEET_ID).sheet1
-                    announcement_sheet_obj.insert_row([announcement_text], 2)
+                    
+                    # Add today's date with the announcement
+                    today_str = datetime.today().strftime(DATE_FORMAT)
+                    announcement_sheet_obj.insert_row([announcement_text, today_str], 2)
+                    
                     st.success("Public announcement sent to all dashboards!")
                     load_data.clear()
                 else:
                     st.warning("Announcement text cannot be empty.")
 
-elif page == "Performance Reports":
+with report_tab:
     st.subheader("Performance Reports")
     st.markdown("#### 📅 Today's Teacher Activity")
     
@@ -176,18 +182,12 @@ elif page == "Performance Reports":
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("#### 🏆 Top Teachers Leaderboard (All Time)")
-        df_teachers = df_users[df_users['Role'].isin(['Teacher', 'Admin', 'Principal'])].copy()
+        df_teachers = df_users[df_users['Role'] == 'Teacher'].copy()
         df_teachers['Salary Points'] = pd.to_numeric(df_teachers.get('Salary Points', 0), errors='coerce').fillna(0)
         ranked_teachers = df_teachers.sort_values(by='Salary Points', ascending=False)
         ranked_teachers['Rank'] = range(1, len(ranked_teachers) + 1)
-        st.dataframe(ranked_teachers[['User Name', 'Role', 'Salary Points']])
-        fig_teachers = px.bar(
-            ranked_teachers, x='User Name', y='Salary Points', color='User Name',
-            title='All Teachers by Performance Points',
-            labels={'Salary Points': 'Total Points', 'User Name': 'Teacher'},
-            text='Salary Points'
-        )
-        fig_teachers.update_traces(textposition='outside')
+        st.dataframe(ranked_teachers[['User Name', 'Salary Points']])
+        fig_teachers = px.bar(ranked_teachers, x='User Name', y='Salary Points', color='User Name', title='All Teachers by Performance Points')
         st.plotly_chart(fig_teachers, use_container_width=True)
 
     with col2:
@@ -202,64 +202,110 @@ elif page == "Performance Reports":
                 weakest_students = merged_df.nsmallest(5, 'Marks').round(2)
                 st.dataframe(weakest_students[['User Name', 'Class', 'Marks']])
             else:
-                st.info("No graded answers available to determine student performance.")
+                st.info("No graded answers in Answer Bank.")
         else:
             st.info("Answer Bank is empty.")
 
     st.markdown("---")
-    st.subheader("Class-wise Student Performance")
+    
+    # Top 3 Students (from Answer Bank)
+    st.subheader("🥇 Class-wise Top 3 Students")
     df_students_report = df_users[df_users['Role'] == 'Student']
     if df_answer_bank.empty or df_students_report.empty:
         st.info("Leaderboard will be generated once answers are graded and moved to the bank.")
     else:
         df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
-        graded_answers_all = df_answer_bank.dropna(subset=['Marks'])
-        if graded_answers_all.empty:
-            st.info("The leaderboard is available after answers have been graded.")
+        graded_answers = df_answer_bank.dropna(subset=['Marks'])
+        if graded_answers.empty:
+            st.info("The leaderboard is available after answers have been graded and moved to the bank.")
         else:
-            df_merged_all = pd.merge(graded_answers_all, df_students_report, left_on='Student Gmail', right_on='Gmail ID')
-            leaderboard_df_all = df_merged_all.groupby(['Class', 'User Name'])['Marks'].mean().reset_index()
-            top_students_df_all = leaderboard_df_all.groupby('Class').apply(lambda x: x.nlargest(3, 'Marks')).reset_index(drop=True)
-            top_students_df_all['Marks'] = top_students_df_all['Marks'].round(2)
+            df_merged = pd.merge(graded_answers, df_students_report, left_on='Student Gmail', right_on='Gmail ID', suffixes=('_ans', '_user'))
+            leaderboard_df = df_merged.groupby(['Class_user', 'User Name'])['Marks'].mean().reset_index()
+            leaderboard_df.rename(columns={'Class_user': 'Class'}, inplace=True)
+            leaderboard_df['Rank'] = leaderboard_df.groupby('Class')['Marks'].rank(method='dense', ascending=False).astype(int)
+            leaderboard_df = leaderboard_df.sort_values(by=['Class', 'Rank'])
+            top_students_df = leaderboard_df.groupby('Class').head(3).reset_index(drop=True)
+            top_students_df['Marks'] = top_students_df['Marks'].round(2)
             
-            st.markdown("#### 🥇 Top 3 Students per Class")
-            st.dataframe(top_students_df_all)
-            
-            fig = px.bar(top_students_df_all, x='User Name', y='Marks', color='Class',
-                         title='Top 3 Students by Average Marks per Class',
-                         labels={'Marks': 'Average Marks', 'User Name': 'Student'})
-            st.plotly_chart(fig, use_container_width=True)
+            st.markdown("#### Top Performers Summary")
+            st.dataframe(top_students_df[['Rank', 'User Name', 'Class', 'Marks']])
 
-elif page == "Individual Growth Charts":
+            # --- NEW: Graph for Top Students ---
+            fig_students = px.bar(
+                top_students_df,
+                x='User Name',
+                y='Marks',
+                color='Class',
+                title='Top 3 Students by Average Marks per Class',
+                labels={'Marks': 'Average Marks', 'User Name': 'Student'},
+                text='Marks'
+            )
+            fig_students.update_traces(textposition='outside')
+            st.plotly_chart(fig_students, use_container_width=True)
+            # ------------------------------------
+    st.markdown("---")
+
+with individual_tab:
     st.subheader("Individual Growth Charts")
     report_type = st.selectbox("Select report type", ["Student", "Teacher"])
+
     if report_type == "Student":
-        df_students = df_users[df_users['Role'] == 'Student']
-        student_name = st.selectbox("Select Student", df_students['User Name'].tolist())
-        if student_name:
-            student_gmail = df_students[df_students['User Name'] == student_name].iloc[0]['Gmail ID']
-            student_answers = df_answer_bank[df_answer_bank['Student Gmail'] == student_gmail].copy()
-            if not student_answers.empty:
-                student_answers['Marks'] = pd.to_numeric(student_answers['Marks'], errors='coerce')
-                graded_answers = student_answers.dropna(subset=['Marks'])
-                if not graded_answers.empty:
-                    fig = px.bar(graded_answers, x='Subject', y='Marks', color='Subject', title=f"Subject-wise Performance for {student_name}")
-                    st.plotly_chart(fig, use_container_width=True)
+        df_students = df_users[df_users['Role'] == 'Student'].copy()
+        
+        # --- FIX: Create display name with class ---
+        df_students['display_name'] = df_students.apply(
+            lambda row: f"{row['User Name']} ({row['Class']})" if row.get('Class') else row['User Name'],
+            axis=1
+        )
+        student_list = df_students['display_name'].tolist()
+        
+        search_student = st.text_input("Search Student Name:")
+        if search_student:
+            student_list = [name for name in student_list if search_student.lower() in name.lower()]
+
+        if not student_list:
+            st.warning("No students found.")
+        else:
+            selected_display_name = st.selectbox("Select Student", ["---Select---"] + student_list)
+            
+            if selected_display_name != "---Select---":
+                # --- FIX: Extract real name to find the user ---
+                real_name = selected_display_name.split(' (')[0]
+                student_gmail = df_students[df_students['User Name'] == real_name].iloc[0]['Gmail ID']
+                
+                student_answers = df_answer_bank[df_answer_bank['Student Gmail'] == student_gmail].copy()
+                if not student_answers.empty:
+                    student_answers['Marks'] = pd.to_numeric(student_answers['Marks'], errors='coerce')
+                    graded_answers = student_answers.dropna(subset=['Marks'])
+                    if not graded_answers.empty:
+                        fig = px.bar(graded_answers, x='Subject', y='Marks', color='Subject', title=f"Subject-wise Performance for {selected_display_name}")
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info(f"{selected_display_name} has no graded answers yet.")
                 else:
-                    st.info(f"{student_name} has no graded answers yet.")
-            else:
-                st.info(f"{student_name} has not submitted any answers to the Answer Bank yet.")
+                    st.info(f"{selected_display_name} has not submitted any answers to the Answer Bank yet.")
+
     elif report_type == "Teacher":
         df_teachers = df_users[df_users['Role'] == 'Teacher']
-        teacher_name = st.selectbox("Select Teacher", df_teachers['User Name'].tolist())
-        if teacher_name:
-            teacher_homework = df_homework[df_homework['Uploaded By'] == teacher_name]
-            if not teacher_homework.empty:
-                questions_by_subject = teacher_homework.groupby('Subject').size().reset_index(name='Question Count')
-                fig = px.bar(questions_by_subject, x='Subject', y='Question Count', color='Subject', title=f"Homework Created by {teacher_name}")
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info(f"{teacher_name} has not created any homework yet.")
+        teacher_list = df_teachers['User Name'].tolist()
+        
+        search_teacher = st.text_input("Search Teacher Name:")
+        if search_teacher:
+            teacher_list = [name for name in teacher_list if search_teacher.lower() in name.lower()]
+            
+        if not teacher_list:
+            st.warning("No teachers found.")
+        else:
+            teacher_name = st.selectbox("Select Teacher", ["---Select---"] + teacher_list)
+            if teacher_name != "---Select---":
+                teacher_homework = df_homework[df_homework['Uploaded By'] == teacher_name]
+                if not teacher_homework.empty:
+                    questions_by_subject = teacher_homework.groupby('Subject').size().reset_index(name='Question Count')
+                    fig = px.bar(questions_by_subject, x='Subject', y='Question Count', color='Subject', title=f"Homework Created by {teacher_name}")
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info(f"{teacher_name} has not created any homework yet.")
+
 
 st.markdown("---")
 st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)

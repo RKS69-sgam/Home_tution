@@ -211,7 +211,7 @@ with report_tab:
             st.dataframe(top_students_df_all)
             fig = px.bar(top_students_df_all, x='User Name', y='Marks', color='Class', title='Top 3 Students by Average Marks')
             st.plotly_chart(fig, use_container_width=True)
-
+            pass
 with individual_tab:
     st.subheader("Individual Growth Charts")
     report_type = st.selectbox("Select report type", ["Student", "Teacher"])

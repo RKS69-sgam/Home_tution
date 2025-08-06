@@ -183,7 +183,8 @@ if not user_info_row.empty:
             df_pending = pd.DataFrame(pending_questions_list).sort_values(by='Date', ascending=False)
         
             for i, row in df_pending.iterrows():
-                st.markdown(f"**Assignment Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
+                st.markdown(f"**Assignment Date:** {row.get('Date')} | **Subject:** {row.get('Subject')} | **Due Date:** {row.get('Due_Date')}")
+                
                 st.write(f"**Question:** {row.get('Question')}")
             
                 matching_answer = student_answers_live[(student_answers_live['Question'] == row.get('Question')) & (student_answers_live['Date'] == row.get('Date'))]

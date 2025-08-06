@@ -155,66 +155,77 @@ if not user_info_row.empty:
     
     with pending_tab:
         st.subheader("Pending Questions")
+    
+        # DataFrames are already loaded at the start of the student panel
+        student_answers_live = df_live_answers[df_live_answers.get('Student Gmail') == st.session_state.user_gmail].copy()
+    
         pending_questions_list = []
+    
         if 'Question' in homework_for_class.columns:
             for index, hw_row in homework_for_class.iterrows():
-                answer_row_live = student_answers_live[(student_answers_live.get('Question') == hw_row.get('Question')) & (student_answers_live.get('Date') == hw_row.get('Date'))]
-                answer_row_bank = student_answers_from_bank[(student_answers_from_bank.get('Question') == hw_row.get('Question')) & (student_answers_from_bank.get('Date') == hw_row.get('Date'))]
+                question_text = hw_row.get('Question')
+                assignment_date = hw_row.get('Date')
+            
+                answer_row_live = student_answers_live[(student_answers_live['Question'] == question_text) & (student_answers_live['Date'] == assignment_date)]
+                answer_row_bank = student_answers_from_bank[(student_answers_from_bank['Question'] == question_text) & (student_answers_from_bank['Date'] == assignment_date)]
+            
                 is_answered = not answer_row_live.empty or not answer_row_bank.empty
                 has_remarks = False
                 if not answer_row_live.empty and answer_row_live.iloc[0].get('Remarks', '').strip():
                     has_remarks = True
+
                 if not is_answered or has_remarks:
                     pending_questions_list.append(hw_row)
 
-            if not pending_questions_list:
-                st.success("🎉 Good job! You have no pending homework.")
-            else:
-                df_pending = pd.DataFrame(pending_questions_list).sort_values(by='Date', ascending=False)
-                for i, row in df_pending.iterrows():
-                    st.markdown(f"**Assignment Date:** {row.get('Date')} | **Due Date:** {row.get('Due_Date')}")
-                    st.write(f"**Question:** {row.get('Question')}")
-                    matching_answer = student_answers_live[(student_answers_live['Question'] == row.get('Question')) & (student_answers_live['Date'] == row.get('Date'))]
-                    if not matching_answer.empty and matching_answer.iloc[0].get('Remarks'):
-                         st.warning(f"**Teacher's Remark:** {matching_answer.iloc[0].get('Remarks')}")
-                         st.markdown("Please correct your answer and resubmit.")
-                    with st.form(key=f"pending_form_{i}"):
-                        answer_text = st.text_area("Your Answer:", key=f"pending_text_{i}", value=matching_answer.iloc[0].get('Answer', '') if not matching_answer.empty else "")
-                        if st.form_submit_button("Submit Answer"):
-                            if answer_text:
-                                with st.spinner("Grading your answer automatically..."):
-                                    model_answer = row.get('Model_Answer', '').strip()
-                                    if not model_answer:
-                                        st.error("Auto-grading failed: Model answer not found.")
-                                    else:
-                                        similarity = get_text_similarity(answer_text, model_answer)
-                                        grade_score = get_grade_from_similarity(similarity)
-                                        client = connect_to_gsheets()
-                                        if grade_score >= 4:
-                                            sheet = client.open_by_key(ANSWER_BANK_SHEET_ID).sheet1
-                                            new_row_data = [st.session_state.user_gmail, row.get('Date'), student_class, row.get('Subject'), row.get('Question'), answer_text, grade_score, f"Auto-Graded: Excellent! ({similarity:.2f}%)"]
-                                            sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
-                                            st.success(f"Excellent! Your answer was {similarity:.2f}% correct and has been saved.")
-                                        else:
-                                            sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
-                                            new_row_data = [st.session_state.user_gmail, row.get('Date'), student_class, row.get('Subject'), row.get('Question'), answer_text, "", f"Auto-Remark: Your answer was {similarity:.2f}% correct. Please review and improve it."]
-                                            sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
-                                            st.warning(f"Your answer was {similarity:.2f}% correct. Please review the auto-remark and resubmit.")
-                                        load_data.clear()
-                                        st.rerun()
-                            else:
-                                st.warning("Answer cannot be empty.")
-                    with st.form(key=f"help_form_{i}"):
-                        help_text = st.text_input("Need help? Ask your teacher a question:")
-                        if st.form_submit_button("Ask for Help"):
-                            if help_text:
-                                # Logic to save help request
-                                pass
-                            else:
-                                st.warning("Please type your question before asking for help.")
-                    st.markdown("---")
+        if not pending_questions_list:
+            st.success("🎉 Good job! You have no pending homework.")
         else:
-            st.error("Homework sheet is missing the 'Question' column.")
+            df_pending = pd.DataFrame(pending_questions_list).sort_values(by='Date', ascending=False)
+        
+            for i, row in df_pending.iterrows():
+                st.markdown(f"**Assignment Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
+                st.write(f"**Question:** {row.get('Question')}")
+            
+                matching_answer = student_answers_live[(student_answers_live['Question'] == row.get('Question')) & (student_answers_live['Date'] == row.get('Date'))]
+            
+                if not matching_answer.empty and matching_answer.iloc[0].get('Remarks'):
+                     st.warning(f"**Teacher's Remark:** {matching_answer.iloc[0].get('Remarks')}")
+                     st.markdown("Please correct your answer and resubmit.")
+
+                with st.form(key=f"pending_form_{i}"):
+                    answer_text = st.text_area("Your Answer:", key=f"pending_text_{i}", value=matching_answer.iloc[0].get('Answer', '') if not matching_answer.empty else "")
+                
+                    if st.form_submit_button("Submit Answer"):
+                        if answer_text:
+                            with st.spinner("Saving your answer..."):
+                                client = connect_to_gsheets()
+                                sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+                            
+                                if not matching_answer.empty:
+                                    # --- YEH SUDHAR KIYA GAYA HAI ---
+                                    # Ab code Row ID ka upyog karke seedhe sahi row ko update karega
+                                    row_id_to_update = int(matching_answer.iloc[0].get('Row ID'))
+                                
+                                    ans_col = list(df_live_answers.columns).index('Answer') + 1
+                                    marks_col = list(df_live_answers.columns).index('Marks') + 1
+                                    remarks_col = list(df_live_answers.columns).index('Remarks') + 1
+                                
+                                    sheet.update_cell(row_id_to_update, ans_col, answer_text)
+                                    sheet.update_cell(row_id_to_update, marks_col, "") # Re-grading ke liye marks khali karen
+                                    sheet.update_cell(row_id_to_update, remarks_col, "") # Remarks khali karen
+                                
+                                    st.success("Corrected answer submitted for re-grading!")
+                                else:
+                                    # Naya answer save karne ka logic
+                                    new_row_data = [st.session_state.user_gmail, row.get('Date'), student_class, row.get('Subject'), row.get('Question'), answer_text, "", ""]
+                                    sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
+                                    st.success("Answer saved!")
+                        
+                            load_data.clear()
+                            st.rerun()
+                        else:
+                            st.warning("Answer cannot be empty.")
+                st.markdown("---")
 
     with revision_tab:
         st.subheader("Previously Graded Answers (from Answer Bank)")

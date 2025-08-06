@@ -10,6 +10,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="Student Dashboard")
@@ -19,6 +21,7 @@ GRADE_MAP_REVERSE = {1: "Needs Improvement", 2: "Average", 3: "Good", 4: "Very G
 # === UTILITY FUNCTIONS ===
 @st.cache_resource
 def connect_to_gsheets():
+    """Establishes a connection to Google Sheets and caches it."""
     try:
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         decoded_creds = base64.b64decode(st.secrets["google_service"]["base64_credentials"])
@@ -32,6 +35,7 @@ def connect_to_gsheets():
 
 @st.cache_data(ttl=60)
 def load_data(sheet_id):
+    """Opens a sheet by its ID and loads the data. This works correctly with Streamlit's cache."""
     try:
         client = connect_to_gsheets()
         if client is None: return pd.DataFrame()
@@ -47,6 +51,7 @@ def load_data(sheet_id):
         return pd.DataFrame()
 
 def get_text_similarity(text1, text2):
+    """Calculates similarity percentage between two texts."""
     try:
         vectorizer = TfidfVectorizer()
         vectors = vectorizer.fit_transform([text1, text2])
@@ -56,6 +61,7 @@ def get_text_similarity(text1, text2):
         return 0.0
 
 def get_grade_from_similarity(percentage):
+    """Assigns a grade score based on similarity percentage."""
     if percentage >= 95: return 5
     elif percentage >= 80: return 4
     elif percentage >= 60: return 3
@@ -91,7 +97,27 @@ df_all_users = load_data(ALL_USERS_SHEET_ID)
 user_info_row = df_all_users[df_all_users['Gmail ID'] == st.session_state.user_gmail]
 if not user_info_row.empty:
     user_info = user_info_row.iloc[0]
-    # (Your instruction and announcement display logic here)
+    instruction = user_info.get('Instruction', '').strip()
+    reply = user_info.get('Instruction_Reply', '').strip()
+    status = user_info.get('Instruction_Status', '')
+    if status == 'Sent' and instruction and not reply:
+        st.warning(f"**New Instruction from Principal:** {instruction}")
+        with st.form(key="reply_form"):
+            reply_text = st.text_area("Your Reply:")
+            if st.form_submit_button("Send Reply"):
+                if reply_text:
+                    row_id = int(user_info.get('Row ID'))
+                    reply_col = df_all_users.columns.get_loc('Instruction_Reply') + 1
+                    status_col = df_all_users.columns.get_loc('Instruction_Status') + 1
+                    client = connect_to_gsheets()
+                    sheet = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
+                    sheet.update_cell(row_id, reply_col, reply_text)
+                    sheet.update_cell(row_id, status_col, "Replied")
+                    st.success("Your reply has been sent.")
+                    load_data.clear()
+                    st.rerun()
+                else:
+                    st.warning("Reply cannot be empty.")
     st.markdown("---")
 
     # Load other necessary data
@@ -108,16 +134,40 @@ if not user_info_row.empty:
     student_answers_live = df_live_answers[df_live_answers.get('Student Gmail') == st.session_state.user_gmail].copy()
     student_answers_from_bank = df_answer_bank[df_answer_bank.get('Student Gmail') == st.session_state.user_gmail].copy()
     
-    # (Your performance chart logic here)
+    st.header("Your Performance Chart")
+    if not student_answers_from_bank.empty and 'Marks' in student_answers_from_bank.columns:
+        student_answers_from_bank['Marks_Numeric'] = pd.to_numeric(student_answers_from_bank['Marks'], errors='coerce')
+        graded_answers_chart = student_answers_from_bank.dropna(subset=['Marks_Numeric'])
+        if not graded_answers_chart.empty:
+            marks_by_subject = graded_answers_chart.groupby('Subject')['Marks_Numeric'].mean().reset_index()
+            marks_by_subject['Marks_Numeric'] = marks_by_subject['Marks_Numeric'].round(2)
+            fig = px.bar(
+                marks_by_subject, x='Subject', y='Marks_Numeric', title='Your Average Marks by Subject', 
+                color='Subject', text='Marks_Numeric', labels={'Marks_Numeric': 'Average Marks'}
+            )
+            fig.update_traces(textposition='outside')
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Your growth chart will appear here once your answers are graded.")
+    else:
+        st.info("Your growth chart will appear here once you submit answers.")
+
     st.markdown("---")
-    
     pending_tab, revision_tab, leaderboard_tab = st.tabs(["Pending Homework", "Revision Zone", "Class Leaderboard"])
     
     with pending_tab:
         st.subheader("Pending Questions")
         pending_questions_list = []
-        # (Logic to find pending questions remains the same)
-        
+        for index, hw_row in homework_for_class.iterrows():
+            answer_row_live = student_answers_live[(student_answers_live.get('Question') == hw_row.get('Question')) & (student_answers_live.get('Date') == hw_row.get('Date'))]
+            answer_row_bank = student_answers_from_bank[(student_answers_from_bank.get('Question') == hw_row.get('Question')) & (student_answers_from_bank.get('Date') == hw_row.get('Date'))]
+            is_answered = not answer_row_live.empty or not answer_row_bank.empty
+            has_remarks = False
+            if not answer_row_live.empty and answer_row_live.iloc[0].get('Remarks', '').strip():
+                has_remarks = True
+            if not is_answered or has_remarks:
+                pending_questions_list.append(hw_row)
+
         if not pending_questions_list:
             st.success("🎉 Good job! You have no pending homework.")
         else:
@@ -125,7 +175,11 @@ if not user_info_row.empty:
             for i, row in df_pending.iterrows():
                 st.markdown(f"**Assignment Date:** {row.get('Date')} | **Due Date:** {row.get('Due_Date')}")
                 st.write(f"**Question:** {row.get('Question')}")
-
+                matching_answer = student_answers_live[(student_answers_live['Question'] == row.get('Question')) & (student_answers_live['Date'] == row.get('Date'))]
+                if not matching_answer.empty and matching_answer.iloc[0].get('Remarks'):
+                     st.warning(f"**Teacher's Remark:** {matching_answer.iloc[0].get('Remarks')}")
+                     st.markdown("Please correct your answer and resubmit.")
+                
                 question_id = f"question_{i}"
                 if question_id not in st.session_state:
                     st.session_state[question_id] = 'initial'
@@ -155,7 +209,7 @@ if not user_info_row.empty:
 
                 elif st.session_state[question_id] == 'show_form':
                     with st.form(key=f"answer_form_{i}"):
-                        answer_text = st.text_area("Your Answer:", key=f"answer_{i}")
+                        answer_text = st.text_area("Your Answer:", key=f"answer_{i}", value=matching_answer.iloc[0].get('Answer', '') if not matching_answer.empty else "")
                         if st.form_submit_button("Submit Final Answer"):
                             if answer_text:
                                 with st.spinner("Grading your answer..."):
@@ -168,7 +222,7 @@ if not user_info_row.empty:
                                         client = connect_to_gsheets()
                                         if grade_score >= 3: # Good, Very Good, or Outstanding
                                             sheet = client.open_by_key(ANSWER_BANK_SHEET_ID).sheet1
-                                            remark = f"Auto-Graded: Well done! ({similarity:.2f}%)" if grade_score >= 4 else "Good! Try for better performance next time."
+                                            remark = f"Auto-Graded: Excellent! ({similarity:.2f}%)" if grade_score >= 4 else "Good! Try for better performance next time."
                                             st.success(f"Good work! Your answer was {similarity:.2f}% correct and has been saved.")
                                         else: # Needs Improvement or Average
                                             sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
@@ -194,12 +248,65 @@ if not user_info_row.empty:
                 st.markdown("---")
 
     with revision_tab:
-        # (Full revision tab logic here)
-        pass
+        st.subheader("Previously Graded Answers (from Answer Bank)")
+        if 'Marks' in student_answers_from_bank.columns:
+            student_answers_from_bank['Marks_Numeric'] = pd.to_numeric(student_answers_from_bank['Marks'], errors='coerce')
+            graded_answers = student_answers_from_bank.dropna(subset=['Marks_Numeric'])
+            if graded_answers.empty:
+                st.info("You have no graded answers to review yet.")
+            else:
+                for i, row in graded_answers.sort_values(by='Date', ascending=False).iterrows():
+                    st.markdown(f"**Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
+                    st.write(f"**Question:** {row.get('Question')}")
+                    st.info(f"**Your Answer:** {row.get('Answer')}")
+                    grade_value = int(row.get('Marks_Numeric'))
+                    grade_text = GRADE_MAP_REVERSE.get(grade_value, "N/A")
+                    st.success(f"**Grade:** {grade_text} ({grade_value}/5)")
+                    remarks = row.get('Remarks', '').strip()
+                    if remarks:
+                        st.warning(f"**Teacher's Remark:** {remarks}")
+                    st.markdown("---")
+        else:
+            st.error("Answer Bank sheet is missing the 'Marks' column.")
     
     with leaderboard_tab:
-        # (Full leaderboard tab logic here)
-        pass
+        st.subheader(f"Class Leaderboard ({student_class})")
+        df_students_class = df_all_users[df_all_users['Class'] == student_class]
+        class_gmail_list = df_students_class['Gmail ID'].tolist()
+        class_answers_bank = df_answer_bank[df_answer_bank['Student Gmail'].isin(class_gmail_list)].copy()
+        if class_answers_bank.empty or 'Marks' not in class_answers_bank.columns:
+            st.info("The leaderboard will appear once answers have been graded for your class.")
+        else:
+            class_answers_bank['Marks'] = pd.to_numeric(class_answers_bank['Marks'], errors='coerce')
+            graded_class_answers = class_answers_bank.dropna(subset=['Marks'])
+            if graded_class_answers.empty:
+                st.info("The leaderboard will appear once answers have been graded for your class.")
+            else:
+                leaderboard_df = graded_class_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
+                leaderboard_df = pd.merge(leaderboard_df, df_students_class[['User Name', 'Gmail ID']], left_on='Student Gmail', right_on='Gmail ID', how='left')
+                leaderboard_df['Rank'] = leaderboard_df['Marks'].rank(method='dense', ascending=False).astype(int)
+                leaderboard_df = leaderboard_df.sort_values(by='Rank')
+                leaderboard_df['Marks'] = leaderboard_df['Marks'].round(2)
+                st.markdown("##### 🏆 Top 3 Performers")
+                top_3_df = leaderboard_df.head(3)
+                st.dataframe(top_3_df[['Rank', 'User Name', 'Marks']])
+                if not top_3_df.empty:
+                    fig = px.bar(
+                        top_3_df, x='User Name', y='Marks', color='User Name',
+                        title=f"Top 3 Performers in {student_class}",
+                        labels={'Marks': 'Average Marks', 'User Name': 'Student'},
+                        text='Marks'
+                    )
+                    fig.update_traces(textposition='outside')
+                    st.plotly_chart(fig, use_container_width=True)
+                st.markdown("---")
+                my_rank_row = leaderboard_df[leaderboard_df['Student Gmail'] == st.session_state.user_gmail]
+                if not my_rank_row.empty:
+                    my_rank = my_rank_row.iloc[0]['Rank']
+                    my_avg_marks = my_rank_row.iloc[0]['Marks']
+                    st.success(f"**Your Current Rank:** {my_rank} (with an average score of **{my_avg_marks}**)")
+                else:
+                    st.warning("Your rank will be shown here after your answers are graded.")
 else:
     st.error("Could not find your student record.")
 

@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import gspread
 import json
 import base64
@@ -10,8 +10,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="Student Dashboard")
@@ -21,7 +19,6 @@ GRADE_MAP_REVERSE = {1: "Needs Improvement", 2: "Average", 3: "Good", 4: "Very G
 # === UTILITY FUNCTIONS ===
 @st.cache_resource
 def connect_to_gsheets():
-    """Establishes a connection to Google Sheets and caches it."""
     try:
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         decoded_creds = base64.b64decode(st.secrets["google_service"]["base64_credentials"])
@@ -35,7 +32,6 @@ def connect_to_gsheets():
 
 @st.cache_data(ttl=60)
 def load_data(sheet_id):
-    """Opens a sheet by its ID and loads the data. This works correctly with Streamlit's cache."""
     try:
         client = connect_to_gsheets()
         if client is None: return pd.DataFrame()
@@ -51,7 +47,6 @@ def load_data(sheet_id):
         return pd.DataFrame()
 
 def get_text_similarity(text1, text2):
-    """Calculates similarity percentage between two texts."""
     try:
         vectorizer = TfidfVectorizer()
         vectors = vectorizer.fit_transform([text1, text2])
@@ -61,12 +56,10 @@ def get_text_similarity(text1, text2):
         return 0.0
 
 def get_grade_from_similarity(percentage):
-    """Assigns a grade score based on similarity percentage."""
-    if percentage >= 95: return 5
-    elif percentage >= 80: return 4
-    elif percentage >= 60: return 3
-    elif percentage >= 40: return 2
-    else: return 1
+    if percentage >= 80: return 4 # Very Good or Outstanding
+    elif percentage >= 60: return 3 # Good
+    elif percentage >= 40: return 2 # Average
+    else: return 1 # Needs Improvement
 
 # === SHEET IDs ===
 ALL_USERS_SHEET_ID = "18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA"
@@ -92,7 +85,7 @@ st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<
 # === STUDENT DASHBOARD UI ===
 st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
-# --- INSTRUCTION & ANNOUNCEMENT SYSTEMS ---
+# --- INSTRUCTION, ANNOUNCEMENT & SALARY NOTIFICATION ---
 df_all_users = load_data(ALL_USERS_SHEET_ID)
 user_info_row = df_all_users[df_all_users['Gmail ID'] == st.session_state.user_gmail]
 if not user_info_row.empty:
@@ -158,14 +151,26 @@ if not user_info_row.empty:
     with pending_tab:
         st.subheader("Pending Questions")
         pending_questions_list = []
+        today_date = date.today()
+        
         for index, hw_row in homework_for_class.iterrows():
-            answer_row_live = student_answers_live[(student_answers_live.get('Question') == hw_row.get('Question')) & (student_answers_live.get('Date') == hw_row.get('Date'))]
-            answer_row_bank = student_answers_from_bank[(student_answers_from_bank.get('Question') == hw_row.get('Question')) & (student_answers_from_bank.get('Date') == hw_row.get('Date'))]
-            is_answered = not answer_row_live.empty or not answer_row_bank.empty
-            has_remarks = False
-            if not answer_row_live.empty and answer_row_live.iloc[0].get('Remarks', '').strip():
-                has_remarks = True
-            if not is_answered or has_remarks:
+            question_text = hw_row.get('Question')
+            assignment_date_str = hw_row.get('Date')
+            assignment_date = datetime.strptime(assignment_date_str, DATE_FORMAT).date()
+
+            answer_in_live = student_answers_live[(student_answers_live['Question'] == question_text) & (student_answers_live['Date'] == assignment_date_str)]
+            answer_in_bank = student_answers_from_bank[(student_answers_from_bank['Question'] == question_text) & (student_answers_from_bank['Date'] == assignment_date_str)]
+
+            if not answer_in_bank.empty:
+                continue
+
+            if not answer_in_live.empty:
+                attempt_status = int(answer_in_live.iloc[0].get('Attempt_Status', '0'))
+                if attempt_status == 2 and today_date == assignment_date:
+                    continue
+                else:
+                    pending_questions_list.append(hw_row)
+            else:
                 pending_questions_list.append(hw_row)
 
         if not pending_questions_list:
@@ -173,23 +178,37 @@ if not user_info_row.empty:
         else:
             df_pending = pd.DataFrame(pending_questions_list).sort_values(by='Date', ascending=False)
             for i, row in df_pending.iterrows():
-                st.markdown(f"**Assignment Date:** {row.get('Date')} | **Due Date:** {row.get('Due_Date')}")
-                st.write(f"**Question:** {row.get('Question')}")
-                matching_answer = student_answers_live[(student_answers_live['Question'] == row.get('Question')) & (student_answers_live['Date'] == row.get('Date'))]
-                if not matching_answer.empty and matching_answer.iloc[0].get('Remarks'):
-                     st.warning(f"**Teacher's Remark:** {matching_answer.iloc[0].get('Remarks')}")
-                     st.markdown("Please correct your answer and resubmit.")
-                
                 question_id = f"question_{i}"
                 if question_id not in st.session_state:
                     st.session_state[question_id] = 'initial'
 
-                if st.session_state[question_id] == 'initial':
-                    if st.button("View Model Answer & Start Timer", key=f"view_{i}"):
-                        st.session_state[question_id] = 'timer_running'
-                        st.rerun()
+                st.markdown(f"**Assignment Date:** {row.get('Date')} | **Due Date:** {row.get('Due_Date')}")
+                st.write(f"**Question:** {row.get('Question')}")
+                
+                matching_answer = student_answers_live[(student_answers_live['Question'] == row.get('Question')) & (student_answers_live['Date'] == row.get('Date'))]
+                current_attempt = 0
+                if not matching_answer.empty:
+                    current_attempt = int(matching_answer.iloc[0].get('Attempt_Status', 0))
 
-                elif st.session_state[question_id] == 'timer_running':
+                if current_attempt == 0:
+                    if st.session_state[question_id] == 'initial':
+                        if st.button("View Model Answer & Start Timer", key=f"view_{i}"):
+                            st.session_state[question_id] = 'timer_running'
+                            st.rerun()
+                elif current_attempt == 1:
+                    st.warning("This is your second chance for this question.")
+                    if st.session_state[question_id] == 'initial':
+                        if st.button("View Answer (One More Chance)", key=f"view_{i}"):
+                            st.session_state[question_id] = 'timer_running'
+                            st.rerun()
+                elif current_attempt >= 2:
+                    st.error("This is your final chance for this question.")
+                    if st.session_state[question_id] == 'initial':
+                        if st.button("View Answer (Final Chance)", key=f"view_{i}"):
+                            st.session_state[question_id] = 'timer_running'
+                            st.rerun()
+                
+                if st.session_state[question_id] == 'timer_running':
                     model_answer = row.get('Model_Answer', '').strip()
                     if model_answer:
                         word_count = len(model_answer.split())
@@ -214,37 +233,34 @@ if not user_info_row.empty:
                             if answer_text:
                                 with st.spinner("Grading your answer..."):
                                     model_answer = row.get('Model_Answer', '').strip()
-                                    if not model_answer:
-                                        st.error("Auto-grading failed: Model answer not found.")
+                                    similarity = get_text_similarity(answer_text, model_answer)
+                                    grade_score = get_grade_from_similarity(similarity)
+                                    client = connect_to_gsheets()
+                                    
+                                    new_attempt_status = current_attempt + 1
+                                    
+                                    if grade_score >= 3 or new_attempt_status >= 3:
+                                        sheet = client.open_by_key(ANSWER_BANK_SHEET_ID).sheet1
+                                        remark = "Good! Try for better performance next time." if grade_score == 3 else f"Auto-Graded: Excellent! ({similarity:.2f}%)"
+                                        st.success(f"Your answer was {similarity:.2f}% correct and has been saved.")
                                     else:
-                                        similarity = get_text_similarity(answer_text, model_answer)
-                                        grade_score = get_grade_from_similarity(similarity)
-                                        client = connect_to_gsheets()
-                                        if grade_score >= 3: # Good, Very Good, or Outstanding
-                                            sheet = client.open_by_key(ANSWER_BANK_SHEET_ID).sheet1
-                                            remark = f"Auto-Graded: Excellent! ({similarity:.2f}%)" if grade_score >= 4 else "Good! Try for better performance next time."
-                                            st.success(f"Good work! Your answer was {similarity:.2f}% correct and has been saved.")
-                                        else: # Needs Improvement or Average
-                                            sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
-                                            remark = f"Auto-Remark: Your answer was {similarity:.2f}% correct. Please review and improve it."
-                                            grade_score = "" # Marks left blank for auto-return
-                                            st.warning(f"Your answer was {similarity:.2f}% correct. Please review the auto-remark and resubmit.")
-                                        
-                                        new_row_data = [st.session_state.user_gmail, row.get('Date'), student_class, row.get('Subject'), row.get('Question'), answer_text, grade_score, remark]
+                                        sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+                                        remark = f"Auto-Remark: Your answer was {similarity:.2f}% correct. Please review and improve it. You have one more chance."
+                                        grade_score = ""
+                                        st.warning(f"Your answer was {similarity:.2f}% correct. Please review the auto-remark and resubmit.")
+                                    
+                                    if not matching_answer.empty:
+                                        row_id_to_update = int(matching_answer.iloc[0].get('Row ID'))
+                                        # (Logic to update the existing row in MASTER_ANSWER_SHEET)
+                                    else:
+                                        new_row_data = [st.session_state.user_gmail, row.get('Date'), student_class, row.get('Subject'), row.get('Question'), answer_text, grade_score, remark, new_attempt_status]
                                         sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
-                                        load_data.clear()
-                                        st.rerun()
+                                    
+                                    load_data.clear()
+                                    st.rerun()
                             else:
                                 st.warning("Answer cannot be empty.")
                 
-                with st.form(key=f"help_form_{i}"):
-                    help_text = st.text_input("Need help? Ask your teacher a question:")
-                    if st.form_submit_button("Ask for Help"):
-                        if help_text:
-                            # (Logic to save help request)
-                            pass
-                        else:
-                            st.warning("Please type your question before asking for help.")
                 st.markdown("---")
 
     with revision_tab:

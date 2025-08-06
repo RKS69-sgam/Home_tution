@@ -336,16 +336,16 @@ elif page == "My Reports":
             st.info("The leaderboard is available after answers have been graded and moved to the bank.")
         else:
             # Report 3: Top 3 Students (from Answer Bank)
-    st.subheader("ðŸ¥‡ Class-wise Top 3 Students")
-    df_students_report = df_users[df_users['Role'] == 'Student']
-    if df_answer_bank.empty or df_students_report.empty:
-        st.info("Leaderboard will be generated once answers are graded and moved to the bank.")
-    else:
-        df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
-        graded_answers = df_answer_bank.dropna(subset=['Marks'])
-        if graded_answers.empty:
-            st.info("The leaderboard is available after answers have been graded and moved to the bank.")
-        else:
+            st.subheader("ðŸ¥‡ Class-wise Top 3 Students")
+            df_students_report = df_users[df_users['Role'] == 'Student']
+            if df_answer_bank.empty or df_students_report.empty:
+               st.info("Leaderboard will be generated once answers are graded and moved to the bank.")
+            else:
+            df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
+            graded_answers = df_answer_bank.dropna(subset=['Marks'])
+            if graded_answers.empty:
+               st.info("The leaderboard is available after answers have been graded and moved to the bank.")
+            else:
             df_merged = pd.merge(graded_answers, df_students_report, left_on='Student Gmail', right_on='Gmail ID', suffixes=('_ans', '_user'))
             leaderboard_df = df_merged.groupby(['Class_user', 'User Name'])['Marks'].mean().reset_index()
             leaderboard_df.rename(columns={'Class_user': 'Class'}, inplace=True)

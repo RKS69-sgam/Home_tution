@@ -1,14 +1,14 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import gspread
 import json
 import base64
 import plotly.express as px
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="Student Dashboard")
@@ -47,6 +47,24 @@ def load_data(sheet_id):
         st.error(f"Failed to load data for sheet ID {sheet_id}: {e}")
         return pd.DataFrame()
 
+def get_text_similarity(text1, text2):
+    """Calculates similarity percentage between two texts."""
+    try:
+        vectorizer = TfidfVectorizer()
+        vectors = vectorizer.fit_transform([text1, text2])
+        similarity_matrix = cosine_similarity(vectors)
+        return similarity_matrix[0][1] * 100
+    except Exception:
+        return 0.0
+
+def get_grade_from_similarity(percentage):
+    """Assigns a grade score based on similarity percentage."""
+    if percentage >= 95: return 5 # Outstanding
+    elif percentage >= 80: return 4 # Very Good
+    elif percentage >= 60: return 3 # Good
+    elif percentage >= 40: return 2 # Average
+    else: return 1 # Needs Improvement
+
 # === SHEET IDs ===
 ALL_USERS_SHEET_ID = "18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA"
 HOMEWORK_QUESTIONS_SHEET_ID = "1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI"
@@ -60,7 +78,7 @@ if not st.session_state.get("logged_in") or st.session_state.get("user_role") !=
     st.page_link("main.py", label="Go to Login Page")
     st.stop()
 
-# === SIDEBAR LOGOUT ===
+# === SIDEBAR LOGOUT & COPYRIGHT ===
 st.sidebar.success(f"Welcome, {st.session_state.user_name}")
 if st.sidebar.button("Logout"):
     st.session_state.clear()
@@ -72,25 +90,7 @@ st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<
 st.image("PRK_logo.jpg", use_container_width=True)
 st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
-# --- Display Public Announcement (Updated) ---
-try:
-    announcements_df = load_data(ANNOUNCEMENTS_SHEET_ID)
-    if not announcements_df.empty:
-        today_str = datetime.today().strftime(DATE_FORMAT)
-        
-        # Filter for announcements with today's date
-        todays_announcement = announcements_df[announcements_df.get('Date') == today_str]
-        
-        if not todays_announcement.empty:
-            latest_message = todays_announcement['Message'].iloc[0]
-            st.info(f"📢 **Public Announcement:** {latest_message}")
-except Exception:
-    # Fail silently if announcements can't be loaded
-    pass
-# ---------------------------------------------
-
-    
-# --- INSTRUCTION & REPLY SYSTEM ---
+# --- INSTRUCTION & ANNOUNCEMENT SYSTEMS ---
 df_all_users = load_data(ALL_USERS_SHEET_ID)
 user_info_row = df_all_users[df_all_users['Gmail ID'] == st.session_state.user_gmail]
 if not user_info_row.empty:
@@ -129,6 +129,7 @@ if not user_info_row.empty:
 
     # Filter dataframes for the current student
     homework_for_class = df_homework[df_homework.get("Class") == student_class]
+    student_answers_live = df_live_answers[df_live_answers.get('Student Gmail') == st.session_state.user_gmail].copy()
     student_answers_from_bank = df_answer_bank[df_answer_bank.get('Student Gmail') == st.session_state.user_gmail].copy()
     
     st.header("Your Performance Chart")
@@ -154,37 +155,15 @@ if not user_info_row.empty:
     
     with pending_tab:
         st.subheader("Pending Questions")
-    
-        # These DataFrames are assumed to be loaded at the start of the student panel:
-        # homework_for_class, student_answers_from_bank, df_live_answers, df_all_answers, student_class
-    
         pending_questions_list = []
-    
         if 'Question' in homework_for_class.columns:
-            student_answers_live = df_live_answers[df_live_answers.get('Student Gmail') == st.session_state.user_gmail].copy()
-
             for index, hw_row in homework_for_class.iterrows():
-                question_text = hw_row.get('Question')
-                assignment_date = hw_row.get('Date')
-            
-                # Check for the answer in BOTH sheets
-                answer_in_live_sheet = student_answers_live[
-                    (student_answers_live['Question'] == question_text) &
-                    (student_answers_live['Date'] == assignment_date)
-                ]
-                answer_in_bank = student_answers_from_bank[
-                    (student_answers_from_bank['Question'] == question_text) &
-                    (student_answers_from_bank['Date'] == assignment_date)
-                ]
-            
-                is_answered = not answer_in_live_sheet.empty or not answer_in_bank.empty
+                answer_row_live = student_answers_live[(student_answers_live.get('Question') == hw_row.get('Question')) & (student_answers_live.get('Date') == hw_row.get('Date'))]
+                answer_row_bank = student_answers_from_bank[(student_answers_from_bank.get('Question') == hw_row.get('Question')) & (student_answers_from_bank.get('Date') == hw_row.get('Date'))]
+                is_answered = not answer_row_live.empty or not answer_row_bank.empty
                 has_remarks = False
-            
-                if not answer_in_live_sheet.empty:
-                    remarks = answer_in_live_sheet.iloc[0].get('Remarks', '').strip()
-                    if remarks:
-                        has_remarks = True
-
+                if not answer_row_live.empty and answer_row_live.iloc[0].get('Remarks', '').strip():
+                    has_remarks = True
                 if not is_answered or has_remarks:
                     pending_questions_list.append(hw_row)
 
@@ -192,50 +171,47 @@ if not user_info_row.empty:
                 st.success("🎉 Good job! You have no pending homework.")
             else:
                 df_pending = pd.DataFrame(pending_questions_list).sort_values(by='Date', ascending=False)
-            
                 for i, row in df_pending.iterrows():
-                    st.markdown(f"**Assignment Date:** {row.get('Date')} | **Subject:** {row.get('Subject')}")
+                    st.markdown(f"**Assignment Date:** {row.get('Date')} | **Due Date:** {row.get('Due_Date')}")
                     st.write(f"**Question:** {row.get('Question')}")
-                
-                    matching_answer = student_answers_live[
-                        (student_answers_live['Question'] == row.get('Question')) &
-                        (student_answers_live['Date'] == row.get('Date'))
-                    ]
-                
+                    matching_answer = student_answers_live[(student_answers_live['Question'] == row.get('Question')) & (student_answers_live['Date'] == row.get('Date'))]
                     if not matching_answer.empty and matching_answer.iloc[0].get('Remarks'):
                          st.warning(f"**Teacher's Remark:** {matching_answer.iloc[0].get('Remarks')}")
                          st.markdown("Please correct your answer and resubmit.")
-    
                     with st.form(key=f"pending_form_{i}"):
                         answer_text = st.text_area("Your Answer:", key=f"pending_text_{i}", value=matching_answer.iloc[0].get('Answer', '') if not matching_answer.empty else "")
-                    
                         if st.form_submit_button("Submit Answer"):
                             if answer_text:
-                                with st.spinner("Saving your answer..."):
-                                    client = connect_to_gsheets()
-                                    sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
-                                
-                                    if not matching_answer.empty:
-                                        # Update existing row for resubmission
-                                        row_id_to_update = int(matching_answer.iloc[0].get('Row ID'))
-                                        ans_col = df_all_answers.columns.get_loc('Answer') + 1
-                                        marks_col = df_all_answers.columns.get_loc('Marks') + 1
-                                        remarks_col = df_all_answers.columns.get_loc('Remarks') + 1
-                                    
-                                        sheet.update_cell(row_id_to_update, ans_col, answer_text)
-                                        sheet.update_cell(row_id_to_update, marks_col, "") # Clear marks for re-grading
-                                        sheet.update_cell(row_id_to_update, remarks_col, "") # Clear remarks
-                                        st.success("Corrected answer submitted for re-grading!")
+                                with st.spinner("Grading your answer automatically..."):
+                                    model_answer = row.get('Model_Answer', '').strip()
+                                    if not model_answer:
+                                        st.error("Auto-grading failed: Model answer not found.")
                                     else:
-                                        # Append a new row for a first-time answer
-                                        new_row_data = [st.session_state.user_gmail, row.get('Date'), student_class, row.get('Subject'), row.get('Question'), answer_text, "", ""]
-                                        sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
-                                        st.success("Answer saved!")
-                            
-                                load_data.clear()
-                                st.rerun()
+                                        similarity = get_text_similarity(answer_text, model_answer)
+                                        grade_score = get_grade_from_similarity(similarity)
+                                        client = connect_to_gsheets()
+                                        if grade_score >= 4:
+                                            sheet = client.open_by_key(ANSWER_BANK_SHEET_ID).sheet1
+                                            new_row_data = [st.session_state.user_gmail, row.get('Date'), student_class, row.get('Subject'), row.get('Question'), answer_text, grade_score, f"Auto-Graded: Excellent! ({similarity:.2f}%)"]
+                                            sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
+                                            st.success(f"Excellent! Your answer was {similarity:.2f}% correct and has been saved.")
+                                        else:
+                                            sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
+                                            new_row_data = [st.session_state.user_gmail, row.get('Date'), student_class, row.get('Subject'), row.get('Question'), answer_text, "", f"Auto-Remark: Your answer was {similarity:.2f}% correct. Please review and improve it."]
+                                            sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
+                                            st.warning(f"Your answer was {similarity:.2f}% correct. Please review the auto-remark and resubmit.")
+                                        load_data.clear()
+                                        st.rerun()
                             else:
                                 st.warning("Answer cannot be empty.")
+                    with st.form(key=f"help_form_{i}"):
+                        help_text = st.text_input("Need help? Ask your teacher a question:")
+                        if st.form_submit_button("Ask for Help"):
+                            if help_text:
+                                # Logic to save help request
+                                pass
+                            else:
+                                st.warning("Please type your question before asking for help.")
                     st.markdown("---")
         else:
             st.error("Homework sheet is missing the 'Question' column.")
@@ -264,46 +240,34 @@ if not user_info_row.empty:
     
     with leaderboard_tab:
         st.subheader(f"Class Leaderboard ({student_class})")
-    
         df_students_class = df_all_users[df_all_users['Class'] == student_class]
         class_gmail_list = df_students_class['Gmail ID'].tolist()
         class_answers_bank = df_answer_bank[df_answer_bank['Student Gmail'].isin(class_gmail_list)].copy()
-
         if class_answers_bank.empty or 'Marks' not in class_answers_bank.columns:
             st.info("The leaderboard will appear once answers have been graded for your class.")
         else:
             class_answers_bank['Marks'] = pd.to_numeric(class_answers_bank['Marks'], errors='coerce')
             graded_class_answers = class_answers_bank.dropna(subset=['Marks'])
-        
             if graded_class_answers.empty:
                 st.info("The leaderboard will appear once answers have been graded for your class.")
             else:
                 leaderboard_df = graded_class_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
                 leaderboard_df = pd.merge(leaderboard_df, df_students_class[['User Name', 'Gmail ID']], left_on='Student Gmail', right_on='Gmail ID', how='left')
-            
                 leaderboard_df['Rank'] = leaderboard_df['Marks'].rank(method='dense', ascending=False).astype(int)
                 leaderboard_df = leaderboard_df.sort_values(by='Rank')
                 leaderboard_df['Marks'] = leaderboard_df['Marks'].round(2)
-            
                 st.markdown("##### 🏆 Top 3 Performers")
                 top_3_df = leaderboard_df.head(3)
                 st.dataframe(top_3_df[['Rank', 'User Name', 'Marks']])
-
-                # --- NEW: Bar chart for Top 3 Performers ---
                 if not top_3_df.empty:
                     fig = px.bar(
-                        top_3_df,
-                        x='User Name',
-                        y='Marks',
-                        color='User Name', # Makes each bar a different color
+                        top_3_df, x='User Name', y='Marks', color='User Name',
                         title=f"Top 3 Performers in {student_class}",
                         labels={'Marks': 'Average Marks', 'User Name': 'Student'},
                         text='Marks'
-                  )
+                    )
                     fig.update_traces(textposition='outside')
                     st.plotly_chart(fig, use_container_width=True)
-                # ---------------------------------------------
-            
                 st.markdown("---")
                 my_rank_row = leaderboard_df[leaderboard_df['Student Gmail'] == st.session_state.user_gmail]
                 if not my_rank_row.empty:
@@ -312,7 +276,6 @@ if not user_info_row.empty:
                     st.success(f"**Your Current Rank:** {my_rank} (with an average score of **{my_avg_marks}**)")
                 else:
                     st.warning("Your rank will be shown here after your answers are graded.")
-
 else:
     st.error("Could not find your student record.")
 

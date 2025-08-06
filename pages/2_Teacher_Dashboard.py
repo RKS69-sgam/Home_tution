@@ -161,6 +161,7 @@ if page == "Create Homework":
     st.subheader("Create a New Homework Assignment")
     if 'context_set' not in st.session_state:
         st.session_state.context_set = False
+        
     if not st.session_state.context_set:
         with st.form("context_form"):
             subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance Classes"])
@@ -175,13 +176,29 @@ if page == "Create Homework":
     if st.session_state.context_set:
         ctx = st.session_state.homework_context
         st.success(f"Creating homework for: **{ctx['class']} - {ctx['subject']}** (Date: {ctx['date'].strftime(DATE_FORMAT)})")
+        
+        # --- Back to Main Menu Button ADDED HERE ---
+        if st.button("🔙 Back to Main Menu"):
+            del st.session_state.context_set
+            if 'questions_list' in st.session_state:
+                del st.session_state.questions_list
+            if 'homework_context' in st.session_state:
+                del st.session_state.homework_context
+            st.rerun()
+        # ---------------------------------------------
+
         with st.form("add_question_form", clear_on_submit=True):
             question_text = st.text_area("Enter a question to add:", height=100)
             model_answer_text = st.text_area("Enter the Model Answer for auto-grading:", height=100)
-            if st.form_submit_button("Add Question") and question_text and model_answer_text:
-                st.session_state.questions_list.append({"question": question_text, "model_answer": model_answer_text})
+            if st.form_submit_button("Add Question"):
+                if question_text and model_answer_text:
+                    if 'questions_list' not in st.session_state:
+                        st.session_state.questions_list = []
+                    st.session_state.questions_list.append({"question": question_text, "model_answer": model_answer_text})
+                else:
+                    st.warning("Please enter both a question and a model answer.")
         
-        if st.session_state.questions_list:
+        if st.session_state.get('questions_list'):
             st.write("#### Current Questions:")
             for i, item in enumerate(st.session_state.questions_list):
                 with st.expander(f"{i + 1}. {item['question']}"):
@@ -197,6 +214,7 @@ if page == "Create Homework":
                 st.success("Homework submitted successfully!")
                 del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
                 st.rerun()
+
 
 elif page == "Grade Answers":
     st.subheader("Grade Student Answers")

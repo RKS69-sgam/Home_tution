@@ -339,37 +339,40 @@ elif page == "My Reports":
             st.subheader("ðŸ¥‡ Class-wise Top 3 Students")
             df_students_report = df_users[df_users['Role'] == 'Student']
             if df_answer_bank.empty or df_students_report.empty:
-               st.info("Leaderboard will be generated once answers are graded and moved to the bank.")
+                st.info("Leaderboard will be generated once answers are graded and moved to the bank.")
             else:
-            df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
-            graded_answers = df_answer_bank.dropna(subset=['Marks'])
-            if graded_answers.empty:
-               st.info("The leaderboard is available after answers have been graded and moved to the bank.")
-            else:
-            df_merged = pd.merge(graded_answers, df_students_report, left_on='Student Gmail', right_on='Gmail ID', suffixes=('_ans', '_user'))
-            leaderboard_df = df_merged.groupby(['Class_user', 'User Name'])['Marks'].mean().reset_index()
-            leaderboard_df.rename(columns={'Class_user': 'Class'}, inplace=True)
-            leaderboard_df['Rank'] = leaderboard_df.groupby('Class')['Marks'].rank(method='dense', ascending=False).astype(int)
-            leaderboard_df = leaderboard_df.sort_values(by=['Class', 'Rank'])
-            top_students_df = leaderboard_df.groupby('Class').head(3).reset_index(drop=True)
-            top_students_df['Marks'] = top_students_df['Marks'].round(2)
+                df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
+                graded_answers = df_answer_bank.dropna(subset=['Marks'])
+                if graded_answers.empty:
+                    st.info("The leaderboard is available after answers have been graded and moved to the bank.")
+                else:
+                    df_merged = pd.merge(graded_answers, df_students_report, left_on='Student Gmail', right_on='Gmail ID', suffixes=('_ans', '_user'))
+                    leaderboard_df = df_merged.groupby(['Class_user', 'User Name'])['Marks'].mean().reset_index()
+                    leaderboard_df.rename(columns={'Class_user': 'Class'}, inplace=True)
+                    leaderboard_df['Rank'] = leaderboard_df.groupby('Class')['Marks'].rank(method='dense', ascending=False).astype(int)
+                    leaderboard_df = leaderboard_df.sort_values(by=['Class', 'Rank'])
+                    top_students_df = leaderboard_df.groupby('Class').head(3).reset_index(drop=True)
+                    top_students_df['Marks'] = top_students_df['Marks'].round(2)
             
-            st.markdown("#### Top Performers Summary")
-            st.dataframe(top_students_df[['Rank', 'User Name', 'Class', 'Marks']])
+                    st.markdown("#### Top Performers Summary")
+                    st.dataframe(top_students_df[['Rank', 'User Name', 'Class', 'Marks']])
 
-            # --- NEW: Graph for Top Students ---
-            fig_students = px.bar(
-                top_students_df,
-                x='User Name',
-                y='Marks',
-                color='Class',
-                title='Top 3 Students by Average Marks per Class',
-                labels={'Marks': 'Average Marks', 'User Name': 'Student'},
-                text='Marks'
-            )
-            fig_students.update_traces(textposition='outside')
-            st.plotly_chart(fig_students, use_container_width=True)
-            # ------------------------------------
+                    # --- NEW: Graph for Top Students ---
+                    fig_students = px.bar(
+                        top_students_df,
+                        x='User Name',
+                        y='Marks',
+                        color='Class',
+                        title='Top 3 Students by Average Marks per Class',
+                        labels={'Marks': 'Average Marks', 'User Name': 'Student'},
+                        text='Marks'
+                    )
+                    fig_students.update_traces(textposition='outside')
+                    st.plotly_chart(fig_students, use_container_width=True)
+                    # ------------------------------------
+
+        st.markdown("---")
+
 
 
 st.markdown("---")

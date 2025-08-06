@@ -336,7 +336,7 @@ elif page == "My Reports":
             st.info("The leaderboard is available after answers have been graded and moved to the bank.")
         else:
             # Report 3: Top 3 Students (from Answer Bank)
-            st.subheader("ðŸ¥‡ Class-wise Top 3 Students")
+            st.subheader("Class-wise Top 3 Students")
             df_students_report = df_users[df_users['Role'] == 'Student']
             if df_answer_bank.empty or df_students_report.empty:
                 st.info("Leaderboard will be generated once answers are graded and moved to the bank.")

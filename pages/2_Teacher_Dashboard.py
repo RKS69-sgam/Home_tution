@@ -218,22 +218,7 @@ if page == "Create Homework":
 
 
 
-elif page == "Help Requests":
-    st.subheader("Student Help Requests")
-    my_questions_list = df_homework[df_homework['Uploaded By'] == st.session_state.user_name]['Question'].tolist()
-    all_help_requests = df_live_answers[df_live_answers['Question'].isin(my_questions_list)]
-    all_help_requests = all_help_requests[all_help_requests['Help_Request'].notna() & (all_help_requests['Help_Request'] != '')]
-    if all_help_requests.empty:
-        st.info("No pending help requests from students.")
-    else:
-        df_students = df_users[df_users['Role'] == 'Student']
-        requests_with_names = pd.merge(all_help_requests, df_students, left_on='Student Gmail', right_on='Gmail ID')
-        for index, row in requests_with_names.iterrows():
-            st.markdown(f"**Student:** {row['User Name']} ({row['Class']})")
-            st.write(f"**Question:** {row['Question']}")
-            st.info(f"**Student's Answer so far:** {row.get('Answer', 'Not answered yet')}")
-            st.error(f"**Help Request:** {row['Help_Request']}")
-            st.markdown("---")
+
             
 elif page == "My Reports":
     st.subheader("My Reports")

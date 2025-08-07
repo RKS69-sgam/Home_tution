@@ -152,7 +152,7 @@ st.markdown("---")
 # --- Radio Button Navigation System ---
 page = st.radio(
     "Navigation",
-    ["Create Homework", "Grade Answers", "Help Requests", "My Reports"],
+    ["Create Homework", "My Reports"],
     horizontal=True,
     label_visibility="collapsed"
 )

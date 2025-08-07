@@ -177,19 +177,17 @@ if page == "Create Homework":
         ctx = st.session_state.homework_context
         st.success(f"Creating homework for: **{ctx['class']} - {ctx['subject']}** (Date: {ctx['date'].strftime(DATE_FORMAT)})")
         
-        # --- Back to Main Menu Button ADDED HERE ---
-        if st.button("🔙 Back to Main Menu"):
-            del st.session_state.context_set
-            if 'questions_list' in st.session_state:
-                del st.session_state.questions_list
-            if 'homework_context' in st.session_state:
-                del st.session_state.homework_context
-            st.rerun()
-        # ---------------------------------------------
-
         with st.form("add_question_form", clear_on_submit=True):
             question_text = st.text_area("Enter a question to add:", height=100)
             model_answer_text = st.text_area("Enter the Model Answer for auto-grading:", height=100)
+
+            if ctx['subject'] == 'Math':
+                st.info("For math equations, use LaTeX format. Example: `x^2 + y^2 = z^2`")
+                st.markdown("**Question Preview:**")
+                st.latex(question_text)
+                st.markdown("**Model Answer Preview:**")
+                st.latex(model_answer_text)
+
             if st.form_submit_button("Add Question"):
                 if question_text and model_answer_text:
                     if 'questions_list' not in st.session_state:
@@ -215,11 +213,6 @@ if page == "Create Homework":
                 del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
                 st.rerun()
 
-
-
-
-
-            
 elif page == "My Reports":
     st.subheader("My Reports")
     st.markdown("#### Homework Creation Report")
@@ -232,6 +225,7 @@ elif page == "My Reports":
             start_date = st.date_input("Start Date", datetime.today() - timedelta(days=7), format="DD-MM-YYYY")
         with col2:
             end_date = st.date_input("End Date", datetime.today(), format="DD-MM-YYYY")
+        
         teacher_homework['Date_dt'] = pd.to_datetime(teacher_homework['Date'], format=DATE_FORMAT, errors='coerce').dt.date
         filtered = teacher_homework[(teacher_homework['Date_dt'] >= start_date) & (teacher_homework['Date_dt'] <= end_date)]
         if filtered.empty:
@@ -239,23 +233,18 @@ elif page == "My Reports":
         else:
             summary = filtered.groupby(['Class', 'Subject']).size().reset_index(name='Total')
             st.dataframe(summary)
+    
     st.markdown("---")
     st.subheader("🏆 Top Teachers Leaderboard")
     df_all_teachers = df_users[df_users['Role'] == 'Teacher'].copy()
-    df_all_teachers['Salary Points'] = pd.to_numeric(df_all_teachers.get('Salary Points', 0), errors='coerce').fillna(0)
-    if df_all_teachers.empty:
-        st.info("The teacher leaderboard will appear here once teachers start grading.")
-    else:
+    if 'Salary Points' in df_all_teachers.columns:
+        df_all_teachers['Salary Points'] = pd.to_numeric(df_all_teachers.get('Salary Points', 0), errors='coerce').fillna(0)
         ranked_teachers = df_all_teachers.sort_values(by='Salary Points', ascending=False)
         ranked_teachers['Rank'] = range(1, len(ranked_teachers) + 1)
         st.dataframe(ranked_teachers[['Rank', 'User Name', 'Salary Points']])
-        fig_leaderboard = px.bar(
-            ranked_teachers.head(10), x='User Name', y='Salary Points',
-            title='Top Teachers by Performance Points',
-            labels={'Salary Points': 'Total Points Earned', 'User Name': 'Teacher'}, text='Salary Points'
-        )
-        fig_leaderboard.update_traces(textposition='outside')
-        st.plotly_chart(fig_leaderboard, use_container_width=True)
+    else:
+        st.warning("'Salary Points' column not found in All Users Sheet.")
+
     st.markdown("---")
     st.subheader("🥇 Class-wise Top 3 Students")
     df_students_report = df_users[df_users['Role'] == 'Student']
@@ -265,47 +254,16 @@ elif page == "My Reports":
         df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
         graded_answers = df_answer_bank.dropna(subset=['Marks'])
         if graded_answers.empty:
-            st.info("The leaderboard is available after answers have been graded and moved to the bank.")
+            st.info("The leaderboard is available after answers have been graded.")
         else:
-            # Report 3: Top 3 Students (from Answer Bank)
-            st.subheader("Class-wise Top 3 Students")
-            df_students_report = df_users[df_users['Role'] == 'Student']
-            if df_answer_bank.empty or df_students_report.empty:
-                st.info("Leaderboard will be generated once answers are graded and moved to the bank.")
-            else:
-                df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
-                graded_answers = df_answer_bank.dropna(subset=['Marks'])
-                if graded_answers.empty:
-                    st.info("The leaderboard is available after answers have been graded and moved to the bank.")
-                else:
-                    df_merged = pd.merge(graded_answers, df_students_report, left_on='Student Gmail', right_on='Gmail ID', suffixes=('_ans', '_user'))
-                    leaderboard_df = df_merged.groupby(['Class_user', 'User Name'])['Marks'].mean().reset_index()
-                    leaderboard_df.rename(columns={'Class_user': 'Class'}, inplace=True)
-                    leaderboard_df['Rank'] = leaderboard_df.groupby('Class')['Marks'].rank(method='dense', ascending=False).astype(int)
-                    leaderboard_df = leaderboard_df.sort_values(by=['Class', 'Rank'])
-                    top_students_df = leaderboard_df.groupby('Class').head(3).reset_index(drop=True)
-                    top_students_df['Marks'] = top_students_df['Marks'].round(2)
-            
-                    st.markdown("#### Top Performers Summary")
-                    st.dataframe(top_students_df[['Rank', 'User Name', 'Class', 'Marks']])
-
-                    # --- NEW: Graph for Top Students ---
-                    fig_students = px.bar(
-                        top_students_df,
-                        x='User Name',
-                        y='Marks',
-                        color='Class',
-                        title='Top 3 Students by Average Marks per Class',
-                        labels={'Marks': 'Average Marks', 'User Name': 'Student'},
-                        text='Marks'
-                    )
-                    fig_students.update_traces(textposition='outside')
-                    st.plotly_chart(fig_students, use_container_width=True)
-                    # ------------------------------------
-
-        st.markdown("---")
-
-
+            df_merged = pd.merge(graded_answers, df_students_report, left_on='Student Gmail', right_on='Gmail ID')
+            leaderboard_df = df_merged.groupby(['Class', 'User Name'])['Marks'].mean().reset_index()
+            leaderboard_df['Rank'] = leaderboard_df.groupby('Class')['Marks'].rank(method='dense', ascending=False).astype(int)
+            leaderboard_df = leaderboard_df.sort_values(by=['Class', 'Rank'])
+            top_students_df = leaderboard_df.groupby('Class').head(3).reset_index(drop=True)
+            top_students_df['Marks'] = top_students_df['Marks'].round(2)
+            st.markdown("#### Top Performers Summary")
+            st.dataframe(top_students_df[['Rank', 'User Name', 'Class', 'Marks']])
 
 st.markdown("---")
 st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)

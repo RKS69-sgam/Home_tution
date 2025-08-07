@@ -19,6 +19,7 @@ GRADE_MAP_REVERSE = {1: "Needs Improvement", 2: "Average", 3: "Good", 4: "Very G
 # === UTILITY FUNCTIONS ===
 @st.cache_resource
 def connect_to_gsheets():
+    """Establishes a connection to Google Sheets and caches it."""
     try:
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         decoded_creds = base64.b64decode(st.secrets["google_service"]["base64_credentials"])
@@ -32,6 +33,7 @@ def connect_to_gsheets():
 
 @st.cache_data(ttl=60)
 def load_data(sheet_id):
+    """Opens a sheet by its ID and loads the data. This works correctly with Streamlit's cache."""
     try:
         client = connect_to_gsheets()
         if client is None: return pd.DataFrame()
@@ -47,6 +49,7 @@ def load_data(sheet_id):
         return pd.DataFrame()
 
 def get_text_similarity(text1, text2):
+    """Calculates similarity percentage between two texts."""
     try:
         vectorizer = TfidfVectorizer()
         vectors = vectorizer.fit_transform([text1, text2])
@@ -56,10 +59,10 @@ def get_text_similarity(text1, text2):
         return 0.0
 
 def get_grade_from_similarity(percentage):
-    if percentage >= 80: return 4 # Very Good or Outstanding
-    elif percentage >= 60: return 3 # Good
-    elif percentage >= 40: return 2 # Average
-    else: return 1 # Needs Improvement
+    """Assigns a grade score based on similarity percentage."""
+    if percentage >= 80: return 4
+    elif percentage >= 60: return 3
+    else: return 1
 
 # === SHEET IDs ===
 ALL_USERS_SHEET_ID = "18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA"
@@ -178,7 +181,7 @@ if not user_info_row.empty:
         else:
             df_pending = pd.DataFrame(pending_questions_list).sort_values(by='Date', ascending=False)
             for i, row in df_pending.iterrows():
-                question_id = f"question_{i}"
+                question_id = f"question_{row['Row ID']}"
                 if question_id not in st.session_state:
                     st.session_state[question_id] = 'initial'
 
@@ -190,23 +193,20 @@ if not user_info_row.empty:
                 if not matching_answer.empty:
                     current_attempt = int(matching_answer.iloc[0].get('Attempt_Status', 0))
 
-                if current_attempt == 0:
-                    if st.session_state[question_id] == 'initial':
-                        if st.button("View Model Answer & Start Timer", key=f"view_{i}"):
-                            st.session_state[question_id] = 'timer_running'
-                            st.rerun()
-                elif current_attempt == 1:
+                if current_attempt == 0 and st.session_state[question_id] == 'initial':
+                    if st.button("View Model Answer & Start Timer", key=f"view_{i}"):
+                        st.session_state[question_id] = 'timer_running'
+                        st.rerun()
+                elif current_attempt == 1 and st.session_state[question_id] == 'initial':
                     st.warning("This is your second chance for this question.")
-                    if st.session_state[question_id] == 'initial':
-                        if st.button("View Answer (One More Chance)", key=f"view_{i}"):
-                            st.session_state[question_id] = 'timer_running'
-                            st.rerun()
-                elif current_attempt >= 2:
+                    if st.button("View Answer (One More Chance)", key=f"view_{i}"):
+                        st.session_state[question_id] = 'timer_running'
+                        st.rerun()
+                elif current_attempt >= 2 and st.session_state[question_id] == 'initial':
                     st.error("This is your final chance for this question.")
-                    if st.session_state[question_id] == 'initial':
-                        if st.button("View Answer (Final Chance)", key=f"view_{i}"):
-                            st.session_state[question_id] = 'timer_running'
-                            st.rerun()
+                    if st.button("View Answer (Final Chance)", key=f"view_{i}"):
+                        st.session_state[question_id] = 'timer_running'
+                        st.rerun()
                 
                 if st.session_state[question_id] == 'timer_running':
                     model_answer = row.get('Model_Answer', '').strip()
@@ -249,18 +249,21 @@ if not user_info_row.empty:
                                         grade_score = ""
                                         st.warning(f"Your answer was {similarity:.2f}% correct. Please review the auto-remark and resubmit.")
                                     
-                                    if not matching_answer.empty:
-                                        row_id_to_update = int(matching_answer.iloc[0].get('Row ID'))
-                                        # (Logic to update the existing row in MASTER_ANSWER_SHEET)
-                                    else:
-                                        new_row_data = [st.session_state.user_gmail, row.get('Date'), student_class, row.get('Subject'), row.get('Question'), answer_text, grade_score, remark, new_attempt_status]
-                                        sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
-                                    
+                                    new_row_data = [st.session_state.user_gmail, row.get('Date'), student_class, row.get('Subject'), row.get('Question'), answer_text, grade_score, remark, new_attempt_status]
+                                    sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
                                     load_data.clear()
                                     st.rerun()
                             else:
                                 st.warning("Answer cannot be empty.")
                 
+                with st.form(key=f"help_form_{i}"):
+                    help_text = st.text_input("Need help? Ask your teacher a question:")
+                    if st.form_submit_button("Ask for Help"):
+                        if help_text:
+                            # (Logic to save help request)
+                            pass
+                        else:
+                            st.warning("Please type your question before asking for help.")
                 st.markdown("---")
 
     with revision_tab:

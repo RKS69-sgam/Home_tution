@@ -246,7 +246,7 @@ elif page == "My Reports":
         st.warning("'Salary Points' column not found in All Users Sheet.")
 
     st.markdown("---")
-    st.subheader("🥇 Class-wise Top 3 Students")
+    #st.subheader("🥇 Class-wise Top 3 Students")
     #df_students_report = df_users[df_users['Role'] == 'Student']
     df_students_info = df_users[df_users['Role'] == 'Student']
     if df_answer_bank.empty or df_students_info.empty:

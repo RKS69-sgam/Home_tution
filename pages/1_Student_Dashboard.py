@@ -1,59 +1,62 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date, timedelta
-import gspread
 import json
 import base64
 import time
 import plotly.express as px
+import firebase_admin
+from firebase_admin import credentials, firestore
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-
-from google.oauth2.service_account import Credentials
 
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="Student Dashboard")
 DATE_FORMAT = "%d-%m-%Y"
 GRADE_MAP_REVERSE = {1: "Needs Improvement", 2: "Average", 3: "Good", 4: "Very Good", 5: "Outstanding"}
 
-# === UTILITY FUNCTIONS ===
+# === UTILITY FUNCTIONS for FIREBASE ===
 @st.cache_resource
-def connect_to_gsheets():
-    """Establishes a connection to Google Sheets and caches it."""
+def connect_to_firestore():
+    """Establishes a connection to Google Firestore and caches it."""
     try:
-        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        decoded_creds = base64.b64decode(st.secrets["google_service"]["base64_credentials"])
-        credentials_dict = json.loads(decoded_creds)
-        credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
-        client = gspread.authorize(credentials)
-        return client
+        if not firebase_admin._apps:
+            creds_base64 = st.secrets["firebase_service"]["base64_credentials"]
+            creds_json_str = base64.b64decode(creds_base64).decode("utf-8")
+            creds_dict = json.loads(creds_json_str)
+            cred = credentials.Certificate(creds_dict)
+            firebase_admin.initialize_app(cred)
+        return firestore.client()
     except Exception as e:
-        st.error(f"Error connecting to Google APIs: {e}")
+        st.error(f"Error connecting to Firebase Firestore: {e}")
         return None
 
 @st.cache_data(ttl=60)
-def load_data(sheet_id):
-    """Opens a sheet by its ID and loads the data. This works correctly with Streamlit's cache."""
+def load_collection(_collection_name):
+    """Loads all documents from a Firestore collection into a Pandas DataFrame."""
     try:
-        client = connect_to_gsheets()
-        if client is None: return pd.DataFrame()
-        sheet = client.open_by_key(sheet_id).sheet1
-        all_values = sheet.get_all_values()
-        if not all_values: return pd.DataFrame()
-        df = pd.DataFrame(all_values[1:], columns=all_values[0])
-        df.columns = df.columns.str.strip()
-        df['Row ID'] = range(2, len(df) + 2)
-        return df
+        db = connect_to_firestore()
+        if db is None: return pd.DataFrame()
+        
+        collection_ref = db.collection(_collection_name).stream()
+        data = []
+        for doc in collection_ref:
+            doc_data = doc.to_dict()
+            doc_data['doc_id'] = doc.id
+            data.append(doc_data)
+            
+        if not data: return pd.DataFrame()
+        return pd.DataFrame(data)
     except Exception as e:
-        st.error(f"Failed to load data for sheet ID {sheet_id}: {e}")
+        st.error(f"Failed to load data from collection '{_collection_name}': {e}")
         return pd.DataFrame()
 
 def get_text_similarity(text1, text2):
     """Calculates similarity percentage between two texts."""
     try:
-        vectorizer = TfidfVectorizer()
-        vectors = vectorizer.fit_transform([text1, text2])
-        similarity_matrix = cosine_similarity(vectors)
+        if not text1 or not text2: return 0.0
+        vectorizer = TfidfVectorizer().fit_transform([text1.lower(), text2.lower()])
+        similarity_matrix = cosine_similarity(vectorizer)
         return similarity_matrix[0][1] * 100
     except Exception:
         return 0.0
@@ -63,13 +66,6 @@ def get_grade_from_similarity(percentage):
     if percentage >= 80: return 4
     elif percentage >= 60: return 3
     else: return 1
-
-# === SHEET IDs ===
-ALL_USERS_SHEET_ID = "18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA"
-HOMEWORK_QUESTIONS_SHEET_ID = "1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI"
-MASTER_ANSWER_SHEET_ID = "1lW2Eattf9kyhllV_NzMMq9tznibkhNJ4Ma-wLV5rpW0"
-ANSWER_BANK_SHEET_ID = "12S2YwNPHZIVtWSqXaRHIBakbFqoBVB4xcAcFfpwN3uw"
-ANNOUNCEMENTS_SHEET_ID = "1zEAhoWC9_3UK09H4cFk6lRd6i5ChF3EknVc76L7zquQ"
 
 # === SECURITY GATEKEEPER ===
 if not st.session_state.get("logged_in") or st.session_state.get("user_role") != "student":
@@ -81,45 +77,46 @@ if not st.session_state.get("logged_in") or st.session_state.get("user_role") !=
 st.sidebar.success(f"Welcome, {st.session_state.user_name}")
 if st.sidebar.button("Logout"):
     st.session_state.clear()
-    st.switch_page("main.py")
+    st.rerun()
 st.sidebar.markdown("---")
 st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<br>All Rights Reserved.</div>", unsafe_allow_html=True)
 
 # === STUDENT DASHBOARD UI ===
 st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
-# --- INSTRUCTION, ANNOUNCEMENT & SALARY NOTIFICATION ---
-df_all_users = load_data(ALL_USERS_SHEET_ID)
+# --- INSTRUCTION & ANNOUNCEMENT SYSTEMS ---
+df_all_users = load_collection('users')
 user_info_row = df_all_users[df_all_users['Gmail ID'] == st.session_state.user_gmail]
 if not user_info_row.empty:
     user_info = user_info_row.iloc[0]
     instruction = user_info.get('Instruction', '').strip()
     reply = user_info.get('Instruction_Reply', '').strip()
     status = user_info.get('Instruction_Status', '')
+
     if status == 'Sent' and instruction and not reply:
         st.warning(f"**New Instruction from Principal:** {instruction}")
         with st.form(key="reply_form"):
             reply_text = st.text_area("Your Reply:")
             if st.form_submit_button("Send Reply"):
                 if reply_text:
-                    row_id = int(user_info.get('Row ID'))
-                    reply_col = df_all_users.columns.get_loc('Instruction_Reply') + 1
-                    status_col = df_all_users.columns.get_loc('Instruction_Status') + 1
-                    client = connect_to_gsheets()
-                    sheet = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
-                    sheet.update_cell(row_id, reply_col, reply_text)
-                    sheet.update_cell(row_id, status_col, "Replied")
-                    st.success("Your reply has been sent.")
-                    load_data.clear()
-                    st.rerun()
+                    with st.spinner("Sending reply..."):
+                        db = connect_to_firestore()
+                        user_doc_id = user_info.get('doc_id')
+                        user_ref = db.collection('users').document(user_doc_id)
+                        user_ref.update({
+                            'Instruction_Reply': reply_text,
+                            'Instruction_Status': 'Replied'
+                        })
+                        st.success("Your reply has been sent.")
+                        st.rerun()
                 else:
                     st.warning("Reply cannot be empty.")
     st.markdown("---")
 
     # Load other necessary data
-    df_homework = load_data(HOMEWORK_QUESTIONS_SHEET_ID)
-    df_live_answers = load_data(MASTER_ANSWER_SHEET_ID)
-    df_answer_bank = load_data(ANSWER_BANK_SHEET_ID)
+    df_homework = load_collection('homework')
+    df_live_answers = load_collection('answers')
+    df_answer_bank = load_collection('answer_bank')
     
     student_class = user_info.get("Class")
     st.subheader(f"Your Class: {student_class}")
@@ -130,25 +127,32 @@ if not user_info_row.empty:
     student_answers_live = df_live_answers[df_live_answers.get('Student Gmail') == st.session_state.user_gmail].copy()
     student_answers_from_bank = df_answer_bank[df_answer_bank.get('Student Gmail') == st.session_state.user_gmail].copy()
     
-    st.header("Your Performance Chart")
+    # --- Performance Overview Section ---
+    st.header("Your Performance Overview")
+    
+    total_assigned = len(homework_for_class)
+    total_completed = len(student_answers_from_bank)
+    total_pending = total_assigned - total_completed
+    
+    average_score = 0.0
     if not student_answers_from_bank.empty and 'Marks' in student_answers_from_bank.columns:
         student_answers_from_bank['Marks_Numeric'] = pd.to_numeric(student_answers_from_bank['Marks'], errors='coerce')
-        graded_answers_chart = student_answers_from_bank.dropna(subset=['Marks_Numeric'])
-        if not graded_answers_chart.empty:
-            marks_by_subject = graded_answers_chart.groupby('Subject')['Marks_Numeric'].mean().reset_index()
-            marks_by_subject['Marks_Numeric'] = marks_by_subject['Marks_Numeric'].round(2)
-            fig = px.bar(
-                marks_by_subject, x='Subject', y='Marks_Numeric', title='Your Average Marks by Subject', 
-                color='Subject', text='Marks_Numeric', labels={'Marks_Numeric': 'Average Marks'}
-            )
-            fig.update_traces(textposition='outside')
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Your growth chart will appear here once your answers are graded.")
-    else:
-        st.info("Your growth chart will appear here once you submit answers.")
+        graded_answers = student_answers_from_bank.dropna(subset=['Marks_Numeric'])
+        if not graded_answers.empty:
+            average_score = graded_answers['Marks_Numeric'].mean()
 
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Homework Assigned", f"{total_assigned}")
+    col2.metric("Homework Completed", f"{total_completed}", delta=f"-{total_pending} Pending" if total_pending > 0 else None)
+    col3.metric("Overall Average Score", f"{average_score:.2f} / 5")
+    
+    if total_assigned > 0:
+        chart_df = pd.DataFrame({'Status': ['Completed', 'Pending'], 'Count': [total_completed, total_pending]})
+        fig = px.pie(chart_df, values='Count', names='Status', title='Homework Status', hole=.4, color_discrete_map={'Completed':'green', 'Pending':'orange'})
+        st.plotly_chart(fig, use_container_width=True)
+    
     st.markdown("---")
+
     pending_tab, revision_tab, leaderboard_tab = st.tabs(["Pending Homework", "Revision Zone", "Class Leaderboard"])
     
     with pending_tab:
@@ -159,8 +163,7 @@ if not user_info_row.empty:
         for index, hw_row in homework_for_class.iterrows():
             question_text = hw_row.get('Question')
             assignment_date_str = hw_row.get('Date')
-            assignment_date = datetime.strptime(assignment_date_str, DATE_FORMAT).date()
-
+            
             answer_in_live = student_answers_live[(student_answers_live['Question'] == question_text) & (student_answers_live['Date'] == assignment_date_str)]
             answer_in_bank = student_answers_from_bank[(student_answers_from_bank['Question'] == question_text) & (student_answers_from_bank['Date'] == assignment_date_str)]
 
@@ -169,7 +172,8 @@ if not user_info_row.empty:
 
             if not answer_in_live.empty:
                 attempt_status = int(answer_in_live.iloc[0].get('Attempt_Status', '0'))
-                if attempt_status == 2 and today_date == assignment_date:
+                assignment_date = datetime.strptime(assignment_date_str, DATE_FORMAT).date()
+                if attempt_status >= 2 and today_date == assignment_date:
                     continue
                 else:
                     pending_questions_list.append(hw_row)
@@ -181,7 +185,7 @@ if not user_info_row.empty:
         else:
             df_pending = pd.DataFrame(pending_questions_list).sort_values(by='Date', ascending=False)
             for i, row in df_pending.iterrows():
-                question_id = f"question_{row['Row ID']}"
+                question_id = f"question_{row['doc_id']}"
                 if question_id not in st.session_state:
                     st.session_state[question_id] = 'initial'
 
@@ -192,13 +196,15 @@ if not user_info_row.empty:
                 current_attempt = 0
                 if not matching_answer.empty:
                     current_attempt = int(matching_answer.iloc[0].get('Attempt_Status', 0))
+                    if matching_answer.iloc[0].get('Remarks'):
+                        st.warning(f"**Auto-Remark:** {matching_answer.iloc[0].get('Remarks')}")
 
                 if current_attempt == 0 and st.session_state[question_id] == 'initial':
                     if st.button("View Model Answer & Start Timer", key=f"view_{i}"):
                         st.session_state[question_id] = 'timer_running'
                         st.rerun()
                 elif current_attempt == 1 and st.session_state[question_id] == 'initial':
-                    st.warning("This is your second chance for this question.")
+                    st.warning("This is your second chance.")
                     if st.button("View Answer (One More Chance)", key=f"view_{i}"):
                         st.session_state[question_id] = 'timer_running'
                         st.rerun()
@@ -235,40 +241,40 @@ if not user_info_row.empty:
                                     model_answer = row.get('Model_Answer', '').strip()
                                     similarity = get_text_similarity(answer_text, model_answer)
                                     grade_score = get_grade_from_similarity(similarity)
-                                    client = connect_to_gsheets()
+                                    db = connect_to_firestore()
                                     
                                     new_attempt_status = current_attempt + 1
                                     
                                     if grade_score >= 3 or new_attempt_status >= 3:
-                                        sheet = client.open_by_key(ANSWER_BANK_SHEET_ID).sheet1
+                                        collection_ref = db.collection('answer_bank')
                                         remark = "Good! Try for better performance next time." if grade_score == 3 else f"Auto-Graded: Excellent! ({similarity:.2f}%)"
                                         st.success(f"Your answer was {similarity:.2f}% correct and has been saved.")
                                     else:
-                                        sheet = client.open_by_key(MASTER_ANSWER_SHEET_ID).sheet1
-                                        remark = f"Auto-Remark: Your answer was {similarity:.2f}% correct. Please review and improve it. You have one more chance."
-                                        grade_score = ""
-                                        st.warning(f"Your answer was {similarity:.2f}% correct. Please review the auto-remark and resubmit.")
+                                        collection_ref = db.collection('answers')
+                                        remark = f"Auto-Remark: Your answer was {similarity:.2f}% correct. Please improve it."
+                                        grade_score = None
+                                        st.warning(f"Your answer was {similarity:.2f}% correct. Please resubmit.")
                                     
-                                    new_row_data = [st.session_state.user_gmail, row.get('Date'), student_class, row.get('Subject'), row.get('Question'), answer_text, grade_score, remark, new_attempt_status]
-                                    sheet.append_row(new_row_data, value_input_option='USER_ENTERED')
-                                    load_data.clear()
+                                    if not matching_answer.empty:
+                                        doc_id_to_delete = matching_answer.iloc[0].get('doc_id')
+                                        db.collection('answers').document(doc_id_to_delete).delete()
+                                    
+                                    new_doc_data = {
+                                        "Student Gmail": st.session_state.user_gmail, "Date": row.get('Date'), 
+                                        "Class": student_class, "Subject": row.get('Subject'), 
+                                        "Question": row.get('Question'), "Answer": answer_text, 
+                                        "Marks": grade_score, "Remarks": remark, "Attempt_Status": new_attempt_status
+                                    }
+                                    collection_ref.add(new_doc_data)
+                                    
                                     st.rerun()
                             else:
                                 st.warning("Answer cannot be empty.")
-                
-                #with st.form(key=f"help_form_{i}"):
-                    #help_text = st.text_input("Need help? Ask your teacher a question:")
-                   # if st.form_submit_button("Ask for Help"):
-                       # if help_text:
-                            # (Logic to save help request)
-                            pass
-                        else:
-                            st.warning("Please type your question before asking for help.")
                 st.markdown("---")
 
     with revision_tab:
         st.subheader("Previously Graded Answers (from Answer Bank)")
-        if 'Marks' in student_answers_from_bank.columns:
+        if not student_answers_from_bank.empty and 'Marks' in student_answers_from_bank.columns:
             student_answers_from_bank['Marks_Numeric'] = pd.to_numeric(student_answers_from_bank['Marks'], errors='coerce')
             graded_answers = student_answers_from_bank.dropna(subset=['Marks_Numeric'])
             if graded_answers.empty:
@@ -286,7 +292,7 @@ if not user_info_row.empty:
                         st.warning(f"**Teacher's Remark:** {remarks}")
                     st.markdown("---")
         else:
-            st.error("Answer Bank sheet is missing the 'Marks' column.")
+            st.info("No graded answers to review yet.")
     
     with leaderboard_tab:
         st.subheader(f"Class Leaderboard ({student_class})")

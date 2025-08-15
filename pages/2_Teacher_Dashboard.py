@@ -247,7 +247,8 @@ elif page == "My Reports":
 
     st.markdown("---")
     st.subheader("🥇 Class-wise Top 3 Students")
-    df_students_report = df_users[df_users['Role'] == 'Student']
+    #df_students_report = df_users[df_users['Role'] == 'Student']
+    df_students_info = df_users[df_users['Role'] == 'Student']
     if df_answer_bank.empty or df_students_info.empty:
         st.info("Leaderboard will be generated once answers are graded and students are available.")
     else:

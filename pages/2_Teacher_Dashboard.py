@@ -265,5 +265,5 @@ elif page == "My Reports":
             st.markdown("#### Top Performers Summary")
             st.dataframe(top_students_df[['Rank', 'User Name', 'Class', 'Marks']])
 
-st.markdown("---")
+            st.markdown("---")
 st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)

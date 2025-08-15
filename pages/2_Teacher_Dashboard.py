@@ -248,32 +248,85 @@ elif page == "My Reports":
     st.markdown("---")
     st.subheader("🥇 Class-wise Top 3 Students")
     df_students_report = df_users[df_users['Role'] == 'Student']
-    if df_answer_bank.empty or df_students_report.empty:
-        st.info("Leaderboard will be generated once answers are graded and moved to the bank.")
+    if df_answer_bank.empty or df_students_info.empty:
+        st.info("Leaderboard will be generated once answers are graded and students are available.")
     else:
+        # --- Data Cleaning and Preparation ---
+        # Safely convert 'Marks' to a numeric type. Invalid values become NaN.
         df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
+    
+        # Drop rows where 'Marks' is NaN (i.e., not graded or invalid)
         graded_answers = df_answer_bank.dropna(subset=['Marks'])
+
         if graded_answers.empty:
             st.info("The leaderboard is available after answers have been graded.")
         else:
-            leaderboard_df = graded_class_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
-            leaderboard_df = pd.merge(leaderboard_df, df_students_class[['User Name', 'Gmail ID']], left_on='Student Gmail', right_on='Gmail ID', how='left')
-            leaderboard_df['Rank'] = leaderboard_df['Marks'].rank(method='dense', ascending=False).astype(int)
-            leaderboard_df = leaderboard_df.sort_values(by='Rank')
-            leaderboard_df['Marks'] = leaderboard_df['Marks'].round(2)
-            st.markdown("##### 🏆 Top 3 Performers")
-            top_3_df = leaderboard_df.head(3)
-            st.dataframe(top_3_df[['Rank', 'User Name', 'Marks']])
-            if not top_3_df.empty:
-                fig = px.bar(
-                    top_3_df, x='User Name', y='Marks', color='User Name',
-                    title=f"Top 3 Performers in {student_class}",
-                    labels={'Marks': 'Average Marks', 'User Name': 'Student'},
-                    text='Marks'
+            # Get the unique list of classes that have graded answers
+            available_classes = sorted(graded_answers['Class'].unique())
+    
+            st.subheader("🥇 Class-wise Top 3 Students")
+    
+            # Loop through each class to generate a separate leaderboard
+            for student_class in available_classes:
+                st.markdown(f"---")
+                st.markdown(f"#### Leaderboard for: **{student_class}**")
+    
+                # Filter the graded answers for the current class
+                class_graded_answers = graded_answers[graded_answers['Class'] == student_class]
+    
+                if class_graded_answers.empty:
+                    st.write("No graded answers for this class yet.")
+                    continue # Move to the next class
+    
+                # --- Leaderboard Calculation for the Current Class ---
+                # 1. Group by student and calculate their average marks for this class
+                leaderboard_df = class_graded_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
+    
+                # 2. Merge with student info to get their names
+                leaderboard_df = pd.merge(
+                    leaderboard_df, 
+                    df_students_info[['User Name', 'Gmail ID']], 
+                    left_on='Student Gmail', 
+                    right_on='Gmail ID', 
+                    how='left'
                 )
-                fig.update_traces(textposition='outside')
-                st.plotly_chart(fig, use_container_width=True)
-            st.markdown("---")
+
+                # 3. Rank students based on their average marks (within this class)
+                leaderboard_df['Rank'] = leaderboard_df['Marks'].rank(method='dense', ascending=False).astype(int)
+                
+                # 4. Sort by rank to bring the best performers to the top
+                leaderboard_df = leaderboard_df.sort_values(by='Rank')
+                
+                # 5. Round the marks for better display
+                leaderboard_df['Marks'] = leaderboard_df['Marks'].round(2)
+                
+                # --- Displaying the Top 3 ---
+                top_3_df = leaderboard_df.head(3)
+    
+                # Check if there are any students to display
+                if not top_3_df.empty:
+                    # Display the top 3 in a table
+                    st.dataframe(
+                        top_3_df[['Rank', 'User Name', 'Marks']],
+                        use_container_width=True
+                    )
+                
+                    # Create and display a bar chart for the top 3
+                    fig = px.bar(
+                        top_3_df.sort_values(by='Marks'), # Sort for a nice visual in the chart
+                        x='Marks', 
+                        y='User Name', 
+                        color='User Name',
+                        orientation='h', # Horizontal bar chart
+                        title=f"🏆 Top 3 Performers in {student_class}",
+                        labels={'Marks': 'Average Marks', 'User Name': 'Student'},
+                        text='Marks'
+                    )
+                    fig.update_traces(textposition='outside')
+                    fig.update_layout(yaxis={'categoryorder':'total ascending'}) # Ensures highest scorer is at the top
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info(f"No ranked students to display for {student_class}.")
 
 st.markdown("---")
 st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)

@@ -256,14 +256,24 @@ elif page == "My Reports":
         if graded_answers.empty:
             st.info("The leaderboard is available after answers have been graded.")
         else:
-            df_merged = pd.merge(graded_answers, df_students_report, left_on='Student Gmail', right_on='Gmail ID')
-            leaderboard_df = df_merged.groupby(['Class', 'User Name'])['Marks'].mean().reset_index()
-            leaderboard_df['Rank'] = leaderboard_df.groupby('Class')['Marks'].rank(method='dense', ascending=False).astype(int)
-            leaderboard_df = leaderboard_df.sort_values(by=['Class', 'Rank'])
-            top_students_df = leaderboard_df.groupby('Class').head(3).reset_index(drop=True)
-            top_students_df['Marks'] = top_students_df['Marks'].round(2)
-            st.markdown("#### Top Performers Summary")
-            st.dataframe(top_students_df[['Rank', 'User Name', 'Class', 'Marks']])
-
+            leaderboard_df = graded_class_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
+            leaderboard_df = pd.merge(leaderboard_df, df_students_class[['User Name', 'Gmail ID']], left_on='Student Gmail', right_on='Gmail ID', how='left')
+            leaderboard_df['Rank'] = leaderboard_df['Marks'].rank(method='dense', ascending=False).astype(int)
+            leaderboard_df = leaderboard_df.sort_values(by='Rank')
+            leaderboard_df['Marks'] = leaderboard_df['Marks'].round(2)
+            st.markdown("##### 🏆 Top 3 Performers")
+            top_3_df = leaderboard_df.head(3)
+            st.dataframe(top_3_df[['Rank', 'User Name', 'Marks']])
+            if not top_3_df.empty:
+                fig = px.bar(
+                    top_3_df, x='User Name', y='Marks', color='User Name',
+                    title=f"Top 3 Performers in {student_class}",
+                    labels={'Marks': 'Average Marks', 'User Name': 'Student'},
+                    text='Marks'
+                )
+                fig.update_traces(textposition='outside')
+                st.plotly_chart(fig, use_container_width=True)
             st.markdown("---")
+
+st.markdown("---")
 st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)

@@ -5,8 +5,8 @@ import gspread
 import json
 import base64
 import plotly.express as px
-
-from google.oauth2.service_account import Credentials
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 # === CONFIGURATION ===
 st.set_page_config(layout="wide", page_title="Teacher Dashboard")
@@ -16,40 +16,46 @@ GRADE_MAP_REVERSE = {v: k for k, v in GRADE_MAP.items()}
 
 # === UTILITY FUNCTIONS ===
 @st.cache_resource
-def connect_to_gsheets():
+def connect_to_firestore():
+    """Establishes a connection to Google Firestore and caches it."""
     try:
-        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        decoded_creds = base64.b64decode(st.secrets["google_service"]["base64_credentials"])
-        credentials_dict = json.loads(decoded_creds)
-        credentials = Credentials.from_service_account_info(credentials_dict, scopes=scopes)
-        client = gspread.authorize(credentials)
-        return client
+        if not firebase_admin._apps:
+            creds_base64 = st.secrets["firebase_service"]["base64_credentials"]
+            creds_json_str = base64.b64decode(creds_base64).decode("utf-8")
+            creds_dict = json.loads(creds_json_str)
+            cred = credentials.Certificate(creds_dict)
+            firebase_admin.initialize_app(cred)
+        return firestore.client()
     except Exception as e:
-        st.error(f"Error connecting to Google APIs: {e}")
+        st.error(f"Error connecting to Firebase Firestore: {e}")
         return None
 
 @st.cache_data(ttl=60)
-def load_data(sheet_id):
+def load_collection(_collection_name):
+    """Loads all documents from a Firestore collection into a Pandas DataFrame."""
     try:
-        client = connect_to_gsheets()
-        if client is None: return pd.DataFrame()
-        sheet = client.open_by_key(sheet_id).sheet1
-        all_values = sheet.get_all_values()
-        if not all_values: return pd.DataFrame()
-        df = pd.DataFrame(all_values[1:], columns=all_values[0])
-        df.columns = df.columns.str.strip()
-        df['Row ID'] = range(2, len(df) + 2)
-        return df
+        db = connect_to_firestore()
+        if db is None: return pd.DataFrame()
+        
+        collection_ref = db.collection(_collection_name).stream()
+        data = []
+        for doc in collection_ref:
+            doc_data = doc.to_dict()
+            doc_data['doc_id'] = doc.id
+            data.append(doc_data)
+            
+        if not data: return pd.DataFrame()
+        return pd.DataFrame(data)
     except Exception as e:
-        st.error(f"Failed to load data for sheet ID {sheet_id}: {e}")
+        st.error(f"Failed to load data from collection '{_collection_name}': {e}")
         return pd.DataFrame()
 
-# === SHEET IDs ===
-ALL_USERS_SHEET_ID = "18r78yFIjWr-gol6rQLeKuDPld9Rc1uDN8IQRffw68YA"
-HOMEWORK_QUESTIONS_SHEET_ID = "1fU_oJWR8GbOCX_0TRu2qiXIwQ19pYy__ezXPsRH61qI"
-MASTER_ANSWER_SHEET_ID = "1lW2Eattf9kyhllV_NzMMq9tznibkhNJ4Ma-wLV5rpW0"
-ANSWER_BANK_SHEET_ID = "12S2YwNPHZIVtWSqXaRHIBakbFqoBVB4xcAcFfpwN3uw"
-ANNOUNCEMENTS_SHEET_ID = "1zEAhoWC9_3UK09H4cFk6lRd6i5ChF3EknVc76L7zquQ"
+# === SHEET IDs (Firestore Collection Names) ===
+USERS_COLLECTION = "users"
+HOMEWORK_COLLECTION = "homework"
+ANSWERS_COLLECTION = "answers"
+ANSWER_BANK_COLLECTION = "answer_bank"
+ANNOUNCEMENTS_COLLECTION = "announcements"
 
 # === SECURITY GATEKEEPER ===
 if not st.session_state.get("logged_in") or st.session_state.get("user_role") != "teacher":
@@ -61,7 +67,7 @@ if not st.session_state.get("logged_in") or st.session_state.get("user_role") !=
 st.sidebar.success(f"Welcome, {st.session_state.user_name}")
 if st.sidebar.button("Logout"):
     st.session_state.clear()
-    st.switch_page("main.py")
+    st.rerun()
 st.sidebar.markdown("---")
 st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<br>All Rights Reserved.</div>", unsafe_allow_html=True)
 
@@ -69,7 +75,7 @@ st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<
 st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
 
 # --- INSTRUCTION, ANNOUNCEMENT & SALARY NOTIFICATION ---
-df_users = load_data(ALL_USERS_SHEET_ID)
+df_users = load_collection(USERS_COLLECTION)
 teacher_info_row = df_users[df_users['Gmail ID'] == st.session_state.user_gmail]
 if not teacher_info_row.empty:
     teacher_info = teacher_info_row.iloc[0]
@@ -89,23 +95,24 @@ if not teacher_info_row.empty:
             reply_text = st.text_area("Your Reply:")
             if st.form_submit_button("Send Reply"):
                 if reply_text:
-                    row_id = int(teacher_info.get('Row ID'))
-                    reply_col = df_users.columns.get_loc('Instruction_Reply') + 1
-                    status_col = df_users.columns.get_loc('Instruction_Status') + 1
-                    sheet = client.open_by_key(ALL_USERS_SHEET_ID).sheet1
-                    sheet.update_cell(row_id, reply_col, reply_text)
-                    sheet.update_cell(row_id, status_col, "Replied")
-                    st.success("Your reply has been sent.")
-                    load_data.clear()
-                    st.rerun()
+                    with st.spinner("Sending reply..."):
+                        db = connect_to_firestore()
+                        user_doc_id = teacher_info.get('doc_id')
+                        user_ref = db.collection('users').document(user_doc_id)
+                        user_ref.update({
+                            'Instruction_Reply': reply_text,
+                            'Instruction_Status': 'Replied'
+                        })
+                        st.success("Your reply has been sent.")
+                        st.rerun()
                 else:
                     st.warning("Reply cannot be empty.")
     st.markdown("---")
 
 # Load other necessary data
-df_homework = load_data(HOMEWORK_QUESTIONS_SHEET_ID)
-df_live_answers = load_data(MASTER_ANSWER_SHEET_ID)
-df_answer_bank = load_data(ANSWER_BANK_SHEET_ID)
+df_homework = load_collection(HOMEWORK_COLLECTION)
+df_live_answers = load_collection(ANSWERS_COLLECTION)
+df_answer_bank = load_collection(ANSWER_BANK_COLLECTION)
 
 # Display a summary of today's submitted homework
 st.subheader("Today's Submitted Homework")
@@ -161,10 +168,9 @@ if page == "Create Homework":
     st.subheader("Create a New Homework Assignment")
     if 'context_set' not in st.session_state:
         st.session_state.context_set = False
-        
     if not st.session_state.context_set:
         with st.form("context_form"):
-            subject = st.selectbox("Subject", ["Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Advance Classes"])
+            subject = st.selectbox("Subject", ["Hindi","Sanskrit","English", "Math", "Science", "SST", "Computer", "GK", "Advance Classes"])
             cls = st.selectbox("Class", [f"{i}th" for i in range(5, 13)])
             date = st.date_input("Date", datetime.today(), format="DD-MM-YYYY")
             if st.form_submit_button("Start Adding Questions →"):
@@ -176,18 +182,9 @@ if page == "Create Homework":
     if st.session_state.context_set:
         ctx = st.session_state.homework_context
         st.success(f"Creating homework for: **{ctx['class']} - {ctx['subject']}** (Date: {ctx['date'].strftime(DATE_FORMAT)})")
-        
         with st.form("add_question_form", clear_on_submit=True):
             question_text = st.text_area("Enter a question to add:", height=100)
             model_answer_text = st.text_area("Enter the Model Answer for auto-grading:", height=100)
-
-            if ctx['subject'] == 'Math':
-                st.info("For math equations, use LaTeX format. Example: `x^2 + y^2 = z^2`")
-                st.markdown("**Question Preview:**")
-                st.latex(question_text)
-                st.markdown("**Model Answer Preview:**")
-                st.latex(model_answer_text)
-
             if st.form_submit_button("Add Question"):
                 if question_text and model_answer_text:
                     if 'questions_list' not in st.session_state:
@@ -203,12 +200,17 @@ if page == "Create Homework":
                     st.info(f"Model Answer: {item['model_answer']}")
             
             if st.button("Final Submit Homework"):
-                client = connect_to_gsheets()
-                sheet = client.open_by_key(HOMEWORK_QUESTIONS_SHEET_ID).sheet1
+                db = connect_to_firestore()
                 due_date = (ctx['date'] + timedelta(days=1)).strftime(DATE_FORMAT)
-                rows_to_add = [[ctx['class'], ctx['date'].strftime(DATE_FORMAT), st.session_state.user_name, ctx['subject'], item['question'], item['model_answer'], due_date] for item in st.session_state.questions_list]
-                sheet.append_rows(rows_to_add, value_input_option='USER_ENTERED')
-                load_data.clear()
+                for item in st.session_state.questions_list:
+                    new_homework_doc = {
+                        "Class": ctx['class'], "Date": ctx['date'].strftime(DATE_FORMAT),
+                        "Uploaded By": st.session_state.user_name, "Subject": ctx['subject'],
+                        "Question": item['question'], "Model_Answer": item['model_answer'],
+                        "Due_Date": due_date
+                    }
+                    db.collection('homework').add(new_homework_doc)
+                
                 st.success("Homework submitted successfully!")
                 del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
                 st.rerun()
@@ -233,7 +235,7 @@ elif page == "My Reports":
         else:
             summary = filtered.groupby(['Class', 'Subject']).size().reset_index(name='Total')
             st.dataframe(summary)
-    
+
     st.markdown("---")
     st.subheader("🏆 Top Teachers Leaderboard")
     df_all_teachers = df_users[df_users['Role'] == 'Teacher'].copy()
@@ -246,88 +248,24 @@ elif page == "My Reports":
         st.warning("'Salary Points' column not found in All Users Sheet.")
 
     st.markdown("---")
-    #st.subheader("🥇 Class-wise Top 3 Students")
-    #df_students_report = df_users[df_users['Role'] == 'Student']
-    df_students_info = df_users[df_users['Role'] == 'Student']
-    if df_answer_bank.empty or df_students_info.empty:
-        st.info("Leaderboard will be generated once answers are graded and students are available.")
+    st.subheader("🥇 Class-wise Top 3 Students")
+    df_students_report = df_users[df_users['Role'] == 'Student']
+    if df_answer_bank.empty or df_students_report.empty:
+        st.info("Leaderboard will be generated once answers are graded and moved to the bank.")
     else:
-        # --- Data Cleaning and Preparation ---
-        # Safely convert 'Marks' to a numeric type. Invalid values become NaN.
         df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
-    
-        # Drop rows where 'Marks' is NaN (i.e., not graded or invalid)
         graded_answers = df_answer_bank.dropna(subset=['Marks'])
-
         if graded_answers.empty:
-            st.info("The leaderboard is available after answers have been graded.")
+            st.info("The leaderboard is available after answers have been graded and moved to the bank.")
         else:
-            # Get the unique list of classes that have graded answers
-            available_classes = sorted(graded_answers['Class'].unique())
-    
-            st.subheader("🥇 Class-wise Top 3 Students")
-    
-            # Loop through each class to generate a separate leaderboard
-            for student_class in available_classes:
-                st.markdown(f"---")
-                st.markdown(f"#### Leaderboard for: **{student_class}**")
-    
-                # Filter the graded answers for the current class
-                class_graded_answers = graded_answers[graded_answers['Class'] == student_class]
-    
-                if class_graded_answers.empty:
-                    st.write("No graded answers for this class yet.")
-                    continue # Move to the next class
-    
-                # --- Leaderboard Calculation for the Current Class ---
-                # 1. Group by student and calculate their average marks for this class
-                leaderboard_df = class_graded_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
-    
-                # 2. Merge with student info to get their names
-                leaderboard_df = pd.merge(
-                    leaderboard_df, 
-                    df_students_info[['User Name', 'Gmail ID']], 
-                    left_on='Student Gmail', 
-                    right_on='Gmail ID', 
-                    how='left'
-                )
-
-                # 3. Rank students based on their average marks (within this class)
-                leaderboard_df['Rank'] = leaderboard_df['Marks'].rank(method='dense', ascending=False).astype(int)
-                
-                # 4. Sort by rank to bring the best performers to the top
-                leaderboard_df = leaderboard_df.sort_values(by='Rank')
-                
-                # 5. Round the marks for better display
-                leaderboard_df['Marks'] = leaderboard_df['Marks'].round(2)
-                
-                # --- Displaying the Top 3 ---
-                top_3_df = leaderboard_df.head(3)
-    
-                # Check if there are any students to display
-                if not top_3_df.empty:
-                    # Display the top 3 in a table
-                    st.dataframe(
-                        top_3_df[['Rank', 'User Name', 'Marks']],
-                        use_container_width=True
-                    )
-                
-                    # Create and display a bar chart for the top 3
-                    fig = px.bar(
-                        top_3_df.sort_values(by='Marks'), # Sort for a nice visual in the chart
-                        x='Marks', 
-                        y='User Name', 
-                        color='User Name',
-                        orientation='h', # Horizontal bar chart
-                        title=f"🏆 Top 3 Performers in {student_class}",
-                        labels={'Marks': 'Average Marks', 'User Name': 'Student'},
-                        text='Marks'
-                    )
-                    fig.update_traces(textposition='outside')
-                    fig.update_layout(yaxis={'categoryorder':'total ascending'}) # Ensures highest scorer is at the top
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info(f"No ranked students to display for {student_class}.")
+            df_merged = pd.merge(graded_answers, df_students_report, left_on='Student Gmail', right_on='Gmail ID')
+            leaderboard_df = df_merged.groupby(['Class', 'User Name'])['Marks'].mean().reset_index()
+            leaderboard_df['Rank'] = leaderboard_df.groupby('Class')['Marks'].rank(method='dense', ascending=False).astype(int)
+            leaderboard_df = leaderboard_df.sort_values(by=['Class', 'Rank'])
+            top_students_df = leaderboard_df.groupby('Class').head(3).reset_index(drop=True)
+            top_students_df['Marks'] = top_students_df['Marks'].round(2)
+            st.markdown("#### Top Performers Summary")
+            st.dataframe(top_students_df[['Rank', 'User Name', 'Class', 'Marks']])
 
 st.markdown("---")
 st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)

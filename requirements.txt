@@ -1,12 +1,5 @@
 streamlit
 pandas
-openpyxl
-python-docx
-gspread
-google-api-python-client
-google-auth-oauthlib
-google-auth-httplib2
 plotly
-passlib
 scikit-learn
 firebase-admin

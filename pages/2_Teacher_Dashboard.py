@@ -216,15 +216,19 @@ if page == "Create Homework":
 elif page == "Student Monitoring":
     st.subheader("Student Homework Monitoring")
     
-    teacher_homework = df_homework[df_homework['Uploaded_By'] == st.session_state.user_name]
+    # Filter for homework created by the logged-in teacher
+    teacher_homework = df_homework[df_homework['Uploaded_By'] == st.session_state.user_name] if 'Uploaded_By' in df_homework.columns else pd.DataFrame()
+    
     if not teacher_homework.empty:
         available_classes = sorted(teacher_homework['Class'].unique())
         selected_class = st.selectbox("Select a Class to Monitor", ["---Select Class---"] + available_classes)
 
         if selected_class != "---Select Class---":
+            # Filter for students in the selected class
             class_students_df = df_users[(df_users['Role'] == 'Student') & (df_users['Class'] == selected_class)]
             teacher_specific_homework_df = teacher_homework[teacher_homework['Class'] == selected_class]
             
+            # Combine all submitted answers
             all_answers_df = pd.concat([df_live_answers, df_answer_bank], ignore_index=True)
 
             monitoring_data = []
@@ -234,22 +238,29 @@ elif page == "Student Monitoring":
                 student_gmail = student['Gmail_ID']
                 total_assigned_count = len(teacher_specific_homework_df)
                 
-                student_answers = all_answers_df[all_answers_df['Student_Gmail'] == student_gmail]
+                # --- FIX: Use 'Student_Gmail' with an underscore ---
+                student_answers = all_answers_df[all_answers_df['Student_Gmail'] == student_gmail] if 'Student_Gmail' in all_answers_df.columns else pd.DataFrame()
+                
+                # Merge to find which of the teacher's assignments were completed
                 completed_df = pd.merge(teacher_specific_homework_df, student_answers, on=['Question', 'Date'])
                 total_completed_count = len(completed_df)
                 
                 completion_percentage = (total_completed_count / total_assigned_count) * 100 if total_assigned_count > 0 else 0
 
+                # Calculate overdue homework
                 overdue_count = 0
                 for hw_index, hw_row in teacher_specific_homework_df.iterrows():
-                    due_date = datetime.strptime(hw_row['Due_Date'], DATE_FORMAT).date()
-                    if due_date < today:
-                        is_submitted = not completed_df[
-                            (completed_df['Question'] == hw_row['Question']) &
-                            (completed_df['Date'] == hw_row['Date'])
-                        ].empty
-                        if not is_submitted:
-                            overdue_count += 1
+                    try:
+                        due_date = datetime.strptime(hw_row['Due_Date'], DATE_FORMAT).date()
+                        if due_date < today:
+                            is_submitted = not completed_df[
+                                (completed_df['Question'] == hw_row['Question']) &
+                                (completed_df['Date'] == hw_row['Date'])
+                            ].empty
+                            if not is_submitted:
+                                overdue_count += 1
+                    except (ValueError, TypeError):
+                        continue # Skip rows with invalid date formats
                 
                 monitoring_data.append({
                     'Student Name': student['User_Name'],
@@ -259,8 +270,8 @@ elif page == "Student Monitoring":
             
             st.dataframe(pd.DataFrame(monitoring_data))
     else:
-        st.info("You have not created any homework yet to monitor.")
-            
+        st.info("You have not created any homework yet to monitor.") 
+        
 elif page == "My Reports":
     st.subheader("Performance Reports")
     

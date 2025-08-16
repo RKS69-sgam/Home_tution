@@ -88,20 +88,26 @@ df_answer_bank = load_collection(ANSWER_BANK_COLLECTION)
 st.markdown("#### Your Overall Performance")
 col1, col2, col3 = st.columns(3)
 
-points_str = str(teacher_info.get('Salary_Points', '0')).strip()
-my_points = int(points_str) if points_str.isdigit() else 0
-col1.metric("My Salary Points", my_points)
+teacher_info_row = df_users[df_users['Gmail_ID'] == st.session_state.user_gmail]
+if not teacher_info_row.empty:
+    teacher_info = teacher_info_row.iloc[0]
+    
+    points_str = str(teacher_info.get('Salary_Points', '0')).strip()
+    my_points = int(points_str) if points_str.isdigit() else 0
+    col1.metric("My Salary Points", my_points)
 
-my_questions_count = len(df_homework[df_homework['Uploaded_By'] == st.session_state.user_name]) if not df_homework.empty else 0
-col2.metric("My Total Questions Created", my_questions_count)
+    # --- FIX: Changed 'Uploaded By' to 'Uploaded_By' ---
+    my_questions_count = len(df_homework[df_homework['Uploaded_By'] == st.session_state.user_name]) if not df_homework.empty else 0
+    col2.metric("My Total Questions Created", my_questions_count)
 
-df_all_teachers_rank = df_users[df_users['Role'] == 'Teacher'].copy()
-if not df_all_teachers_rank.empty:
-    df_all_teachers_rank['Salary_Points'] = pd.to_numeric(df_all_teachers_rank.get('Salary_Points', 0), errors='coerce').fillna(0)
-    df_all_teachers_rank = df_all_teachers_rank.sort_values(by='Salary_Points', ascending=False).reset_index()
-    my_rank_row = df_all_teachers_rank[df_all_teachers_rank['Gmail_ID'] == st.session_state.user_gmail]
-    my_rank = my_rank_row.index[0] + 1 if not my_rank_row.empty else "N/A"
-    col3.metric("My Rank Among Teachers", f"#{my_rank}")
+    df_all_teachers_rank = df_users[df_users['Role'] == 'Teacher'].copy()
+    if not df_all_teachers_rank.empty:
+        df_all_teachers_rank['Salary_Points'] = pd.to_numeric(df_all_teachers_rank.get('Salary_Points', 0), errors='coerce').fillna(0)
+        df_all_teachers_rank = df_all_teachers_rank.sort_values(by='Salary_Points', ascending=False).reset_index()
+        my_rank_row = df_all_teachers_rank[df_all_teachers_rank['Gmail_ID'] == st.session_state.user_gmail]
+        my_rank = my_rank_row.index[0] + 1 if not my_rank_row.empty else "N/A"
+        col3.metric("My Rank Among Teachers", f"#{my_rank}")
+
 
 st.markdown("---")
 

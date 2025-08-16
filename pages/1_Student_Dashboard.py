@@ -355,4 +355,4 @@ else:
     st.error("Could not find your student record.")
 
 st.markdown("---")
-st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)ltw1ltw1
+st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)

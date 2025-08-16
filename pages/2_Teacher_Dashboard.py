@@ -127,6 +127,48 @@ if not df_all_teachers_rank.empty:
 
 st.markdown("---")
 
+# --- Professional Homework Summary ---
+st.subheader("Today's Submitted Homework")
+today_str = datetime.today().strftime(DATE_FORMAT)
+todays_homework = df_homework[(df_homework.get('Uploaded_By') == st.session_state.user_name) & (df_homework.get('Date') == today_str)]
+if todays_homework.empty:
+    st.info("You have not created any homework assignments today.")
+else:
+    if 'selected_assignment' not in st.session_state:
+        summary_table = pd.pivot_table(todays_homework, index='Class', columns='Subject', aggfunc='size', fill_value=0)
+        st.markdown("#### Summary Table")
+        st.dataframe(summary_table)
+        st.markdown("---")
+        st.markdown("#### View Details")
+        for class_name, row in summary_table.iterrows():
+            for subject_name, count in row.items():
+                if count > 0:
+                    col1, col2 = st.columns([4, 1])
+                    with col1:
+                        st.write(f"**Class:** {class_name} | **Subject:** {subject_name}")
+                    with col2:
+                        if st.button(f"View {count} Questions", key=f"view_{class_name}_{subject_name}"):
+                            st.session_state.selected_assignment = {'Class': class_name, 'Subject': subject_name, 'Date': today_str}
+                            st.rerun()
+    
+    if 'selected_assignment' in st.session_state:
+        st.markdown("---")
+        st.subheader("Viewing Questions for Selected Assignment")
+        selected = st.session_state.selected_assignment
+        st.info(f"Class: **{selected['Class']}** | Subject: **{selected['Subject']}** | Date: **{selected['Date']}**")
+        selected_questions = df_homework[
+            (df_homework['Class'] == selected['Class']) &
+            (df_homework['Subject'] == selected['Subject']) &
+            (df_homework['Date'] == selected['Date'])
+        ]
+        for i, row in enumerate(selected_questions.itertuples()):
+            st.write(f"{i + 1}. {row.Question}")
+        if st.button("Back to Main View"):
+            del st.session_state.selected_assignment
+            st.rerun()
+
+st.markdown("---")
+
 # --- Radio Button Navigation System ---
 page = st.radio(
     "Navigation",
@@ -142,15 +184,15 @@ if page == "Create Homework":
         
     if not st.session_state.context_set:
         with st.form("context_form"):
-            subject = st.selectbox("Subject", ["---Select Subject---", "Hindi", "Sanskrit", "English", "Math", "Science", "SST", "Computer", "GK", "Physics", "Chemistry", "Biology", "Advance Classes"])
+            subject = st.selectbox("Subject", ["---Select Subject---", "Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Physics", "Chemistry", "Biology", "Advance Classes"])
             cls = st.selectbox("Class", ["---Select Class---"] + [f"{i}th" for i in range(5, 13)])
-            date = st.date_input("Date", datetime.today(), format="DD-MM-YYYY")
+            date_input = st.date_input("Date", datetime.today())
             if st.form_submit_button("Start Adding Questions →"):
                 if subject == "---Select Subject---" or cls == "---Select Class---":
                     st.warning("Please select a valid subject and class.")
                 else:
                     st.session_state.context_set = True
-                    st.session_state.homework_context = {"subject": subject, "class": cls, "date": date}
+                    st.session_state.homework_context = {"subject": subject, "class": cls, "date": date_input}
                     st.session_state.questions_list = []
                     st.rerun()
     
@@ -162,7 +204,7 @@ if page == "Create Homework":
             question_text = st.text_area("Enter Question:", height=100)
             model_answer_text = st.text_area("Enter Model Answer:", height=100)
             
-            if ctx['subject'] in ['Math', 'Physics', 'Chemistry']:
+            if ctx['subject'] in ['Math', 'Physics', 'Chemistry', 'Science']:
                 st.info("For math equations, use LaTeX format. Example: `x^2 + y^2 = z^2`")
                 st.markdown("**Question Preview:**")
                 st.latex(question_text)
@@ -171,8 +213,6 @@ if page == "Create Homework":
 
             if st.form_submit_button("Add Question"):
                 if question_text and model_answer_text:
-                    if 'questions_list' not in st.session_state:
-                        st.session_state.questions_list = []
                     st.session_state.questions_list.append({"question": question_text, "model_answer": model_answer_text})
                 else:
                     st.warning("Please enter both a question and a model answer.")
@@ -208,6 +248,7 @@ if page == "Create Homework":
                         teacher_ref.update({'Salary_Points': firestore.Increment(total_new_points)})
                 
                 st.success(f"Homework submitted successfully! You earned {total_new_points} Salary Points.")
+                st.cache_data.clear()
                 del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
                 st.rerun()
 
@@ -223,7 +264,7 @@ elif page == "Student Monitoring":
             class_students_df = df_users[(df_users['Role'] == 'Student') & (df_users['Class'] == selected_class)]
             teacher_specific_homework_df = teacher_homework[teacher_homework['Class'] == selected_class]
             
-            all_answers_df = pd.concat([df_live_answers, df_answer_bank], ignore_index=True)
+            all_answers_df = pd.concat([load_collection('answers'), load_collection('answer_bank')], ignore_index=True)
 
             monitoring_data = []
             today = date.today()
@@ -258,7 +299,7 @@ elif page == "Student Monitoring":
             st.dataframe(pd.DataFrame(monitoring_data))
     else:
         st.info("You have not created any homework yet to monitor.")
-
+            
 elif page == "My Reports":
     st.subheader("Performance Reports")
     

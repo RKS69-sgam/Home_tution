@@ -131,6 +131,21 @@ else:
             login_gmail = st.text_input("Username (Your Gmail ID)").lower().strip()
             login_pwd = st.text_input("PIN (Your Password)", type="password")
             if st.form_submit_button("Login", use_container_width=True):
+                # --- START DEBUGGING BLOCK ---
+                st.info("--- Running Login Debug Test ---")
+                user_data_from_db = find_user(login_gmail)
+    
+                if user_data_from_db:
+                    st.write("User found in database:")
+                    st.write(f"**User Name:** {user_data_from_db.get('User_Name')}")
+                    st.write("**Stored Hashed Password:**")
+                    st.code(user_data_from_db.get('Password'))
+                else:
+                    st.error("User NOT found in database with this Gmail ID.")
+                st.markdown("---")
+                # --- END DEBUGGING BLOCK ---
+
+                
                 user_data = find_user(login_gmail)
                 if user_data and check_hashes(login_pwd, user_data.get("Password")):
                     role = user_data.get("Role", "").lower()

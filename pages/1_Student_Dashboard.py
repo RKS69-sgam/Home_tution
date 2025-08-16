@@ -71,13 +71,6 @@ def get_grade_from_similarity(percentage):
     elif percentage >= 60: return 3
     else: return 1
 
-# === FIRESTORE COLLECTION NAMES ===
-USERS_COLLECTION = "users"
-HOMEWORK_COLLECTION = "homework"
-ANSWERS_COLLECTION = "answers"
-ANSWER_BANK_COLLECTION = "answer_bank"
-ANNOUNCEMENTS_COLLECTION = "announcements"
-
 # === SECURITY GATEKEEPER ===
 if not st.session_state.get("logged_in") or st.session_state.get("user_role") != "student":
     st.error("You must be logged in as a Student to view this page.")
@@ -104,7 +97,7 @@ df_answer_bank = all_data.get('answer_bank', pd.DataFrame())
 df_announcements = all_data.get('announcements', pd.DataFrame())
 
 # --- INSTRUCTION & ANNOUNCEMENT SYSTEMS ---
-user_info_row = df_all_users[df_all_users['Gmail_ID'] == st.session_state.user_gmail]
+user_info_row = df_all_users[df_all_users['Gmail_ID'] == st.session_state.user_gmail] if 'Gmail_ID' in df_all_users.columns else pd.DataFrame()
 if not user_info_row.empty:
     user_info = user_info_row.iloc[0]
     instruction = user_info.get('Instruction', '').strip()
@@ -120,7 +113,7 @@ if not user_info_row.empty:
                     with st.spinner("Sending reply..."):
                         db = connect_to_firestore()
                         user_doc_id = user_info.get('doc_id')
-                        user_ref = db.collection(USERS_COLLECTION).document(user_doc_id)
+                        user_ref = db.collection('users').document(user_doc_id)
                         user_ref.update({
                             'Instruction_Reply': reply_text,
                             'Instruction_Status': 'Replied'
@@ -167,36 +160,24 @@ if not user_info_row.empty:
     st.markdown("---")
 
     # --- Radio Button Navigation System ---
-    page = st.radio(
-        "Navigation",
-        ["Pending Homework", "Revision Zone", "Class Leaderboard"],
-        horizontal=True,
-        label_visibility="collapsed"
-    )
+    page = st.radio("Navigation", ["Pending Homework", "Revision Zone", "Class Leaderboard"], horizontal=True, label_visibility="collapsed")
 
     if page == "Pending Homework":
         st.subheader("Pending Questions")
         pending_questions_list = []
-        today_date = date.today()
         
-        if not homework_for_class.empty:
+        if not homework_for_class.empty and 'Question' in homework_for_class.columns and 'Date' in homework_for_class.columns:
             for index, hw_row in homework_for_class.iterrows():
                 question_text = hw_row.get('Question')
                 assignment_date_str = hw_row.get('Date')
                 
                 is_in_bank = False
-                if not student_answers_from_bank.empty:
-                    is_in_bank = not student_answers_from_bank[
-                        (student_answers_from_bank['Question'] == question_text) & 
-                        (student_answers_from_bank['Date'] == assignment_date_str)
-                    ].empty
+                if not student_answers_from_bank.empty and 'Question' in student_answers_from_bank.columns and 'Date' in student_answers_from_bank.columns:
+                    is_in_bank = not student_answers_from_bank[(student_answers_from_bank['Question'] == question_text) & (student_answers_from_bank['Date'] == assignment_date_str)].empty
                 
                 is_in_live = False
-                if not student_answers_live.empty:
-                    is_in_live = not student_answers_live[
-                        (student_answers_live['Question'] == question_text) & 
-                        (student_answers_live['Date'] == assignment_date_str)
-                    ].empty
+                if not student_answers_live.empty and 'Question' in student_answers_live.columns and 'Date' in student_answers_live.columns:
+                    is_in_live = not student_answers_live[(student_answers_live['Question'] == question_text) & (student_answers_live['Date'] == assignment_date_str)].empty
 
                 if not is_in_bank and not is_in_live:
                     pending_questions_list.append(hw_row)
@@ -213,25 +194,18 @@ if not user_info_row.empty:
                 st.markdown(f"**Assignment Date:** {row.get('Date')} | **Due Date:** {row.get('Due_Date')}")
                 st.write(f"**Question:** {row.get('Question')}")
                 
-                matching_answer = student_answers_live[(student_answers_live['Question'] == row.get('Question')) & (student_answers_live['Date'] == row.get('Date'))]
+                matching_answer = pd.DataFrame()
+                if not student_answers_live.empty and 'Question' in student_answers_live.columns and 'Date' in student_answers_live.columns:
+                    matching_answer = student_answers_live[(student_answers_live['Question'] == row.get('Question')) & (student_answers_live['Date'] == row.get('Date'))]
+                
                 current_attempt = 0
                 if not matching_answer.empty:
                     current_attempt = int(matching_answer.iloc[0].get('Attempt_Status', 0))
                     if matching_answer.iloc[0].get('Remarks'):
                         st.warning(f"**Auto-Remark:** {matching_answer.iloc[0].get('Remarks')}")
-                
-                if current_attempt == 0 and st.session_state[question_id] == 'initial':
+
+                if st.session_state[question_id] == 'initial':
                     if st.button("View Model Answer & Start Timer", key=f"view_{i}"):
-                        st.session_state[question_id] = 'timer_running'
-                        st.rerun()
-                elif current_attempt == 1 and st.session_state[question_id] == 'initial':
-                    st.warning("This is your second chance.")
-                    if st.button("View Answer (One More Chance)", key=f"view_{i}"):
-                        st.session_state[question_id] = 'timer_running'
-                        st.rerun()
-                elif current_attempt >= 2 and st.session_state[question_id] == 'initial':
-                    st.error("This is your final chance for this question.")
-                    if st.button("View Answer (Final Chance)", key=f"view_{i}"):
                         st.session_state[question_id] = 'timer_running'
                         st.rerun()
                 
@@ -248,10 +222,6 @@ if not user_info_row.empty:
                         timer_placeholder.empty()
                         st.session_state[question_id] = 'show_form'
                         st.rerun()
-                    else:
-                        st.warning("No model answer available. You can answer directly.")
-                        st.session_state[question_id] = 'show_form'
-                        st.rerun()
 
                 elif st.session_state[question_id] == 'show_form':
                     with st.form(key=f"answer_form_{i}"):
@@ -264,11 +234,9 @@ if not user_info_row.empty:
                                     grade_score = get_grade_from_similarity(similarity)
                                     db = connect_to_firestore()
                                     
-                                    new_attempt_status = current_attempt + 1
-                                    
-                                    if grade_score >= 3 or new_attempt_status >= 3:
+                                    if grade_score >= 3:
                                         collection_ref = db.collection('answer_bank')
-                                        remark = "Good! Try for better performance next time." if grade_score == 3 else f"Auto-Graded: Excellent! ({similarity:.2f}%)"
+                                        remark = "Good! Try for better performance." if grade_score == 3 else f"Auto-Graded: Excellent! ({similarity:.2f}%)"
                                         st.success(f"Your answer was {similarity:.2f}% correct and has been saved.")
                                     else:
                                         collection_ref = db.collection('answers')
@@ -276,18 +244,13 @@ if not user_info_row.empty:
                                         grade_score = None
                                         st.warning(f"Your answer was {similarity:.2f}% correct. Please resubmit.")
                                     
-                                    if not matching_answer.empty:
-                                        doc_id_to_delete = matching_answer.iloc[0].get('doc_id')
-                                        db.collection('answers').document(doc_id_to_delete).delete()
-                                    
                                     new_doc_data = {
                                         "Student_Gmail": st.session_state.user_gmail, "Date": row.get('Date'), 
                                         "Class": student_class, "Subject": row.get('Subject'), 
                                         "Question": row.get('Question'), "Answer": answer_text, 
-                                        "Marks": grade_score, "Remarks": remark, "Attempt_Status": new_attempt_status
+                                        "Marks": grade_score, "Remarks": remark, "Attempt_Status": 1
                                     }
                                     collection_ref.add(new_doc_data)
-                                    
                                     st.rerun()
                             else:
                                 st.warning("Answer cannot be empty.")

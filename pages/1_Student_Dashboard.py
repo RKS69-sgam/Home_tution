@@ -94,6 +94,51 @@ st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<
 
 # === STUDENT DASHBOARD UI ===
 st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
+# --- INSTRUCTION & ANNOUNCEMENT SYSTEMS ---
+# Display Public Announcement First
+try:
+    # Ensure the dataframe and the 'Date' column exist before filtering
+    if not df_announcements.empty and 'Date' in df_announcements.columns:
+        today_str = datetime.today().strftime(DATE_FORMAT)
+        todays_announcement = df_announcements[df_announcements['Date'] == today_str]
+        if not todays_announcement.empty:
+            latest_message = todays_announcement['Message'].iloc[0]
+            st.info(f"📢 **Public Announcement:** {latest_message}")
+except Exception:
+    # Fail silently if announcements can't be loaded or an error occurs
+    pass
+
+# Display Private Instruction for the logged-in user
+if not user_info_row.empty:
+    user_info = user_info_row.iloc[0]
+    instruction = user_info.get('Instruction', '').strip()
+    reply = user_info.get('Instruction_Reply', '').strip()
+    status = user_info.get('Instruction_Status', '')
+    
+    # Show instruction and reply form ONLY if status is 'Sent' and there's no reply yet
+    if status == 'Sent' and instruction and not reply:
+        st.warning(f"**New Instruction from Principal:** {instruction}")
+        with st.form(key="reply_form"):
+            reply_text = st.text_area("Your Reply:")
+            if st.form_submit_button("Send Reply"):
+                if reply_text:
+                    with st.spinner("Sending reply..."):
+                        db = connect_to_firestore()
+                        user_doc_id = user_info.get('doc_id')
+                        if user_doc_id:
+                            user_ref = db.collection(USERS_COLLECTION).document(user_doc_id)
+                            user_ref.update({
+                                'Instruction_Reply': reply_text,
+                                'Instruction_Status': 'Replied'
+                            })
+                            st.success("Your reply has been sent.")
+                            st.rerun()
+                        else:
+                            st.error("Could not find user document to update.")
+                else:
+                    st.warning("Reply cannot be empty.")
+
+st.markdown("---")
 
 # --- Load all necessary data from Firestore ---
 all_data = load_all_data()

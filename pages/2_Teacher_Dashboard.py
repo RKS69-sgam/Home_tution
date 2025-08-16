@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 import json
 import base64
 import plotly.express as px
@@ -50,6 +50,7 @@ def load_collection(_collection_name):
 # === FIRESTORE COLLECTION NAMES ===
 USERS_COLLECTION = "users"
 HOMEWORK_COLLECTION = "homework"
+ANSWERS_COLLECTION = "answers"
 ANSWER_BANK_COLLECTION = "answer_bank"
 ANNOUNCEMENTS_COLLECTION = "announcements"
 
@@ -75,18 +76,20 @@ df_users = load_collection(USERS_COLLECTION)
 teacher_info_row = df_users[df_users['Gmail_ID'] == st.session_state.user_gmail]
 if not teacher_info_row.empty:
     teacher_info = teacher_info_row.iloc[0]
-    # (Your instruction and announcement display logic can be added here)
+    # (Your instruction and announcement display logic here)
 st.markdown("---")
 
 # Load other necessary data
 df_homework = load_collection(HOMEWORK_COLLECTION)
+df_live_answers = load_collection(ANSWERS_COLLECTION)
 df_answer_bank = load_collection(ANSWER_BANK_COLLECTION)
 
 # --- Top Level Metrics ---
 st.markdown("#### Your Overall Performance")
 col1, col2, col3 = st.columns(3)
 
-my_points = int(teacher_info.get('Salary_Points', 0))
+points_str = str(teacher_info.get('Salary_Points', '0')).strip()
+my_points = int(points_str) if points_str.isdigit() else 0
 col1.metric("My Salary Points", my_points)
 
 my_questions_count = len(df_homework[df_homework['Uploaded_By'] == st.session_state.user_name]) if not df_homework.empty else 0
@@ -105,7 +108,7 @@ st.markdown("---")
 # --- Radio Button Navigation System ---
 page = st.radio(
     "Navigation",
-    ["Create Homework", "My Reports"],
+    ["Create Homework", "Student Monitoring", "My Reports"],
     horizontal=True,
     label_visibility="collapsed"
 )
@@ -157,21 +160,83 @@ if page == "Create Homework":
                     st.info(f"Model Answer: {item['model_answer']}")
             
             if st.button("Final Submit Homework"):
-                db = connect_to_firestore()
-                due_date = (ctx['date'] + timedelta(days=1)).strftime(DATE_FORMAT)
-                for item in st.session_state.questions_list:
-                    new_homework_doc = {
-                        "Class": ctx['class'], "Date": ctx['date'].strftime(DATE_FORMAT),
-                        "Uploaded_By": st.session_state.user_name, "Subject": ctx['subject'],
-                        "Question": item['question'], "Model_Answer": item['model_answer'],
-                        "Due_Date": due_date
-                    }
-                    db.collection('homework').add(new_homework_doc)
+                with st.spinner("Submitting homework and calculating points..."):
+                    db = connect_to_firestore()
+                    due_date = (ctx['date'] + timedelta(days=1)).strftime(DATE_FORMAT)
+                    
+                    total_new_points = 0
+                    for item in st.session_state.questions_list:
+                        new_homework_doc = {
+                            "Class": ctx['class'], "Date": ctx['date'].strftime(DATE_FORMAT),
+                            "Uploaded_By": st.session_state.user_name, "Subject": ctx['subject'],
+                            "Question": item['question'], "Model_Answer": item['model_answer'],
+                            "Due_Date": due_date
+                        }
+                        db.collection('homework').add(new_homework_doc)
+                        
+                        word_count = len(item['model_answer'].split())
+                        points_earned = max(1, word_count // 10)
+                        total_new_points += points_earned
+
+                    if total_new_points > 0 and not teacher_info_row.empty:
+                        teacher_doc_id = teacher_info.get('doc_id')
+                        teacher_ref = db.collection('users').document(teacher_doc_id)
+                        teacher_ref.update({'Salary_Points': firestore.Increment(total_new_points)})
                 
-                st.success("Homework submitted successfully!")
+                st.success(f"Homework submitted successfully! You earned {total_new_points} Salary Points.")
                 del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
                 st.rerun()
 
+elif page == "Student Monitoring":
+    st.subheader("Student Homework Monitoring")
+    
+    teacher_homework = df_homework[df_homework['Uploaded_By'] == st.session_state.user_name]
+    if not teacher_homework.empty:
+        available_classes = sorted(teacher_homework['Class'].unique())
+        selected_class = st.selectbox("Select a Class to Monitor", ["---Select Class---"] + available_classes)
+
+        if selected_class != "---Select Class---":
+            class_students_df = df_users[(df_users['Role'] == 'Student') & (df_users['Class'] == selected_class)]
+            teacher_specific_homework_df = teacher_homework[teacher_homework['Class'] == selected_class]
+            
+            all_answers_df = pd.concat([df_live_answers, df_answer_bank], ignore_index=True)
+
+            monitoring_data = []
+            today = date.today()
+
+            for index, student in class_students_df.iterrows():
+                student_gmail = student['Gmail_ID']
+                total_assigned_count = len(teacher_specific_homework_df)
+
+                student_answers = all_answers_df[all_answers_df['Student_Gmail'] == student_gmail]
+                
+                # Merge to find completed homework for this teacher's assignments
+                completed_df = pd.merge(teacher_specific_homework_df, student_answers, on=['Question', 'Date'])
+                total_completed_count = len(completed_df)
+                
+                completion_percentage = (total_completed_count / total_assigned_count) * 100 if total_assigned_count > 0 else 0
+
+                overdue_count = 0
+                for hw_index, hw_row in teacher_specific_homework_df.iterrows():
+                    due_date = datetime.strptime(hw_row['Due_Date'], DATE_FORMAT).date()
+                    if due_date < today:
+                        is_submitted = not completed_df[
+                            (completed_df['Question'] == hw_row['Question']) &
+                            (completed_df['Date'] == hw_row['Date'])
+                        ].empty
+                        if not is_submitted:
+                            overdue_count += 1
+                
+                monitoring_data.append({
+                    'Student Name': student['User_Name'],
+                    'Completion % (My Subjects)': f"{completion_percentage:.2f}%",
+                    'Overdue Homework (My Subjects)': overdue_count
+                })
+            
+            st.dataframe(pd.DataFrame(monitoring_data))
+    else:
+        st.info("You have not created any homework yet to monitor.")
+            
 elif page == "My Reports":
     st.subheader("Performance Reports")
     
@@ -209,6 +274,6 @@ elif page == "My Reports":
     if 'top_classwise' in locals() and not top_classwise.empty:
         fig = px.bar(top_classwise, x='User_Name', y='Marks', color='Class', title='Class-wise Top 3 Students')
         st.plotly_chart(fig, use_container_width=True)
-
+        
 st.markdown("---")
 st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)

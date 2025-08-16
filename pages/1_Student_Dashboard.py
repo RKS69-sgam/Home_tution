@@ -67,6 +67,13 @@ def get_grade_from_similarity(percentage):
     elif percentage >= 60: return 3
     else: return 1
 
+# === FIRESTORE COLLECTION NAMES ===
+USERS_COLLECTION = "users"
+HOMEWORK_COLLECTION = "homework"
+ANSWERS_COLLECTION = "answers"
+ANSWER_BANK_COLLECTION = "answer_bank"
+ANNOUNCEMENTS_COLLECTION = "announcements"
+
 # === SECURITY GATEKEEPER ===
 if not st.session_state.get("logged_in") or st.session_state.get("user_role") != "student":
     st.error("You must be logged in as a Student to view this page.")
@@ -85,8 +92,8 @@ st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<
 st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
 # --- INSTRUCTION & ANNOUNCEMENT SYSTEMS ---
-df_all_users = load_collection('users')
-user_info_row = df_all_users[df_all_users['Gmail ID'] == st.session_state.user_gmail]
+df_all_users = load_collection(USERS_COLLECTION)
+user_info_row = df_all_users[df_all_users['Gmail_ID'] == st.session_state.user_gmail]
 if not user_info_row.empty:
     user_info = user_info_row.iloc[0]
     instruction = user_info.get('Instruction', '').strip()
@@ -114,9 +121,9 @@ if not user_info_row.empty:
     st.markdown("---")
 
     # Load other necessary data
-    df_homework = load_collection('homework')
-    df_live_answers = load_collection('answers')
-    df_answer_bank = load_collection('answer_bank')
+    df_homework = load_collection(HOMEWORK_COLLECTION)
+    df_live_answers = load_collection(ANSWERS_COLLECTION)
+    df_answer_bank = load_collection(ANSWER_BANK_COLLECTION)
     
     student_class = user_info.get("Class")
     st.subheader(f"Your Class: {student_class}")
@@ -124,8 +131,8 @@ if not user_info_row.empty:
 
     # Filter dataframes for the current student
     homework_for_class = df_homework[df_homework.get("Class") == student_class]
-    student_answers_live = df_live_answers[df_live_answers.get('Student Gmail') == st.session_state.user_gmail].copy()
-    student_answers_from_bank = df_answer_bank[df_answer_bank.get('Student Gmail') == st.session_state.user_gmail].copy()
+    student_answers_live = df_live_answers[df_live_answers.get('Student_Gmail') == st.session_state.user_gmail].copy()
+    student_answers_from_bank = df_answer_bank[df_answer_bank.get('Student_Gmail') == st.session_state.user_gmail].copy()
     
     # --- Performance Overview Section ---
     st.header("Your Performance Overview")
@@ -198,7 +205,7 @@ if not user_info_row.empty:
                     current_attempt = int(matching_answer.iloc[0].get('Attempt_Status', 0))
                     if matching_answer.iloc[0].get('Remarks'):
                         st.warning(f"**Auto-Remark:** {matching_answer.iloc[0].get('Remarks')}")
-
+                
                 if current_attempt == 0 and st.session_state[question_id] == 'initial':
                     if st.button("View Model Answer & Start Timer", key=f"view_{i}"):
                         st.session_state[question_id] = 'timer_running'
@@ -260,7 +267,7 @@ if not user_info_row.empty:
                                         db.collection('answers').document(doc_id_to_delete).delete()
                                     
                                     new_doc_data = {
-                                        "Student Gmail": st.session_state.user_gmail, "Date": row.get('Date'), 
+                                        "Student_Gmail": st.session_state.user_gmail, "Date": row.get('Date'), 
                                         "Class": student_class, "Subject": row.get('Subject'), 
                                         "Question": row.get('Question'), "Answer": answer_text, 
                                         "Marks": grade_score, "Remarks": remark, "Attempt_Status": new_attempt_status
@@ -297,8 +304,8 @@ if not user_info_row.empty:
     with leaderboard_tab:
         st.subheader(f"Class Leaderboard ({student_class})")
         df_students_class = df_all_users[df_all_users['Class'] == student_class]
-        class_gmail_list = df_students_class['Gmail ID'].tolist()
-        class_answers_bank = df_answer_bank[df_answer_bank['Student Gmail'].isin(class_gmail_list)].copy()
+        class_gmail_list = df_students_class['Gmail_ID'].tolist()
+        class_answers_bank = df_answer_bank[df_answer_bank['Student_Gmail'].isin(class_gmail_list)].copy()
         if class_answers_bank.empty or 'Marks' not in class_answers_bank.columns:
             st.info("The leaderboard will appear once answers have been graded for your class.")
         else:
@@ -307,25 +314,25 @@ if not user_info_row.empty:
             if graded_class_answers.empty:
                 st.info("The leaderboard will appear once answers have been graded for your class.")
             else:
-                leaderboard_df = graded_class_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
-                leaderboard_df = pd.merge(leaderboard_df, df_students_class[['User Name', 'Gmail ID']], left_on='Student Gmail', right_on='Gmail ID', how='left')
+                leaderboard_df = graded_class_answers.groupby('Student_Gmail')['Marks'].mean().reset_index()
+                leaderboard_df = pd.merge(leaderboard_df, df_students_class[['User_Name', 'Gmail_ID']], left_on='Student_Gmail', right_on='Gmail_ID', how='left')
                 leaderboard_df['Rank'] = leaderboard_df['Marks'].rank(method='dense', ascending=False).astype(int)
                 leaderboard_df = leaderboard_df.sort_values(by='Rank')
                 leaderboard_df['Marks'] = leaderboard_df['Marks'].round(2)
                 st.markdown("##### 🏆 Top 3 Performers")
                 top_3_df = leaderboard_df.head(3)
-                st.dataframe(top_3_df[['Rank', 'User Name', 'Marks']])
+                st.dataframe(top_3_df[['Rank', 'User_Name', 'Marks']])
                 if not top_3_df.empty:
                     fig = px.bar(
-                        top_3_df, x='User Name', y='Marks', color='User Name',
+                        top_3_df, x='User_Name', y='Marks', color='User_Name',
                         title=f"Top 3 Performers in {student_class}",
-                        labels={'Marks': 'Average Marks', 'User Name': 'Student'},
+                        labels={'Marks': 'Average Marks', 'User_Name': 'Student'},
                         text='Marks'
                     )
                     fig.update_traces(textposition='outside')
                     st.plotly_chart(fig, use_container_width=True)
                 st.markdown("---")
-                my_rank_row = leaderboard_df[leaderboard_df['Student Gmail'] == st.session_state.user_gmail]
+                my_rank_row = leaderboard_df[leaderboard_df['Student_Gmail'] == st.session_state.user_gmail]
                 if not my_rank_row.empty:
                     my_rank = my_rank_row.iloc[0]['Rank']
                     my_avg_marks = my_rank_row.iloc[0]['Marks']

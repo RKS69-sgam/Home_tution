@@ -177,7 +177,7 @@ if page == "Create Homework":
             model_answer_text = st.text_area("Enter Model Answer:", height=100)
 
             # Math Editor for specific subjects
-            if ctx['subject'] in ['Math', 'Physics', 'Chemistry', 'Science']:
+            if ctx['subject'] in ['Math', 'Physics', 'Chemistry']:
                 st.info("For math equations, use LaTeX format. Example: `x^2 + y^2 = z^2`")
                 st.markdown("**Question Preview:**")
                 st.latex(question_text)

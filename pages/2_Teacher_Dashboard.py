@@ -137,32 +137,47 @@ page = st.radio(
 
 if page == "Create Homework":
     st.subheader("Create a New Homework Assignment")
+
+    # This part of the state handles the two-step creation process
     if 'context_set' not in st.session_state:
         st.session_state.context_set = False
-        
+
+    # Step 1: Form to select Subject, Class, and Date
     if not st.session_state.context_set:
         with st.form("context_form"):
             subject = st.selectbox("Subject", ["---Select Subject---", "Hindi", "Sanskrit", "English", "Math", "Science", "SST", "Computer", "GK", "Physics", "Chemistry", "Biology", "Advance Classes"])
             cls = st.selectbox("Class", ["---Select Class---"] + [f"{i}th" for i in range(5, 13)])
-            date = st.date_input("Date", datetime.today(), format="DD-MM-YYYY")
+            date_input = st.date_input("Date", datetime.today())
+
             if st.form_submit_button("Start Adding Questions →"):
                 if subject == "---Select Subject---" or cls == "---Select Class---":
                     st.warning("Please select a valid subject and class.")
                 else:
                     st.session_state.context_set = True
-                    st.session_state.homework_context = {"subject": subject, "class": cls, "date": date}
+                    st.session_state.homework_context = {"subject": subject, "class": cls, "date": date_input}
                     st.session_state.questions_list = []
                     st.rerun()
-    
+
+    # Step 2: Form to add individual questions
     if st.session_state.context_set:
         ctx = st.session_state.homework_context
         st.success(f"Creating homework for: **{ctx['class']} - {ctx['subject']}** (Date: {ctx['date'].strftime(DATE_FORMAT)})")
-        
+
+        # Back button to reset the process
+        if st.button("🔙 Back to Main Menu"):
+            del st.session_state.context_set
+            if 'questions_list' in st.session_state:
+                del st.session_state.questions_list
+            if 'homework_context' in st.session_state:
+                del st.session_state.homework_context
+            st.rerun()
+
         with st.form("add_question_form", clear_on_submit=True):
             question_text = st.text_area("Enter Question:", height=100)
             model_answer_text = st.text_area("Enter Model Answer:", height=100)
-            
-            if ctx['subject'] in ['Math', 'Physics', 'Chemistry']:
+
+            # Math Editor for specific subjects
+            if ctx['subject'] in ['Math', 'Physics', 'Chemistry', 'Science']:
                 st.info("For math equations, use LaTeX format. Example: `x^2 + y^2 = z^2`")
                 st.markdown("**Question Preview:**")
                 st.latex(question_text)
@@ -176,41 +191,54 @@ if page == "Create Homework":
                     st.session_state.questions_list.append({"question": question_text, "model_answer": model_answer_text})
                 else:
                     st.warning("Please enter both a question and a model answer.")
-        
+
+        # Display currently added questions
         if st.session_state.get('questions_list'):
             st.write("#### Current Questions:")
             for i, item in enumerate(st.session_state.questions_list):
                 with st.expander(f"{i + 1}. {item['question']}"):
                     st.info(f"Model Answer: {item['model_answer']}")
-            
+
             if st.button("Final Submit Homework"):
                 with st.spinner("Submitting homework and calculating points..."):
                     db = connect_to_firestore()
                     due_date = (ctx['date'] + timedelta(days=1)).strftime(DATE_FORMAT)
-                    
+
                     total_new_points = 0
                     for item in st.session_state.questions_list:
                         new_homework_doc = {
-                            "Class": ctx['class'], "Date": ctx['date'].strftime(DATE_FORMAT),
-                            "Uploaded_By": st.session_state.user_name, "Subject": ctx['subject'],
-                            "Question": item['question'], "Model_Answer": item['model_answer'],
+                            "Class": ctx['class'],
+                            "Date": ctx['date'].strftime(DATE_FORMAT),
+                            "Uploaded_By": st.session_state.user_name,
+                            "Subject": ctx['subject'],
+                            "Question": item['question'],
+                            "Model_Answer": item['model_answer'],
                             "Due_Date": due_date
                         }
                         db.collection('homework').add(new_homework_doc)
-                        
+
+                        # Calculate points based on model answer length
                         word_count = len(item['model_answer'].split())
                         points_earned = max(1, word_count // 10)
                         total_new_points += points_earned
 
+                    # Update teacher's total salary points in Firebase
                     if total_new_points > 0 and not teacher_info_row.empty:
                         teacher_doc_id = teacher_info.get('doc_id')
                         teacher_ref = db.collection('users').document(teacher_doc_id)
                         teacher_ref.update({'Salary_Points': firestore.Increment(total_new_points)})
-                
-                st.success(f"Homework submitted successfully! You earned {total_new_points} Salary Points.")
-                del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
-                st.rerun()
 
+                st.success(f"Homework submitted successfully! You earned {total_new_points} Salary Points.")
+                
+                # Clear the cache to show updated stats on the dashboard
+                st.cache_data.clear()
+                
+                # Clean up session state
+                del st.session_state.context_set
+                del st.session_state.homework_context
+                del st.session_state.questions_list
+                st.rerun()
+                
 elif page == "Student Monitoring":
     st.subheader("Student Homework Monitoring")
     

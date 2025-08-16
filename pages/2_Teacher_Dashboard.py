@@ -28,31 +28,25 @@ def connect_to_firestore():
         return None
 
 @st.cache_data(ttl=60)
-def load_collection(_collection_name):
-    """Loads all documents from a Firestore collection into a Pandas DataFrame."""
-    try:
-        db = connect_to_firestore()
-        if db is None: return pd.DataFrame()
-        
-        collection_ref = db.collection(_collection_name).stream()
-        data = []
-        for doc in collection_ref:
-            doc_data = doc.to_dict()
-            doc_data['doc_id'] = doc.id
-            data.append(doc_data)
-            
-        if not data: return pd.DataFrame()
-        return pd.DataFrame(data)
-    except Exception as e:
-        st.error(f"Failed to load data from collection '{_collection_name}': {e}")
-        return pd.DataFrame()
-
-# === FIRESTORE COLLECTION NAMES ===
-USERS_COLLECTION = "users"
-HOMEWORK_COLLECTION = "homework"
-ANSWERS_COLLECTION = "answers"
-ANSWER_BANK_COLLECTION = "answer_bank"
-ANNOUNCEMENTS_COLLECTION = "announcements"
+def load_all_data():
+    """Loads all necessary collections from Firestore at once."""
+    db = connect_to_firestore()
+    if db is None:
+        return {}
+    
+    # --- FIX: Added "announcements" to the list ---
+    collections_to_load = ["users", "homework", "answers", "answer_bank", "announcements"]
+    data_frames = {}
+    for coll_name in collections_to_load:
+        try:
+            collection_ref = db.collection(coll_name).stream()
+            data = [doc.to_dict() for doc in collection_ref]
+            df = pd.DataFrame(data) if data else pd.DataFrame()
+            data_frames[coll_name] = df
+        except Exception as e:
+            st.error(f"Failed to load collection '{coll_name}': {e}")
+            data_frames[coll_name] = pd.DataFrame()
+    return data_frames
 
 # === SECURITY GATEKEEPER ===
 if not st.session_state.get("logged_in") or st.session_state.get("user_role") != "teacher":
@@ -70,6 +64,15 @@ st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<
 
 # === TEACHER DASHBOARD UI ===
 st.header(f"🧑‍🏫 Teacher Dashboard: Welcome {st.session_state.user_name}")
+
+# --- Load all necessary data from Firestore ---
+all_data = load_all_data()
+df_users = all_data.get('users', pd.DataFrame())
+df_homework = all_data.get('homework', pd.DataFrame())
+df_live_answers = all_data.get('answers', pd.DataFrame())
+df_answer_bank = all_data.get('answer_bank', pd.DataFrame())
+df_announcements = all_data.get('announcements', pd.DataFrame())
+
 
 # --- INSTRUCTION & ANNOUNCEMENT SYSTEMS ---
 df_users = load_collection(USERS_COLLECTION)

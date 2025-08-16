@@ -227,3 +227,15 @@ else:
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<br>All Rights Reserved.</div>", unsafe_allow_html=True)
+
+# --- TEMPORARY PASSWORD HASHING TOOL ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("🛠️ Developer Tool")
+new_pass = st.sidebar.text_input("Enter a new password to hash:")
+if st.sidebar.button("Generate Hash"):
+    if new_pass:
+        st.sidebar.code(make_hashes(new_pass))
+        st.sidebar.success("Copy the hash above and paste it into Firebase.")
+    else:
+        st.sidebar.warning("Please enter a password.")
+# ------------------------------------

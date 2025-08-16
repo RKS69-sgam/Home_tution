@@ -125,8 +125,8 @@ if not user_info_row.empty:
                             'Instruction_Reply': reply_text,
                             'Instruction_Status': 'Replied'
                         })
-                            st.success("Your reply has been sent.")
-                        st.rerun()
+                    st.success("Your reply has been sent.")
+                    st.rerun()
                 else:
                     st.warning("Reply cannot be empty.")
     st.markdown("---")

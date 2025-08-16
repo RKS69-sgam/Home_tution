@@ -32,24 +32,28 @@ def connect_to_firestore():
         return None
 
 @st.cache_data(ttl=60)
-def load_collection(_collection_name):
-    """Loads all documents from a Firestore collection into a Pandas DataFrame."""
-    try:
-        db = connect_to_firestore()
-        if db is None: return pd.DataFrame()
-        
-        collection_ref = db.collection(_collection_name).stream()
-        data = []
-        for doc in collection_ref:
-            doc_data = doc.to_dict()
-            doc_data['doc_id'] = doc.id
-            data.append(doc_data)
-            
-        if not data: return pd.DataFrame()
-        return pd.DataFrame(data)
-    except Exception as e:
-        st.error(f"Failed to load data from collection '{_collection_name}': {e}")
-        return pd.DataFrame()
+def load_all_data():
+    """Loads all necessary collections from Firestore at once to avoid caching issues."""
+    db = connect_to_firestore()
+    if db is None:
+        return {}
+    
+    collections_to_load = ["users", "homework", "answers", "answer_bank", "announcements"]
+    data_frames = {}
+    for coll_name in collections_to_load:
+        try:
+            collection_ref = db.collection(coll_name).stream()
+            data = []
+            for doc in collection_ref:
+                doc_data = doc.to_dict()
+                doc_data['doc_id'] = doc.id
+                data.append(doc_data)
+            df = pd.DataFrame(data) if data else pd.DataFrame()
+            data_frames[coll_name] = df
+        except Exception as e:
+            st.error(f"Failed to load collection '{coll_name}': {e}")
+            data_frames[coll_name] = pd.DataFrame()
+    return data_frames
 
 def get_text_similarity(text1, text2):
     """Calculates similarity percentage between two texts."""
@@ -91,8 +95,15 @@ st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<
 # === STUDENT DASHBOARD UI ===
 st.header(f"🧑‍🎓 Student Dashboard: Welcome {st.session_state.user_name}")
 
+# --- Load all necessary data from Firestore ---
+all_data = load_all_data()
+df_all_users = all_data.get('users', pd.DataFrame())
+df_homework = all_data.get('homework', pd.DataFrame())
+df_live_answers = all_data.get('answers', pd.DataFrame())
+df_answer_bank = all_data.get('answer_bank', pd.DataFrame())
+df_announcements = all_data.get('announcements', pd.DataFrame())
+
 # --- INSTRUCTION & ANNOUNCEMENT SYSTEMS ---
-df_all_users = load_collection(USERS_COLLECTION)
 user_info_row = df_all_users[df_all_users['Gmail_ID'] == st.session_state.user_gmail]
 if not user_info_row.empty:
     user_info = user_info_row.iloc[0]
@@ -120,17 +131,12 @@ if not user_info_row.empty:
                     st.warning("Reply cannot be empty.")
     st.markdown("---")
 
-    # Load other necessary data
-    df_homework = load_collection(HOMEWORK_COLLECTION)
-    df_live_answers = load_collection(ANSWERS_COLLECTION)
-    df_answer_bank = load_collection(ANSWER_BANK_COLLECTION)
-    
     student_class = user_info.get("Class")
     st.subheader(f"Your Class: {student_class}")
     st.markdown("---")
 
     # Filter dataframes for the current student
-    homework_for_class = df_homework[df_homework.get("Class") == student_class]
+    homework_for_class = df_homework[df_homework.get("Class") == student_class] if 'Class' in df_homework.columns else pd.DataFrame()
     student_answers_live = df_live_answers[df_live_answers.get('Student_Gmail') == st.session_state.user_gmail].copy() if 'Student_Gmail' in df_live_answers.columns else pd.DataFrame()
     student_answers_from_bank = df_answer_bank[df_answer_bank.get('Student_Gmail') == st.session_state.user_gmail].copy() if 'Student_Gmail' in df_answer_bank.columns else pd.DataFrame()
     
@@ -160,9 +166,15 @@ if not user_info_row.empty:
     
     st.markdown("---")
 
-    pending_tab, revision_tab, leaderboard_tab = st.tabs(["Pending Homework", "Revision Zone", "Class Leaderboard"])
-    
-    with pending_tab:
+    # --- Radio Button Navigation System ---
+    page = st.radio(
+        "Navigation",
+        ["Pending Homework", "Revision Zone", "Class Leaderboard"],
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+
+    if page == "Pending Homework":
         st.subheader("Pending Questions")
         pending_questions_list = []
         today_date = date.today()
@@ -279,7 +291,7 @@ if not user_info_row.empty:
                                 st.warning("Answer cannot be empty.")
                 st.markdown("---")
 
-    with revision_tab:
+    elif page == "Revision Zone":
         st.subheader("Previously Graded Answers (from Answer Bank)")
         if not student_answers_from_bank.empty and 'Marks' in student_answers_from_bank.columns:
             student_answers_from_bank['Marks_Numeric'] = pd.to_numeric(student_answers_from_bank['Marks'], errors='coerce')
@@ -301,7 +313,7 @@ if not user_info_row.empty:
         else:
             st.info("No graded answers to review yet.")
     
-    with leaderboard_tab:
+    elif page == "Class Leaderboard":
         st.subheader(f"Class Leaderboard ({student_class})")
         df_students_class = df_all_users[df_all_users['Class'] == student_class]
         class_gmail_list = df_students_class['Gmail_ID'].tolist()
@@ -343,4 +355,4 @@ else:
     st.error("Could not find your student record.")
 
 st.markdown("---")
-st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: grey;'>© 2025 PRK Home Tuition. All Rights Reserved.</p>", unsafe_allow_html=True)ltw1ltw1

@@ -40,11 +40,10 @@ def find_user(gmail):
     db = connect_to_firestore()
     if db is None: return None
     
-    # Use the correct field name with underscore
     users_ref = db.collection('users').where('Gmail_ID', '==', gmail).limit(1).stream()
     for user in users_ref:
         user_data = user.to_dict()
-        user_data['doc_id'] = user.id # Also return the document ID for updates
+        user_data['doc_id'] = user.id
         return user_data
     return None
 
@@ -53,7 +52,6 @@ def add_new_user(user_data):
     db = connect_to_firestore()
     if db is None: return False
     try:
-        # Use the Gmail ID as the unique document ID to prevent duplicates
         db.collection('users').document(user_data['Gmail_ID']).set(user_data)
         return True
     except Exception as e:
@@ -131,27 +129,12 @@ else:
             login_gmail = st.text_input("Username (Your Gmail ID)").lower().strip()
             login_pwd = st.text_input("PIN (Your Password)", type="password")
             if st.form_submit_button("Login", use_container_width=True):
-                # --- START DEBUGGING BLOCK ---
-                st.info("--- Running Login Debug Test ---")
-                user_data_from_db = find_user(login_gmail)
-    
-                if user_data_from_db:
-                    st.write("User found in database:")
-                    st.write(f"**User Name:** {user_data_from_db.get('User_Name')}")
-                    st.write("**Stored Hashed Password:**")
-                    st.code(user_data_from_db.get('Password'))
-                else:
-                    st.error("User NOT found in database with this Gmail ID.")
-                st.markdown("---")
-                # --- END DEBUGGING BLOCK ---
-
-                
                 user_data = find_user(login_gmail)
                 if user_data and check_hashes(login_pwd, user_data.get("Password")):
                     role = user_data.get("Role", "").lower()
                     can_login = False
                     if role == "student":
-                        if user_data.get("Payment_Confirmed") == "Yes" and datetime.today().date() <= pd.to_datetime(user_data.get("Subscribed_Till")).date():
+                        if user_data.get("Payment_Confirmed") == "Yes" and datetime.today().date() <= pd.to_datetime(user_data.get("Subscribed_Till"), format=DATE_FORMAT).date():
                             can_login = True
                         else:
                             st.error("Subscription expired or not confirmed.")
@@ -171,9 +154,8 @@ else:
 
     elif option == "New Registration":
         st.header("✍️ New Registration")
-        registration_type = st.radio("Register as:", ["Student", "Teacher"])
+        registration_type = st.radio("Register as:", ["Student", "Teacher", "Principal"])
         
-        # Move plan selection outside the form for dynamic updates
         if registration_type == "Student":
             plan = st.selectbox("Choose Subscription Plan", list(SUBSCRIPTION_PLANS.keys()))
         
@@ -242,15 +224,3 @@ else:
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("<div style='text-align: center;'>© 2025 PRK Home Tuition.<br>All Rights Reserved.</div>", unsafe_allow_html=True)
-
-# --- TEMPORARY PASSWORD HASHING TOOL ---
-st.sidebar.markdown("---")
-st.sidebar.subheader("🛠️ Developer Tool")
-new_pass = st.sidebar.text_input("Enter a new password to hash:")
-if st.sidebar.button("Generate Hash"):
-    if new_pass:
-        st.sidebar.code(make_hashes(new_pass))
-        st.sidebar.success("Copy the hash above and paste it into Firebase.")
-    else:
-        st.sidebar.warning("Please enter a password.")
-# ------------------------------------

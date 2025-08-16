@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import gspread
 import json
 import base64
 import plotly.express as px
@@ -109,7 +108,7 @@ if page == "Send Messages":
         else:
             search_term = st.text_input("Search for a User by Name:")
             df_temp = df_users.copy()
-            df_temp['display_name'] = df_temp.apply(lambda row: f"{row['User Name']} ({row['Class']})" if row['Role'] == 'Student' and row.get('Class') else row['User Name'], axis=1)
+            df_temp['display_name'] = df_temp.apply(lambda row: f"{row['User_Name']} ({row['Class']})" if row['Role'] == 'Student' and row.get('Class') else row['User_Name'], axis=1)
             
             if search_term:
                 filtered_users = df_temp[df_temp['display_name'].str.contains(search_term, case=False, na=False)]
@@ -123,7 +122,7 @@ if page == "Send Messages":
                 if st.form_submit_button("Send Instruction"):
                     if selected_display_name != "---Select a User---" and instruction_text:
                         real_user_name = selected_display_name.split(' (')[0]
-                        user_row = df_users[df_users['User Name'] == real_user_name]
+                        user_row = df_users[df_users['User_Name'] == real_user_name]
                         if not user_row.empty:
                             user_doc_id = user_row.iloc[0]['doc_id']
                             db = connect_to_firestore()
@@ -156,24 +155,24 @@ elif page == "Performance Reports":
     todays_homework = df_homework[df_homework['Date'] == today_str] if not df_homework.empty else pd.DataFrame()
     
     if not todays_homework.empty:
-        questions_created = todays_homework.groupby('Uploaded By').size().reset_index(name='Created Today')
-        teacher_activity = pd.merge(df_teachers_report[['User Name']], questions_created, left_on='User Name', right_on='Uploaded By', how='left')
-        teacher_activity.drop(columns=['Uploaded By'], inplace=True, errors='ignore')
+        questions_created = todays_homework.groupby('Uploaded_By').size().reset_index(name='Created Today')
+        teacher_activity = pd.merge(df_teachers_report[['User_Name']], questions_created, left_on='User_Name', right_on='Uploaded_By', how='left')
+        teacher_activity.drop(columns=['Uploaded_By'], inplace=True, errors='ignore')
     else:
-        teacher_activity = df_teachers_report[['User Name']].copy()
+        teacher_activity = df_teachers_report[['User_Name']].copy()
         teacher_activity['Created Today'] = 0
 
     df_live_answers['Marks'] = pd.to_numeric(df_live_answers.get('Marks'), errors='coerce')
     ungraded_answers = df_live_answers[df_live_answers['Marks'].isna()]
     
     pending_summary_list = []
-    for teacher_name in teacher_activity['User Name']:
-        teacher_questions = df_homework[df_homework['Uploaded By'] == teacher_name]['Question'].tolist()
+    for teacher_name in teacher_activity['User_Name']:
+        teacher_questions = df_homework[df_homework['Uploaded_By'] == teacher_name]['Question'].tolist()
         pending_count = len(ungraded_answers[ungraded_answers['Question'].isin(teacher_questions)])
-        pending_summary_list.append({'User Name': teacher_name, 'Pending Answers': pending_count})
+        pending_summary_list.append({'User_Name': teacher_name, 'Pending Answers': pending_count})
         
     pending_df = pd.DataFrame(pending_summary_list)
-    teacher_activity = pd.merge(teacher_activity, pending_df, on='User Name', how='left')
+    teacher_activity = pd.merge(teacher_activity, pending_df, on='User_Name', how='left')
     
     teacher_activity.fillna(0, inplace=True)
     st.dataframe(teacher_activity)
@@ -184,11 +183,11 @@ elif page == "Performance Reports":
     with col1:
         st.markdown("#### 🏆 Top Teachers Leaderboard (All Time)")
         df_teachers = df_users[df_users['Role'] == 'Teacher'].copy()
-        df_teachers['Salary Points'] = pd.to_numeric(df_teachers.get('Salary Points', 0), errors='coerce').fillna(0)
-        ranked_teachers = df_teachers.sort_values(by='Salary Points', ascending=False)
+        df_teachers['Salary_Points'] = pd.to_numeric(df_teachers.get('Salary_Points', 0), errors='coerce').fillna(0)
+        ranked_teachers = df_teachers.sort_values(by='Salary_Points', ascending=False)
         ranked_teachers['Rank'] = range(1, len(ranked_teachers) + 1)
-        st.dataframe(ranked_teachers[['User Name', 'Salary Points']])
-        fig_teachers = px.bar(ranked_teachers, x='User Name', y='Salary Points', color='User Name', title='All Teachers by Performance Points')
+        st.dataframe(ranked_teachers[['User_Name', 'Salary_Points']])
+        fig_teachers = px.bar(ranked_teachers, x='User_Name', y='Salary_Points', color='User_Name', title='All Teachers by Performance Points')
         st.plotly_chart(fig_teachers, use_container_width=True)
 
     with col2:
@@ -198,10 +197,10 @@ elif page == "Performance Reports":
             df_answer_bank['Marks'] = pd.to_numeric(df_answer_bank.get('Marks'), errors='coerce')
             graded_answers = df_answer_bank.dropna(subset=['Marks'])
             if not graded_answers.empty:
-                student_performance = graded_answers.groupby('Student Gmail')['Marks'].mean().reset_index()
-                merged_df = pd.merge(student_performance, df_students, left_on='Student Gmail', right_on='Gmail ID')
+                student_performance = graded_answers.groupby('Student_Gmail')['Marks'].mean().reset_index()
+                merged_df = pd.merge(student_performance, df_students, left_on='Student_Gmail', right_on='Gmail_ID')
                 weakest_students = merged_df.nsmallest(5, 'Marks').round(2)
-                st.dataframe(weakest_students[['User Name', 'Class', 'Marks']])
+                st.dataframe(weakest_students[['User_Name', 'Class', 'Marks']])
             else:
                 st.info("No graded answers in Answer Bank.")
         else:
@@ -219,17 +218,17 @@ elif page == "Performance Reports":
         if graded_answers_all.empty:
             st.info("The leaderboard is available after answers have been graded.")
         else:
-            df_merged_all = pd.merge(graded_answers_all, df_students_report, left_on='Student Gmail', right_on='Gmail ID')
-            leaderboard_df_all = df_merged_all.groupby(['Class', 'User Name'])['Marks'].mean().reset_index()
+            df_merged_all = pd.merge(graded_answers_all, df_students_report, left_on='Student_Gmail', right_on='Gmail_ID')
+            leaderboard_df_all = df_merged_all.groupby(['Class', 'User_Name'])['Marks'].mean().reset_index()
             top_students_df_all = leaderboard_df_all.groupby('Class').apply(lambda x: x.nlargest(3, 'Marks')).reset_index(drop=True)
             top_students_df_all['Marks'] = top_students_df_all['Marks'].round(2)
             
             st.markdown("#### Top Performers Summary")
             st.dataframe(top_students_df_all)
             
-            fig = px.bar(top_students_df_all, x='User Name', y='Marks', color='Class',
+            fig = px.bar(top_students_df_all, x='User_Name', y='Marks', color='Class',
                          title='Top 3 Students by Average Marks per Class',
-                         labels={'Marks': 'Average Marks', 'User Name': 'Student'})
+                         labels={'Marks': 'Average Marks', 'User_Name': 'Student'})
             st.plotly_chart(fig, use_container_width=True)
 
 elif page == "Individual Growth Charts":
@@ -238,13 +237,13 @@ elif page == "Individual Growth Charts":
 
     if report_type == "Student":
         df_students = df_users[df_users['Role'] == 'Student'].copy()
-        df_students['display_name'] = df_students.apply(lambda row: f"{row['User Name']} ({row['Class']})", axis=1)
+        df_students['display_name'] = df_students.apply(lambda row: f"{row['User_Name']} ({row['Class']})", axis=1)
         student_name_display = st.selectbox("Select Student", df_students['display_name'].tolist())
         
         if student_name_display:
             real_name = student_name_display.split(' (')[0]
-            student_gmail = df_students[df_students['User Name'] == real_name].iloc[0]['Gmail ID']
-            student_answers = df_answer_bank[df_answer_bank['Student Gmail'] == student_gmail].copy()
+            student_gmail = df_students[df_students['User_Name'] == real_name].iloc[0]['Gmail_ID']
+            student_answers = df_answer_bank[df_answer_bank['Student_Gmail'] == student_gmail].copy()
             if not student_answers.empty:
                 student_answers['Marks'] = pd.to_numeric(student_answers['Marks'], errors='coerce')
                 graded_answers = student_answers.dropna(subset=['Marks'])
@@ -258,9 +257,9 @@ elif page == "Individual Growth Charts":
 
     elif report_type == "Teacher":
         df_teachers = df_users[df_users['Role'] == 'Teacher']
-        teacher_name = st.selectbox("Select Teacher", df_teachers['User Name'].tolist())
+        teacher_name = st.selectbox("Select Teacher", df_teachers['User_Name'].tolist())
         if teacher_name:
-            teacher_homework = df_homework[df_homework['Uploaded By'] == teacher_name]
+            teacher_homework = df_homework[df_homework['Uploaded_By'] == teacher_name]
             if not teacher_homework.empty:
                 questions_by_subject = teacher_homework.groupby('Subject').size().reset_index(name='Question Count')
                 fig = px.bar(questions_by_subject, x='Subject', y='Question Count', color='Subject', title=f"Homework Created by {teacher_name}")

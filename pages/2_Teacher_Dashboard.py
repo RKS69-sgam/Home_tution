@@ -216,13 +216,46 @@ if page == "Create Homework":
             for i, item in enumerate(st.session_state.questions_list):
                 with st.expander(f"{i + 1}. {item['question']}"):
                     st.info(f"**Model Answer:** {item['model_answer']}")
-            
+                    
             if st.button("Final Submit Homework"):
-                # (Yahaan aapka homework submit karne aur salary points calculate karne ka logic aayega)
-                st.success("Homework submitted successfully!")
+                with st.spinner("Submitting homework and calculating points..."):
+                    db = connect_to_firestore()
+                    due_date = (ctx['date'] + timedelta(days=1)).strftime(DATE_FORMAT)
+                    
+                    total_new_points = 0
+                    for item in st.session_state.questions_list:
+                        # Add homework document to the 'homework' collection
+                        new_homework_doc = {
+                            "Class": ctx['class'],
+                            "Date": ctx['date'].strftime(DATE_FORMAT),
+                            "Uploaded_By": st.session_state.user_name,
+                            "Subject": ctx['subject'],
+                            "Question": item['question'],
+                            "Model_Answer": item['model_answer'],
+                            "Due_Date": due_date
+                        }
+                        db.collection('homework').add(new_homework_doc)
+                        
+                        # Calculate points based on model answer length
+                        word_count = len(item['model_answer'].split())
+                        points_earned = max(1, word_count // 10) # 1 point for every 10 words, minimum 1
+                        total_new_points += points_earned
+
+                    # Update the teacher's total salary points in the 'users' collection
+                    if total_new_points > 0 and not teacher_info_row.empty:
+                        teacher_doc_id = teacher_info.get('doc_id')
+                        teacher_ref = db.collection('users').document(teacher_doc_id)
+                        # Use firestore.Increment to safely and atomically update the number
+                        teacher_ref.update({'Salary_Points': firestore.Increment(total_new_points)})
+                
+                st.success(f"Homework submitted successfully! You earned {total_new_points} Salary Points.")
+                
+                # Clear the cache to ensure the dashboard stats update immediately
                 st.cache_data.clear()
-                # Safalta ke baad state ko reset karen
+                
+                # Clean up the session state to return to the main "Create Homework" view
                 del st.session_state.context_set
+                del st.session_state.homework_context
                 del st.session_state.questions_list
                 st.rerun()
                 

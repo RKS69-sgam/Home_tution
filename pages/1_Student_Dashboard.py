@@ -96,7 +96,28 @@ df_all_users = load_collection(USERS_COLLECTION)
 user_info_row = df_all_users[df_all_users['Gmail_ID'] == st.session_state.user_gmail]
 if not user_info_row.empty:
     user_info = user_info_row.iloc[0]
-    # (Your instruction and announcement display logic here)
+    instruction = user_info.get('Instruction', '').strip()
+    reply = user_info.get('Instruction_Reply', '').strip()
+    status = user_info.get('Instruction_Status', '')
+
+    if status == 'Sent' and instruction and not reply:
+        st.warning(f"**New Instruction from Principal:** {instruction}")
+        with st.form(key="reply_form"):
+            reply_text = st.text_area("Your Reply:")
+            if st.form_submit_button("Send Reply"):
+                if reply_text:
+                    with st.spinner("Sending reply..."):
+                        db = connect_to_firestore()
+                        user_doc_id = user_info.get('doc_id')
+                        user_ref = db.collection(USERS_COLLECTION).document(user_doc_id)
+                        user_ref.update({
+                            'Instruction_Reply': reply_text,
+                            'Instruction_Status': 'Replied'
+                        })
+                        st.success("Your reply has been sent.")
+                        st.rerun()
+                else:
+                    st.warning("Reply cannot be empty.")
     st.markdown("---")
 
     # Load other necessary data
@@ -111,7 +132,7 @@ if not user_info_row.empty:
     # Filter dataframes for the current student
     homework_for_class = df_homework[df_homework.get("Class") == student_class]
     student_answers_live = df_live_answers[df_live_answers.get('Student_Gmail') == st.session_state.user_gmail].copy() if 'Student_Gmail' in df_live_answers.columns else pd.DataFrame()
-    student_answers_from_bank = df_answer_bank[df_answer_bank.get('Student_Gmail')
+    student_answers_from_bank = df_answer_bank[df_answer_bank.get('Student_Gmail') == st.session_state.user_gmail].copy() if 'Student_Gmail' in df_answer_bank.columns else pd.DataFrame()
     
     # --- Performance Overview Section ---
     st.header("Your Performance Overview")

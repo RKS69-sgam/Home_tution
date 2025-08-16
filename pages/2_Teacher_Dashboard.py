@@ -257,25 +257,7 @@ if page == "Create Homework":
                 del st.session_state.context_set
                 del st.session_state.homework_context
                 del st.session_state.questions_list
-                st.rerun()
-                
-        # --- Homework submit karne ke baad ka naya summary view ---
-         st.markdown("---")
-         st.subheader("Today's Submitted Homework")
-         # today_str = datetime.today().strftime(DATE_FORMAT)
-         # todays_homework = df_homework[(df_homework.get('Uploaded_By') == st.session_state.user_name) & (df_homework.get('Date') == today_str)]
-         pass
-         if not todays_homework.empty:
-            summary_table = pd.pivot_table(todays_homework, index='Class', columns='Subject', aggfunc='size', fill_value=0)
-            st.markdown("##### Summary Table")
-            st.dataframe(summary_table)
-
-            st.markdown("##### Questions Preview")
-            for index, row in todays_homework.iterrows():
-                with st.expander(f"**{row['Class']} - {row['Subject']}**: {row['Question']}"):
-                    st.info(f"**Model Answer:** {row['Model_Answer']}")
-        else:
-            st.info("You have not submitted any homework today.")   
+                st.rerun()  
             
 elif page == "Student Monitoring":
     st.subheader("Student Homework Monitoring")

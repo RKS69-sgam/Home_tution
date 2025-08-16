@@ -260,12 +260,12 @@ if page == "Create Homework":
                 st.rerun()
                 
         # --- Homework submit karne ke baad ka naya summary view ---
-        st.markdown("---")
-        st.subheader("Today's Submitted Homework")
-        today_str = datetime.today().strftime(DATE_FORMAT)
-        todays_homework = df_homework[(df_homework.get('Uploaded_By') == st.session_state.user_name) & (df_homework.get('Date') == today_str)]
+         st.markdown("---")
+         st.subheader("Today's Submitted Homework")
+         # today_str = datetime.today().strftime(DATE_FORMAT)
+         # todays_homework = df_homework[(df_homework.get('Uploaded_By') == st.session_state.user_name) & (df_homework.get('Date') == today_str)]
         
-        if not todays_homework.empty:
+         if not todays_homework.empty:
             summary_table = pd.pivot_table(todays_homework, index='Class', columns='Subject', aggfunc='size', fill_value=0)
             st.markdown("##### Summary Table")
             st.dataframe(summary_table)

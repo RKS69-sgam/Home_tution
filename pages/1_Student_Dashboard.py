@@ -179,25 +179,27 @@ if not user_info_row.empty:
         pending_questions_list = []
         today_date = date.today()
         
-        for index, hw_row in homework_for_class.iterrows():
-            question_text = hw_row.get('Question')
-            assignment_date_str = hw_row.get('Date')
-            
-            answer_in_live = student_answers_live[(student_answers_live['Question'] == question_text) & (student_answers_live['Date'] == assignment_date_str)]
-            answer_in_bank = student_answers_from_bank[(student_answers_from_bank['Question'] == question_text) & (student_answers_from_bank['Date'] == assignment_date_str)]
+        if not homework_for_class.empty:
+            for index, hw_row in homework_for_class.iterrows():
+                question_text = hw_row.get('Question')
+                assignment_date_str = hw_row.get('Date')
+                
+                is_in_bank = False
+                if not student_answers_from_bank.empty:
+                    is_in_bank = not student_answers_from_bank[
+                        (student_answers_from_bank['Question'] == question_text) & 
+                        (student_answers_from_bank['Date'] == assignment_date_str)
+                    ].empty
+                
+                is_in_live = False
+                if not student_answers_live.empty:
+                    is_in_live = not student_answers_live[
+                        (student_answers_live['Question'] == question_text) & 
+                        (student_answers_live['Date'] == assignment_date_str)
+                    ].empty
 
-            if not answer_in_bank.empty:
-                continue
-
-            if not answer_in_live.empty:
-                attempt_status = int(answer_in_live.iloc[0].get('Attempt_Status', '0'))
-                assignment_date = datetime.strptime(assignment_date_str, DATE_FORMAT).date()
-                if attempt_status >= 2 and today_date == assignment_date:
-                    continue
-                else:
+                if not is_in_bank and not is_in_live:
                     pending_questions_list.append(hw_row)
-            else:
-                pending_questions_list.append(hw_row)
 
         if not pending_questions_list:
             st.success("🎉 Good job! You have no pending homework.")

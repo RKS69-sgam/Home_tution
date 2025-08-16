@@ -142,7 +142,7 @@ if page == "Create Homework":
         
     if not st.session_state.context_set:
         with st.form("context_form"):
-            subject = st.selectbox("Subject", ["---Select Subject---", "Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Physics", "Chemistry", "Biology", "Advance Classes"])
+            subject = st.selectbox("Subject", ["---Select Subject---", "Hindi", "Sanskrit", "English", "Math", "Science", "SST", "Computer", "GK", "Physics", "Chemistry", "Biology", "Advance Classes"])
             cls = st.selectbox("Class", ["---Select Class---"] + [f"{i}th" for i in range(5, 13)])
             date = st.date_input("Date", datetime.today(), format="DD-MM-YYYY")
             if st.form_submit_button("Start Adding Questions →"):
@@ -162,7 +162,7 @@ if page == "Create Homework":
             question_text = st.text_area("Enter Question:", height=100)
             model_answer_text = st.text_area("Enter Model Answer:", height=100)
             
-            if ctx['subject'] in ['Math', 'Physics', 'Chemistry', 'Science']:
+            if ctx['subject'] in ['Math', 'Physics', 'Chemistry']:
                 st.info("For math equations, use LaTeX format. Example: `x^2 + y^2 = z^2`")
                 st.markdown("**Question Preview:**")
                 st.latex(question_text)

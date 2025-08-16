@@ -116,7 +116,7 @@ if not user_info_row.empty:
             todays_announcement = df_announcements[df_announcements['Date'] == today_str]
             if not todays_announcement.empty:
                 latest_message = todays_announcement['Message'].iloc[0]
-                st.info(f"📢 **Public Announcement:** {latest_message}")
+                st.info(f"📢 **Princial Announcement:** {latest_message}")
     except Exception:
         # Fail silently if announcements can't be loaded or an error occurs
         pass

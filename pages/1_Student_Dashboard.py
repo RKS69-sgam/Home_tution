@@ -67,7 +67,8 @@ def get_text_similarity(text1, text2):
 
 def get_grade_from_similarity(percentage):
     """Assigns a grade score based on similarity percentage."""
-    if percentage >= 80: return 4
+    if percentage >= 95: return 5
+    elif percentage >= 80: return 4
     elif percentage >= 60: return 3
     else: return 1
 
@@ -116,7 +117,7 @@ if not user_info_row.empty:
             todays_announcement = df_announcements[df_announcements['Date'] == today_str]
             if not todays_announcement.empty:
                 latest_message = todays_announcement['Message'].iloc[0]
-                st.info(f"📢 **Princial Announcement:** {latest_message}")
+                st.info(f"📢 **Principal Announcement:** {latest_message}")
     except Exception:
         # Fail silently if announcements can't be loaded or an error occurs
         pass

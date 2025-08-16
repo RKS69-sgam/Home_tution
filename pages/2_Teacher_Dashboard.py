@@ -184,15 +184,15 @@ if page == "Create Homework":
         
     if not st.session_state.context_set:
         with st.form("context_form"):
-            subject = st.selectbox("Subject", ["---Select Subject---", "Hindi", "English", "Math", "Science", "SST", "Computer", "GK", "Physics", "Chemistry", "Biology", "Advance Classes"])
+            subject = st.selectbox("Subject", ["---Select Subject---", "Hindi", "Sanskrit", "English", "Math", "Science", "SST", "Computer", "GK", "Physics", "Chemistry", "Biology", "Advance Classes"])
             cls = st.selectbox("Class", ["---Select Class---"] + [f"{i}th" for i in range(5, 13)])
-            date_input = st.date_input("Date", datetime.today())
+            date = st.date_input("Date", datetime.today(), format="DD-MM-YYYY")
             if st.form_submit_button("Start Adding Questions →"):
                 if subject == "---Select Subject---" or cls == "---Select Class---":
                     st.warning("Please select a valid subject and class.")
                 else:
                     st.session_state.context_set = True
-                    st.session_state.homework_context = {"subject": subject, "class": cls, "date": date_input}
+                    st.session_state.homework_context = {"subject": subject, "class": cls, "date": date}
                     st.session_state.questions_list = []
                     st.rerun()
     
@@ -204,7 +204,7 @@ if page == "Create Homework":
             question_text = st.text_area("Enter Question:", height=100)
             model_answer_text = st.text_area("Enter Model Answer:", height=100)
             
-            if ctx['subject'] in ['Math', 'Physics', 'Chemistry', 'Science']:
+            if ctx['subject'] in ['Math', 'Physics', 'Chemistry']:
                 st.info("For math equations, use LaTeX format. Example: `x^2 + y^2 = z^2`")
                 st.markdown("**Question Preview:**")
                 st.latex(question_text)
@@ -213,6 +213,8 @@ if page == "Create Homework":
 
             if st.form_submit_button("Add Question"):
                 if question_text and model_answer_text:
+                    if 'questions_list' not in st.session_state:
+                        st.session_state.questions_list = []
                     st.session_state.questions_list.append({"question": question_text, "model_answer": model_answer_text})
                 else:
                     st.warning("Please enter both a question and a model answer.")
@@ -248,7 +250,6 @@ if page == "Create Homework":
                         teacher_ref.update({'Salary_Points': firestore.Increment(total_new_points)})
                 
                 st.success(f"Homework submitted successfully! You earned {total_new_points} Salary Points.")
-                st.cache_data.clear()
                 del st.session_state.context_set, st.session_state.homework_context, st.session_state.questions_list
                 st.rerun()
 
@@ -264,7 +265,7 @@ elif page == "Student Monitoring":
             class_students_df = df_users[(df_users['Role'] == 'Student') & (df_users['Class'] == selected_class)]
             teacher_specific_homework_df = teacher_homework[teacher_homework['Class'] == selected_class]
             
-            all_answers_df = pd.concat([load_collection('answers'), load_collection('answer_bank')], ignore_index=True)
+            all_answers_df = pd.concat([df_live_answers, df_answer_bank], ignore_index=True)
 
             monitoring_data = []
             today = date.today()
